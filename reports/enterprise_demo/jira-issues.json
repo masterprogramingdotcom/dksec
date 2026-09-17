@@ -1,0 +1,504 @@
+{
+  "issues": [
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] [Spoofing] Adversary JWT Forgery or Replay via Weak Signature / Missing Alg Enforcement (Ingress / Reverse Proxy)",
+        "description": "Adversary signs forged authentication tokens using HMAC secret or 'none' algorithm to spoof arbitrary administrative identities.\nBusiness Impact: Full authentication bypass across all backend microservices.\n\n*Target:* Ingress / Reverse Proxy\n*Remediation:* Security Architecture Mitigation: Enforce strict RS256/ES256 asymmetric signature validation with centralized JWKS and reject tokens missing non-reusable 'jti' claim.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-1",
+          "owasp-threat-dragon-(stride/linddun)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] [Tampering] SQL Injection & Transaction State Alteration via Unsanitized Parameters (Primary Database Store)",
+        "description": "Untrusted parameters in database query building allow attackers to alter database record state and bypass logic barriers.\nBusiness Impact: Arbitrary record extraction, corruption of financial balances, or DB administrative takeover.\n\n*Target:* Primary Database Store\n*Remediation:* Security Architecture Mitigation: Mandate ORM-level parameterized statements, disable dynamic raw query concatenation, and apply row-level DB access controls.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-1",
+          "owasp-threat-dragon-(stride/linddun)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[MEDIUM] [Repudiation] Missing Non-Repudiation Audit Logs on State-Altering Operations (Application Backend API)",
+        "description": "Financial transfers, password resets, and permission grants lack immutable transaction audit logs.\nBusiness Impact: Inability to perform post-incident forensic attribution or prove attacker culpability.\n\n*Target:* Application Backend API\n*Remediation:* Security Architecture Mitigation: Emit structured JSON audit events to append-only, tamper-evident log stores with actor ID, IP, and UTC timestamp.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Medium"
+        },
+        "labels": [
+          "omnisec",
+          "stage-1",
+          "owasp-threat-dragon-(stride/linddun)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] [Information Disclosure] Verbose Server Headers & Production Stack Trace Leakage (Ingress / Reverse Proxy)",
+        "description": "API Gateway returns internal stack traces, container environment details, and server versions upon unhandled exceptions.\nBusiness Impact: Reveals technology topology and sensitive internal variable names to unauthenticated actors.\n\n*Target:* Ingress / Reverse Proxy\n*Remediation:* Security Architecture Mitigation: Implement global exception handling middleware with sanitized generic error envelopes and suppress Server/X-Powered-By banners.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-1",
+          "owasp-threat-dragon-(stride/linddun)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] [Denial of Service] Resource Exhaustion via Unbounded Queries & Lack of Rate Limiting (API4) (Application Backend API)",
+        "description": "Endpoints accepting pagination or cryptographic hashing lack request rate limiting and payload size bounds.\nBusiness Impact: Denial of service for legitimate users and denial-of-wallet cloud billing spikes.\n\n*Target:* Application Backend API\n*Remediation:* Security Architecture Mitigation: Deploy token-bucket rate limiters at reverse proxy (e.g. NGINX/Envoy), enforce max body size caps, and enforce hard page limits (max 100).",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-1",
+          "owasp-threat-dragon-(stride/linddun)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] [Elevation of Privilege] Broken Object Level Authorization (BOLA / IDOR) on Data Resources (API1) (Application Backend API)",
+        "description": "Endpoint controllers read resource identifiers from request paths without verifying caller tenant ownership.\nBusiness Impact: Standard users can access, alter, or delete records belonging to any other user or organization.\n\n*Target:* Application Backend API\n*Remediation:* Security Architecture Mitigation: Enforce strict authorization checks in data layer scoping all queries to current_user.tenant_id.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-1",
+          "owasp-threat-dragon-(stride/linddun)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] [ASVS V7.1.1] Non-compliant: Verify that debug mode and verbose stack traces are disabled in produc...",
+        "description": "OWASP ASVS Requirement V7.1.1 (Level 1):\nVerify that debug mode and verbose stack traces are disabled in production deployments.\nEvidence: Debug mode statically enabled (DEBUG=True) in server.py\n\n*Target:* None\n*Remediation:* Disable debug mode in production via environment configuration.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-2",
+          "owasp-asvs-v4.0.3"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] [ASVS V8.3.1] Non-compliant: Verify sensitive keys, passwords, and tokens are never stored in sourc...",
+        "description": "OWASP ASVS Requirement V8.3.1 (Level 1):\nVerify sensitive keys, passwords, and tokens are never stored in source code repositories.\nEvidence: Plaintext cloud/API secrets committed in .env\n\n*Target:* None\n*Remediation:* Remove secrets from source files and inject via environment secrets managers.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-2",
+          "owasp-asvs-v4.0.3"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] Hardcoded Secret: AWS Access Key ID",
+        "description": "Potential high-entropy secret (AWS Access Key ID) discovered in .env:1.\n\n*Target:* .env\n*Remediation:* Extract credential into an environment variable or secrets vault (e.g. AWS Secrets Manager, HashiCorp Vault). Revoke currently exposed secret.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "gitleaks-(engine)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] Hardcoded Secret: AWS Secret Access Key",
+        "description": "Potential high-entropy secret (AWS Secret Access Key) discovered in .env:2.\n\n*Target:* .env\n*Remediation:* Extract credential into an environment variable or secrets vault (e.g. AWS Secrets Manager, HashiCorp Vault). Revoke currently exposed secret.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "gitleaks-(engine)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] Hardcoded Secret: Database URI with Plaintext Password",
+        "description": "Potential high-entropy secret (Database URI with Plaintext Password) discovered in .env:3.\n\n*Target:* .env\n*Remediation:* Extract credential into an environment variable or secrets vault (e.g. AWS Secrets Manager, HashiCorp Vault). Revoke currently exposed secret.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "gitleaks-(engine)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] Hardcoded Secret: Stripe Secret API Key",
+        "description": "Potential high-entropy secret (Stripe Secret API Key) discovered in .env:4.\n\n*Target:* .env\n*Remediation:* Extract credential into an environment variable or secrets vault (e.g. AWS Secrets Manager, HashiCorp Vault). Revoke currently exposed secret.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "gitleaks-(engine)"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] SQL Injection via Formatted Query String (AST Verified)",
+        "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:27.\n\n*Target:* server.py\n*Remediation:* Replace string formatting with parameterized placeholders ('?' or '%s') and pass query parameters as a tuple.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "semgrep-ast-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] Unsafe YAML Deserialization (RCE Risk)",
+        "description": "Called `yaml.load()` without SafeLoader in server.py:47.\n\n*Target:* server.py\n*Remediation:* Replace `yaml.load()` with `yaml.safe_load()`.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "semgrep-ast-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] Vulnerable Dependency: flask@2.2.2 (CVE-2023-30861)",
+        "description": "Python package flask version 2.2.2 is vulnerable to Session cookie disclosure with caching proxies.\n\n*Target:* requirements.txt\n*Remediation:* Upgrade flask to version >=2.2.5.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "trivy-/-cyclonedx-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[MEDIUM] Vulnerable Dependency: requests@2.28.1 (CVE-2023-32681)",
+        "description": "Python package requests version 2.28.1 is vulnerable to Unintended leak of Proxy-Authorization header.\n\n*Target:* requirements.txt\n*Remediation:* Upgrade requests to version >=2.31.0.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Medium"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "trivy-/-cyclonedx-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] Vulnerable Dependency: urllib3@1.26.12 (CVE-2023-45803)",
+        "description": "Python package urllib3 version 1.26.12 is vulnerable to HTTP redirect credential and body leakage.\n\n*Target:* requirements.txt\n*Remediation:* Upgrade urllib3 to version >=2.0.7.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "trivy-/-cyclonedx-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] Vulnerable Dependency: pyyaml@5.3.1 (CVE-2020-14343)",
+        "description": "Python package pyyaml version 5.3.1 is vulnerable to FullLoad arbitrary code execution.\n\n*Target:* requirements.txt\n*Remediation:* Upgrade pyyaml to version >=5.4.1.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "trivy-/-cyclonedx-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] Vulnerable NPM Dependency: axios@0.21.1 (CVE-2021-3749)",
+        "description": "NPM package axios version 0.21.1 is vulnerable: SSRF vulnerability via follow-redirects.\n\n*Target:* package.json\n*Remediation:* Upgrade axios to version >=0.21.2.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "trivy-/-cyclonedx-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] Vulnerable NPM Dependency: lodash@4.17.20 (CVE-2021-23337)",
+        "description": "NPM package lodash version 4.17.20 is vulnerable: Command injection via template function.\n\n*Target:* package.json\n*Remediation:* Upgrade lodash to version ^4.17.21.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "trivy-/-cyclonedx-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[CRITICAL] Vulnerable NPM Dependency: jsonwebtoken@8.5.1 (CVE-2022-23529)",
+        "description": "NPM package jsonwebtoken version 8.5.1 is vulnerable: Arbitrary code execution via crafted secret key.\n\n*Target:* package.json\n*Remediation:* Upgrade jsonwebtoken to version >=9.0.0.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "Highest"
+        },
+        "labels": [
+          "omnisec",
+          "stage-3",
+          "trivy-/-cyclonedx-engine"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] Sensitive Administrative API Route: /api/v1/admin/debug",
+        "description": "Administrative endpoint `/api/v1/admin/debug` declared in server.py. Verify explicit RBAC guards.\n\n*Target:* server.py\n*Remediation:* Ensure role-based authorization decorator / middleware wraps this controller.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-4",
+          "owasp-api-security"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] [WSTG-ATHN-02] Manual Testing Check Failed: Test for Default, Weak, and Hardcoded Credentials",
+        "description": "WSTG Domain: Authentication Testing\nObjective: Test for Default, Weak, and Hardcoded Credentials\nEvidence: 4 hardcoded credential patterns found.\n\n*Target:* None\n*Remediation:* Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-02` to implement verified security control.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-5",
+          "owasp-wstg-v4.2"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] [WSTG-INPV-05] Manual Testing Check Failed: Testing for SQL Injection (SQLi)",
+        "description": "WSTG Domain: Input Validation\nObjective: Testing for SQL Injection (SQLi)\nEvidence: 2 SQL injection vulnerabilities detected.\n\n*Target:* None\n*Remediation:* Consult OWASP WSTG v4.2 guide for test ID `WSTG-INPV-05` to implement verified security control.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-5",
+          "owasp-wstg-v4.2"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] Exposed High-Value Asset in Attack Surface: .env",
+        "description": "Sensitive asset `.env` was committed into repository root.\n\n*Target:* .env\n*Remediation:* Add to .gitignore, delete file from repository history, and inject via environment variables.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "omnisec",
+          "stage-6",
+          "nuclei-/-amass-(attack-surface-engine)"
+        ]
+      }
+    }
+  ]
+}

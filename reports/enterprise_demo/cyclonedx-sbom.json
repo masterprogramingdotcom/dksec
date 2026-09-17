@@ -1,0 +1,270 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:a3b650d6-6390-4e1f-8079-19961ae545a9",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-09-17T08:50:25.573697+00:00",
+    "tools": [
+      {
+        "vendor": "OmniSec",
+        "name": "OmniSec Unified Product Security Platform",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "Fintech Enterprise Audit",
+      "version": "1.0.0"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "flask",
+      "version": "2.2.2",
+      "purl": "pkg:pypi/flask@2.2.2",
+      "bom-ref": "pkg:pypi/flask@2.2.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "requests",
+      "version": "2.28.1",
+      "purl": "pkg:pypi/requests@2.28.1",
+      "bom-ref": "pkg:pypi/requests@2.28.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "urllib3",
+      "version": "1.26.12",
+      "purl": "pkg:pypi/urllib3@1.26.12",
+      "bom-ref": "pkg:pypi/urllib3@1.26.12",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pyyaml",
+      "version": "5.3.1",
+      "purl": "pkg:pypi/pyyaml@5.3.1",
+      "bom-ref": "pkg:pypi/pyyaml@5.3.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "axios",
+      "version": "0.21.1",
+      "purl": "pkg:npm/axios@0.21.1",
+      "bom-ref": "pkg:npm/axios@0.21.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "lodash",
+      "version": "4.17.20",
+      "purl": "pkg:npm/lodash@4.17.20",
+      "bom-ref": "pkg:npm/lodash@4.17.20",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jsonwebtoken",
+      "version": "8.5.1",
+      "purl": "pkg:npm/jsonwebtoken@8.5.1",
+      "bom-ref": "pkg:npm/jsonwebtoken@8.5.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ]
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "id": "CVE-2023-30861",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-30861"
+      },
+      "ratings": [
+        {
+          "severity": "high",
+          "score": 7.5,
+          "method": "CVSSv3"
+        }
+      ],
+      "description": "Python package flask version 2.2.2 is vulnerable to Session cookie disclosure with caching proxies.",
+      "recommendation": "Upgrade flask to version >=2.2.5.",
+      "affects": [
+        {
+          "ref": "pkg:generic/flask@2.2.2"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2023-32681",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-32681"
+      },
+      "ratings": [
+        {
+          "severity": "medium",
+          "score": 5.0,
+          "method": "CVSSv3"
+        }
+      ],
+      "description": "Python package requests version 2.28.1 is vulnerable to Unintended leak of Proxy-Authorization header.",
+      "recommendation": "Upgrade requests to version >=2.31.0.",
+      "affects": [
+        {
+          "ref": "pkg:generic/requests@2.28.1"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2023-45803",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2023-45803"
+      },
+      "ratings": [
+        {
+          "severity": "high",
+          "score": 7.5,
+          "method": "CVSSv3"
+        }
+      ],
+      "description": "Python package urllib3 version 1.26.12 is vulnerable to HTTP redirect credential and body leakage.",
+      "recommendation": "Upgrade urllib3 to version >=2.0.7.",
+      "affects": [
+        {
+          "ref": "pkg:generic/urllib3@1.26.12"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2020-14343",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2020-14343"
+      },
+      "ratings": [
+        {
+          "severity": "critical",
+          "score": 9.8,
+          "method": "CVSSv3"
+        }
+      ],
+      "description": "Python package pyyaml version 5.3.1 is vulnerable to FullLoad arbitrary code execution.",
+      "recommendation": "Upgrade pyyaml to version >=5.4.1.",
+      "affects": [
+        {
+          "ref": "pkg:generic/pyyaml@5.3.1"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2021-3749",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2021-3749"
+      },
+      "ratings": [
+        {
+          "severity": "high",
+          "score": 7.5,
+          "method": "CVSSv3"
+        }
+      ],
+      "description": "NPM package axios version 0.21.1 is vulnerable: SSRF vulnerability via follow-redirects.",
+      "recommendation": "Upgrade axios to version >=0.21.2.",
+      "affects": [
+        {
+          "ref": "pkg:generic/Dependency:"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2021-23337",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
+      },
+      "ratings": [
+        {
+          "severity": "high",
+          "score": 7.5,
+          "method": "CVSSv3"
+        }
+      ],
+      "description": "NPM package lodash version 4.17.20 is vulnerable: Command injection via template function.",
+      "recommendation": "Upgrade lodash to version ^4.17.21.",
+      "affects": [
+        {
+          "ref": "pkg:generic/Dependency:"
+        }
+      ]
+    },
+    {
+      "id": "CVE-2022-23529",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/vuln/detail/CVE-2022-23529"
+      },
+      "ratings": [
+        {
+          "severity": "critical",
+          "score": 9.8,
+          "method": "CVSSv3"
+        }
+      ],
+      "description": "NPM package jsonwebtoken version 8.5.1 is vulnerable: Arbitrary code execution via crafted secret key.",
+      "recommendation": "Upgrade jsonwebtoken to version >=9.0.0.",
+      "affects": [
+        {
+          "ref": "pkg:generic/Dependency:"
+        }
+      ]
+    }
+  ]
+}
