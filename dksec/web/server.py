@@ -471,8 +471,8 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         <!-- Target URL Field -->
         <div class="field-card">
           <label class="field-label" for="urlTargetUrl">1. Target URL or API Base URL <span class="required">*</span></label>
-          <input type="text" id="urlTargetUrl" class="text-input" placeholder="http://127.0.0.1:5000 or https://example.com" value="http://127.0.0.1:5000" />
-          <span class="field-hint">Supports localhost dev servers (e.g. http://127.0.0.1:5000), test staging environments, and production APIs.</span>
+          <input type="text" id="urlTargetUrl" class="text-input" placeholder="https://campaignmitra.com or http://127.0.0.1:5000" value="https://campaignmitra.com" />
+          <span class="field-hint">Supports live production/staging URLs (e.g. https://campaignmitra.com) and localhost dev servers without needing source code.</span>
         </div>
 
         <!-- Scope Selection -->
@@ -511,7 +511,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         <!-- Authentication Accordion (Optional) -->
         <details class="accordion">
           <summary class="accordion-summary">
-            <span>🔐 Does this target require login / authentication? (Optional)</span>
+            <span>🔐 Target Authentication (Optional — unauthenticated public scan by default)</span>
             <span class="accordion-subtext">Configure login form, JWT token, or session cookie ▾</span>
           </summary>
           <div class="accordion-content">
@@ -519,8 +519,8 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
               <div class="form-group">
                 <label>Authentication Mode</label>
                 <select id="authType" onchange="onAuthTypeChange()">
-                  <option value="none">None (Public Unauthenticated Scan)</option>
-                  <option value="login" selected>Automated Login URL (JSON / Form POST)</option>
+                  <option value="none" selected>None (Public Unauthenticated Scan)</option>
+                  <option value="login">Automated Login URL (JSON / Form POST)</option>
                   <option value="bearer">Bearer Token / JWT</option>
                   <option value="cookie">Session Cookies</option>
                   <option value="header">Custom Authorization Header</option>
@@ -531,19 +531,19 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
               </div>
             </div>
 
-            <div id="groupLogin" class="form-row">
+            <div id="groupLogin" class="form-row" style="display: none;">
               <div class="form-group">
                 <label>Login Endpoint URL</label>
-                <input type="text" id="authLoginUrl" class="text-input" placeholder="http://127.0.0.1:5000/api/v1/login" value="http://127.0.0.1:5000/api/v1/login" />
+                <input type="text" id="authLoginUrl" class="text-input" placeholder="https://target.com/api/v1/login" value="" />
               </div>
               <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                 <div>
                   <label>Username / Email</label>
-                  <input type="text" id="authUsername" class="text-input" value="admin" />
+                  <input type="text" id="authUsername" class="text-input" placeholder="admin" value="" />
                 </div>
                 <div>
                   <label>Password</label>
-                  <input type="password" id="authPassword" class="text-input" value="AdminSecretPassword99!" />
+                  <input type="password" id="authPassword" class="text-input" placeholder="••••••••" value="" />
                 </div>
               </div>
             </div>
@@ -722,7 +722,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             <div class="preset-badge">Live Pentest</div>
             <h4>🌐 Web & API Security Pentest</h4>
             <p>Probes live web servers and REST endpoints with active fuzzing, OWASP Top 10 web crawler, and automated exploit tests.</p>
-            <div class="preset-meta">Stages 4, 5, 6 | Target: http://127.0.0.1:5000</div>
+            <div class="preset-meta">Stages 4, 5, 6 | Target: Live Web / API</div>
             <button class="btn btn-primary btn-block" onclick="runPreset('api')">🌐 Run Web Pentest</button>
           </div>
 
@@ -770,14 +770,14 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             <input type="text" id="projectName" class="text-input" value="Enterprise Security Audit" />
           </div>
           <div class="form-group">
-            <label>Source Code Directory Path</label>
-            <input type="text" id="targetPath" class="text-input" value="samples/app" />
+            <label>Source Code Directory Path <span class="field-hint">(Leave empty for live URL scans)</span></label>
+            <input type="text" id="targetPath" class="text-input" placeholder="e.g. . or samples/app (optional)" value="" />
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Live Target URL / API Endpoint</label>
-            <input type="text" id="targetUrl" class="text-input" value="http://127.0.0.1:5000" />
+            <label>Live Target URL / API Endpoint <span class="field-hint">(Leave empty for code-only scans)</span></label>
+            <input type="text" id="targetUrl" class="text-input" placeholder="e.g. https://campaignmitra.com" value="https://campaignmitra.com" />
           </div>
           <div class="form-group">
             <label>Reports Destination Directory</label>
@@ -1147,7 +1147,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
       executePipeline({{
         project_name: 'Live Web Pentest: ' + url,
-        target_path: '.',
+        target_path: null,
         target_url: url,
         auth: getAuthConfig(),
         llm: getLLMConfig(),
@@ -1179,24 +1179,34 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     function runPreset(presetKey) {{
       let stages = [1, 2, 3, 4, 5, 6, 7, 8, 9];
       let name = 'Enterprise 9-Stage Audit';
-      let url = document.getElementById('urlTargetUrl').value.trim() || 'http://127.0.0.1:5000';
-      let path = document.getElementById('codeTargetPath').value.trim() || '.';
+      let url = document.getElementById('urlTargetUrl').value.trim() || null;
+      let path = document.getElementById('codeTargetPath').value.trim() || null;
 
       if (presetKey === 'pr') {{
         stages = [1, 3, 8];
         name = 'Fast CI/CD Pull Request Gate';
+        url = null;
+        path = path || '.';
       }} else if (presetKey === 'api') {{
         stages = [4, 5, 6];
         name = 'Web & API Security Pentest';
+        path = null;
+        url = url || 'https://campaignmitra.com';
       }} else if (presetKey === 'sbom') {{
         stages = [2, 3, 8];
         name = 'Supply Chain & SBOM Security';
+        url = null;
+        path = path || '.';
       }} else if (presetKey === 'vapt') {{
         stages = [6];
         name = 'Deep VAPT Exploit Probing';
+        path = null;
+        url = url || 'https://campaignmitra.com';
       }} else if (presetKey === 'threat') {{
         stages = [1];
         name = 'STRIDE Threat Model';
+        url = null;
+        path = path || '.';
       }}
 
       executePipeline({{
@@ -1217,10 +1227,18 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         return;
       }}
 
+      let cPath = document.getElementById('targetPath').value.trim();
+      let cUrl = document.getElementById('targetUrl').value.trim() || null;
+      if (!cPath && cUrl) {{
+        cPath = null;
+      }} else if (!cPath && !cUrl) {{
+        cPath = '.';
+      }}
+
       executePipeline({{
         project_name: document.getElementById('projectName').value,
-        target_path: document.getElementById('targetPath').value,
-        target_url: document.getElementById('targetUrl').value || null,
+        target_path: cPath,
+        target_url: cUrl,
         auth: getAuthConfig(),
         llm: getLLMConfig(),
         output_dir: document.getElementById('outputDir').value,
@@ -1322,10 +1340,17 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             llm_data = data.get("llm", {})
             llm_cfg = LLMConfig.from_dict(llm_data)
 
+            target_path = data.get("target_path")
+            target_url = data.get("target_url")
+            if not target_path and target_url:
+                target_path = None
+            elif not target_path and not target_url:
+                target_path = "."
+
             cfg = DKSecConfig(
                 project_name=data.get("project_name", "Enterprise Security Audit"),
-                target_path=data.get("target_path", "."),
-                target_url=data.get("target_url"),
+                target_path=target_path,
+                target_url=target_url,
                 auth=auth_cfg,
                 llm=llm_cfg,
                 output_dir=output_dir
