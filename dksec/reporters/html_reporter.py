@@ -26,6 +26,8 @@ class HtmlReporter:
         s1 = report.stage_results.get(1)
         if s1 and "mermaid_dfd" in s1.details:
             mermaid_dfd = s1.details["mermaid_dfd"]
+        if not mermaid_dfd:
+            mermaid_dfd = 'flowchart TD\n  Client["Client"] --> App["Application Server"]'
 
         auth_badge = ""
         s4 = report.stage_results.get(4)
@@ -634,7 +636,7 @@ class HtmlReporter:
           Generated data-flow architecture diagram mapping trust boundaries and components.
         </p>
         <div class="mermaid" style="background: #090d16; padding: 20px; border-radius: 8px; overflow-x: auto;">
-{mermaid_dfd if mermaid_dfd else 'flowchart TD\n  Client["Client"] --> App["Application Server"]'}
+{mermaid_dfd}
         </div>
       </div>
 
