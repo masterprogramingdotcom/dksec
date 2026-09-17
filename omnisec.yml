@@ -1,0 +1,41 @@
+git_repo_url: null
+output_dir: ./reports
+project_name: Application Security Review
+report_formats:
+- html
+- json
+- markdown
+signoff:
+  max_critical: 0
+  max_high: 0
+  min_score: 75.0
+stages:
+  '1':
+    enabled: true
+    params: {}
+  '2':
+    enabled: true
+    params: {}
+  '3':
+    enabled: true
+    params: {}
+  '4':
+    enabled: true
+    params: {}
+  '5':
+    enabled: true
+    params: {}
+  '6':
+    enabled: true
+    params: {}
+  '7':
+    enabled: true
+    params: {}
+  '8':
+    enabled: true
+    params: {}
+  '9':
+    enabled: true
+    params: {}
+target_path: .
+target_url: null

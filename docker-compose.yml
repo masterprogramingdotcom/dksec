@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  omnisec:
+    build: .
+    container_name: omnisec-suite
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/workspace
+      - ./reports:/app/reports
+    environment:
+      - DEFECTDOJO_API_KEY=${DEFECTDOJO_API_KEY}
+      - WAZUH_API_PASSWORD=${WAZUH_API_PASSWORD}
+    command: ["ui", "--host", "0.0.0.0", "--port", "8080"]
