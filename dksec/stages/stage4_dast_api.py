@@ -33,7 +33,7 @@ class Stage4DastApi(BaseStage):
         details: Dict[str, Any] = {}
 
         # 1. OpenAPI / Swagger Specification Security Audit (Static & Dynamic)
-        spec_findings, spec_data = self._audit_openapi_specifications(target_path)
+        spec_findings, spec_data = self._audit_openapi_specifications(target_path, target_url=target_url)
         findings.extend(spec_findings)
         details["openapi_spec"] = spec_data
 
@@ -189,7 +189,7 @@ class Stage4DastApi(BaseStage):
 
         return findings, metrics, details
 
-    def _audit_openapi_specifications(self, target_path: str) -> Tuple[List[Finding], Dict[str, Any]]:
+    def _audit_openapi_specifications(self, target_path: str, target_url: Optional[str] = None) -> Tuple[List[Finding], Dict[str, Any]]:
         findings = []
         endpoints_found = 0
         endpoints_list = []
@@ -198,57 +198,120 @@ class Stage4DastApi(BaseStage):
             "swagger.json", "swagger.yaml", "swagger.yml"
         ]
 
-        if not os.path.exists(target_path):
-            return findings, {"endpoints_found": 0, "endpoints_list": []}
+        # 1. Local filesystem OpenAPI audit (if target_path exists)
+        if target_path and os.path.exists(target_path):
+            for root, _, files in os.walk(target_path):
+                for f in files:
+                    if f.lower() in spec_candidates:
+                        fpath = os.path.join(root, f)
+                        rel_path = os.path.relpath(fpath, target_path)
+                        try:
+                            with open(fpath, "r", errors="ignore") as fl:
+                                content = fl.read()
+                                data = yaml.safe_load(content) if (f.endswith(".yaml") or f.endswith(".yml")) else json.loads(content)
 
-        for root, _, files in os.walk(target_path):
-            for f in files:
-                if f.lower() in spec_candidates:
-                    fpath = os.path.join(root, f)
-                    rel_path = os.path.relpath(fpath, target_path)
-                    try:
-                        with open(fpath, "r", errors="ignore") as fl:
-                            content = fl.read()
-                            data = yaml.safe_load(content) if (f.endswith(".yaml") or f.endswith(".yml")) else json.loads(content)
+                            paths = data.get("paths", {})
+                            endpoints_found += len(paths)
+                            endpoints_list.extend(list(paths.keys()))
 
-                        paths = data.get("paths", {})
-                        endpoints_found += len(paths)
-                        endpoints_list.extend(list(paths.keys()))
-
-                        # Check 1: Missing Global Security Definitions
-                        sec = data.get("security", [])
-                        sec_defs = data.get("securityDefinitions") or data.get("components", {}).get("securitySchemes", {})
-                        if not sec and not sec_defs:
-                            findings.append(self.create_finding(
-                                finding_id=f"API-SPEC-NO-AUTH-{len(findings)+1:03d}",
-                                title="OpenAPI Missing Global Authentication & Security Scheme",
-                                severity=Severity.HIGH,
-                                description=f"The API specification `{rel_path}` defines {len(paths)} endpoints without enforcing a global securityScheme or authentication requirement.",
-                                tool="OWASP API Security Audit",
-                                file_path=rel_path,
-                                cwe="CWE-306",
-                                owasp="OWASP API2:2023-Broken Authentication",
-                                remediation="Declare securitySchemes (OAuth2, Bearer JWT) in components and apply them globally under 'security:'."
-                            ))
-
-                        # Check 2: Deprecated or Insecure Schemes (HTTP Basic in cleartext)
-                        for sname, sdef in sec_defs.items():
-                            if isinstance(sdef, dict) and sdef.get("scheme", "").lower() == "basic":
+                            # Check 1: Missing Global Security Definitions
+                            sec = data.get("security", [])
+                            sec_defs = data.get("securityDefinitions") or data.get("components", {}).get("securitySchemes", {})
+                            if not sec and not sec_defs:
                                 findings.append(self.create_finding(
-                                    finding_id=f"API-SPEC-BASIC-AUTH-{len(findings)+1:03d}",
-                                    title="Insecure HTTP Basic Authentication Specified in API Spec",
-                                    severity=Severity.MEDIUM,
-                                    description=f"Scheme `{sname}` uses HTTP Basic Auth which transmits unencrypted credentials.",
+                                    finding_id=f"API-SPEC-NO-AUTH-{len(findings)+1:03d}",
+                                    title="OpenAPI Missing Global Authentication & Security Scheme",
+                                    severity=Severity.HIGH,
+                                    description=f"The API specification `{rel_path}` defines {len(paths)} endpoints without enforcing a global securityScheme or authentication requirement.",
                                     tool="OWASP API Security Audit",
                                     file_path=rel_path,
-                                    cwe="CWE-523",
+                                    cwe="CWE-306",
                                     owasp="OWASP API2:2023-Broken Authentication",
-                                    remediation="Replace HTTP Basic Authentication with OAuth 2.0 / OpenID Connect."
+                                    remediation="Declare securitySchemes (OAuth2, Bearer JWT) in components and apply them globally under 'security:'."
                                 ))
-                    except Exception:
-                        pass
 
-        return findings, {"endpoints_found": endpoints_found, "endpoints_list": endpoints_list}
+                            # Check 2: Deprecated or Insecure Schemes (HTTP Basic in cleartext)
+                            for sname, sdef in sec_defs.items():
+                                if isinstance(sdef, dict) and sdef.get("scheme", "").lower() == "basic":
+                                    findings.append(self.create_finding(
+                                        finding_id=f"API-SPEC-BASIC-AUTH-{len(findings)+1:03d}",
+                                        title="Insecure HTTP Basic Authentication Specified in API Spec",
+                                        severity=Severity.MEDIUM,
+                                        description=f"Scheme `{sname}` uses HTTP Basic Auth which transmits unencrypted credentials.",
+                                        tool="OWASP API Security Audit",
+                                        file_path=rel_path,
+                                        cwe="CWE-523",
+                                        owasp="OWASP API2:2023-Broken Authentication",
+                                        remediation="Replace HTTP Basic Authentication with OAuth 2.0 / OpenID Connect."
+                                    ))
+                        except Exception:
+                            pass
+
+        # 2. Dynamic Remote OpenAPI / Swagger Discovery & Audit (if target_url provided)
+        if target_url:
+            remote_candidates = [
+                "/api/docs/?format=openapi",
+                "/api/docs/?format=json",
+                "/openapi.json",
+                "/swagger.json",
+                "/api/schema/",
+                "/api/v1/openapi.json",
+                "/api/docs/"
+            ]
+            for candidate in remote_candidates:
+                full_url = urllib.parse.urljoin(target_url, candidate)
+                try:
+                    r = requests.get(full_url, timeout=4, verify=False, allow_redirects=False)
+                    if r.status_code == 200:
+                        ct = r.headers.get("Content-Type", "").lower()
+                        remote_data = None
+                        if "json" in ct or "openapi" in ct:
+                            try:
+                                remote_data = r.json()
+                            except Exception:
+                                pass
+                        elif "yaml" in ct or candidate.endswith((".yaml", ".yml")):
+                            try:
+                                remote_data = yaml.safe_load(r.text)
+                            except Exception:
+                                pass
+
+                        if isinstance(remote_data, dict) and ("paths" in remote_data or "swagger" in remote_data or "openapi" in remote_data):
+                            paths = remote_data.get("paths", {})
+                            endpoints_found += len(paths)
+                            endpoints_list.extend(list(paths.keys()))
+
+                            findings.append(self.create_finding(
+                                finding_id="API-SPEC-EXPOSED-PUBLIC",
+                                title=f"Publicly Exposed OpenAPI / Swagger Specification ({candidate})",
+                                severity=Severity.MEDIUM,
+                                description=f"The full API schema defining {len(paths)} endpoints is publicly accessible without authentication at `{full_url}`.",
+                                tool="OWASP API Security Audit",
+                                target=full_url,
+                                cwe="CWE-200",
+                                owasp="OWASP API7:2023-Security Misconfiguration",
+                                remediation="Disable public access to raw API schema endpoints or restrict documentation to authenticated developers."
+                            ))
+
+                            sec = remote_data.get("security", [])
+                            sec_defs = remote_data.get("securityDefinitions") or remote_data.get("components", {}).get("securitySchemes", {})
+                            if not sec and not sec_defs:
+                                findings.append(self.create_finding(
+                                    finding_id=f"API-SPEC-NO-AUTH-{len(findings)+1:03d}",
+                                    title="OpenAPI Missing Global Authentication & Security Scheme",
+                                    severity=Severity.HIGH,
+                                    description=f"The remote API specification at `{full_url}` defines {len(paths)} endpoints without enforcing a global securityScheme.",
+                                    tool="OWASP API Security Audit",
+                                    target=full_url,
+                                    cwe="CWE-306",
+                                    owasp="OWASP API2:2023-Broken Authentication",
+                                    remediation="Declare securitySchemes (OAuth2, Bearer JWT) and enforce them across all endpoints."
+                                ))
+                            break
+                except Exception:
+                    pass
+
+        return findings, {"endpoints_found": endpoints_found, "endpoints_list": list(set(endpoints_list))}
 
     def _audit_tls_security(self, url: str) -> Tuple[List[Finding], Dict[str, Any]]:
         findings = []
@@ -488,15 +551,27 @@ class Stage4DastApi(BaseStage):
         probes_sent = 0
         sensitive_json_keys = ["db_pass", "db_password", "password", "secret", "private_key", "aws_secret", "api_key", "secret_key"]
 
-        for route in routes:
+        # Normalize parameterized routes (e.g. {id} -> 1) and prioritize sensitive endpoints
+        prioritized = []
+        regular = []
+        for r in routes:
+            clean_r = re.sub(r"\{[^}]+\}", "1", r)
+            if any(k in clean_r.lower() for k in ["/admin", "/auth", "/user", "/member", "/setting", "/campaign", "/inbox", "/log", "/token", "/key", "/secret", "/export"]):
+                prioritized.append(clean_r)
+            else:
+                regular.append(clean_r)
+
+        test_routes = (list(dict.fromkeys(prioritized)) + list(dict.fromkeys(regular)))[:35]
+
+        for route in test_routes:
             target = urllib.parse.urljoin(base_url, route)
-            is_sensitive_path = any(x in route.lower() for x in ["/admin", "/debug", "/internal", "/keys", "/users", "/transfer"])
+            is_sensitive_path = any(x in route.lower() for x in ["/admin", "/debug", "/internal", "/keys", "/users", "/transfer", "/members", "/settings"])
             
             # --- Test 1: Unauthenticated Probe ---
             probes_sent += 1
             unauth_resp = None
             try:
-                unauth_resp = requests.get(target, timeout=4, verify=False, allow_redirects=False)
+                unauth_resp = requests.get(target, timeout=3, verify=False, allow_redirects=False)
                 if unauth_resp.status_code == 200 and is_sensitive_path and len(unauth_resp.content) > 20:
                     findings.append(self.create_finding(
                         finding_id=f"DAST-UNAUTH-ACCESS-{len(findings)+1:03d}",
@@ -665,12 +740,17 @@ class Stage4DastApi(BaseStage):
                 probe_url = f"{base_url}?{param}={urllib.parse.quote(payload)}"
                 try:
                     r = requests.get(probe_url, timeout=4, verify=False, allow_redirects=False)
-                    if any(ind in r.text for ind in ["ami-id", "instance-id", "iam/security-credentials", "meta-data"]):
+                    # Only flag if response is small plaintext (real metadata), not a large HTML page
+                    content_type = r.headers.get("Content-Type", "").lower()
+                    is_html = "text/html" in content_type or "<html" in r.text.lower() or "<!doctype" in r.text.lower()
+                    is_small = len(r.content) < 10000
+                    ssrf_indicators = ["ami-id", "instance-id", "security-credentials/"]
+                    if not is_html and is_small and any(ind in r.text for ind in ssrf_indicators):
                         findings.append(self.create_finding(
                             finding_id="DAST-SSRF-CONFIRMED",
                             title="Critical SSRF Confirmed — Cloud Metadata Service Accessible",
                             severity=Severity.CRITICAL,
-                            description=f"SSRF confirmed: parameter `{param}` with payload `{payload}` returned cloud instance metadata.",
+                            description=f"SSRF confirmed: parameter `{param}` with payload `{payload}` returned cloud instance metadata (Content-Type: {content_type}, size: {len(r.content)} bytes).",
                             tool="SSRF Auditor",
                             target=base_url,
                             cwe="CWE-918",

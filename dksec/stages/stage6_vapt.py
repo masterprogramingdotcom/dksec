@@ -697,22 +697,28 @@ class Stage6Vapt(BaseStage):
                 data["probes_sent"] += 1
                 probe_url = f"{base_url}?{param}={urllib.parse.quote(metadata_url)}"
                 try:
-                    r = requests.get(probe_url, timeout=4, verify=False)
-                    if any(ind in r.text for ind in ["ami-id", "instance-id", "iam/security-credentials", "computeMetadata", "managed_identity"]):
-                        data["confirmed"] = True
-                        findings.append(self.create_finding(
-                            finding_id="VAPT-CLOUD-METADATA-SSRF",
-                            title=f"SSRF — {service_name} Accessible via URL Parameter",
-                            severity=Severity.CRITICAL,
-                            description=f"SSRF confirmed: parameter `{param}` with payload `{metadata_url}` returned {service_name} response content.",
-                            tool="Cloud Metadata SSRF Auditor",
-                            target=base_url,
-                            cwe="CWE-918",
-                            owasp="OWASP A10:2021-Server-Side Request Forgery (SSRF)",
-                            remediation="Block 169.254.169.254/100.100.100.200 at egress firewall; use IMDSv2 with session tokens; implement strict SSRF allowlists.",
-                            references=["https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html"]
-                        ))
-                        return findings, data
+                    r = requests.get(probe_url, timeout=4, verify=False, allow_redirects=False)
+                    content_type = r.headers.get("Content-Type", "").lower()
+                    is_html = "text/html" in content_type or "<html" in r.text.lower() or "<!doctype" in r.text.lower()
+                    is_small = len(r.content) < 10000
+                    # Real metadata endpoints return plaintext or json and are never standard HTML pages
+                    if not is_html and is_small:
+                        metadata_indicators = ["ami-id", "instance-id", "security-credentials/", "computeMetadata", "managed_identity"]
+                        if any(ind in r.text for ind in metadata_indicators):
+                            data["confirmed"] = True
+                            findings.append(self.create_finding(
+                                finding_id="VAPT-CLOUD-METADATA-SSRF",
+                                title=f"SSRF — {service_name} Accessible via URL Parameter",
+                                severity=Severity.CRITICAL,
+                                description=f"SSRF confirmed: parameter `{param}` with payload `{metadata_url}` returned {service_name} response content (non-HTML, {len(r.content)} bytes).",
+                                tool="Cloud Metadata SSRF Auditor",
+                                target=base_url,
+                                cwe="CWE-918",
+                                owasp="OWASP A10:2021-Server-Side Request Forgery (SSRF)",
+                                remediation="Block 169.254.169.254/100.100.100.200 at egress firewall; use IMDSv2 with session tokens; implement strict SSRF allowlists.",
+                                references=["https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html"]
+                            ))
+                            return findings, data
                 except Exception:
                     pass
 
