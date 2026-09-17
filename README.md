@@ -1,6 +1,6 @@
-# 🛡️ OmniSec — Unified Product Security Lifecycle Platform
+# 🛡️ OmniSec — Enterprise Product Security Lifecycle Platform
 
-> **An all-in-one security orchestrator that runs all 9 Product Security phases at once, lets users selectively decide what stages to execute, and generates a unified executive & technical audit report.**
+> **An all-in-one, enterprise-grade Product Security platform that executes, audits, and orchestrates all 9 phases of the DevSecOps lifecycle at once, allows granular stage selection, and generates unified executive & technical reports compliant with OASIS SARIF v2.1.0, CycloneDX v1.5 SBOM, OWASP ASVS v4.0, OpenSSF Scorecard, and NIST SP 800-61r2.**
 
 ---
 
@@ -12,186 +12,143 @@
                   ▼
        ┌────────────────────────┐
        │ 1. Architecture        │  OWASP Threat Dragon
-       │    & Threat Model      │  (STRIDE / LINDDUN / DFD)
+       │    & Threat Model      │  (STRIDE / LINDDUN / DFD & Mermaid)
        └──────────┬─────────────┘
                   ▼
        ┌────────────────────────┐
-       │ 2. Security            │  OWASP ASVS v4.0
-       │    Requirements        │  (Design & Runtime Verification)
+       │ 2. Security            │  OWASP ASVS v4.0.3
+       │    Requirements        │  (Levels 1, 2, 3 Verification)
        └──────────┬─────────────┘
                   ▼
        ┌────────────────────────┐
-       │ 3. SAST + SCA +        │  Semgrep + Trivy + Gitleaks
-       │    Secret Scanning     │  (Code, Dependencies & Secrets)
+       │ 3. SAST + SCA +        │  Semgrep (AST) + Trivy + Gitleaks
+       │    Secret Scanning     │  (CycloneDX 1.5 SBOM + Patch Diffs)
        └──────────┬─────────────┘
                   ▼
        ┌────────────────────────┐
        │ 4. DAST + API          │  OWASP ZAP + OWASP API Security
-       │    Security Testing    │  (Dynamic API Fuzzing & Headers)
+       │    Security Testing    │  (TLS Handshake, OpenAPI 3.0 Audit)
        └──────────┬─────────────┘
                   ▼
        ┌────────────────────────┐
        │ 5. Manual Security     │  OWASP WSTG v4.2
-       │    Testing             │  (Testing Methodology & Checklists)
+       │    Testing             │  (12 Testing Domains & Correlation)
        └──────────┬─────────────┘
                   ▼
        ┌────────────────────────┐
        │ 6. Penetration Test    │  OWASP WSTG + Nuclei + Amass
-       │    / VAPT              │  (Surface Discovery & Exploit Probing)
+       │    / VAPT              │  (DNS Posture & 50+ Asset Fuzzers)
        └──────────┬─────────────┘
                   ▼
        ┌────────────────────────┐
        │ 7. Fix & Retest        │  OWASP DefectDojo
-       │                        │  (Triage, SLAs & Verification)
+       │                        │  (SLA Deadlines, Jira, Baseline Retest)
        └──────────┬─────────────┘
                   ▼
        ┌────────────────────────┐
-       │ 8. Security Signoff    │  OpenSSF Scorecard
-       │                        │  (Release Gating & Audit Stamp)
+       │ 8. Security Signoff    │  OpenSSF Scorecard (All 18 Checks)
+       │                        │  (SLSA Levels + SHA-256 Gate Stamp)
        └──────────┬─────────────┘
                   ▼
                RELEASE
                   │
                   ▼
        ┌────────────────────────┐
-       │ 9. Monitoring &        │  Wazuh SIEM / XDR
-       │    Incident Response   │  (FIM, Live Rules & IR Playbook)
+       │ 9. Monitoring &        │  Wazuh SIEM/XDR + Sigma Rules
+       │    Incident Response   │  (MITRE ATT&CK + NIST IR Playbook)
        └────────────────────────┘
 ```
 
 ---
 
-## 🎯 Coverage & Recommended GitHub Repositories
+## 🔬 Deep Technical Capabilities by Stage
 
-| # | Stage / Task | Recommended GitHub Repository | What OmniSec Covers & Automates |
-| :-: | :--- | :--- | :--- |
-| **1** | **Architecture & Threat Model** | [OWASP/threat-dragon](https://github.com/OWASP/threat-dragon) | Data-flow diagrams, component identification, automated STRIDE threat matrix, and Threat Dragon v2 schema generation (`threat-dragon-model.json`). |
-| **2** | **Security Requirements** | [OWASP/ASVS](https://github.com/OWASP/ASVS) | ASVS v4.0 compliance scoring across V1-V14 chapters (Levels 1, 2, 3), automated password/cookie/crypto checks, and gap analysis. |
-| **3** | **SAST + SCA + Secret Scanning** | [semgrep/semgrep](https://github.com/semgrep/semgrep)<br>[aquasecurity/trivy](https://github.com/aquasecurity/trivy)<br>[gitleaks/gitleaks](https://github.com/gitleaks/gitleaks) | Multi-language source code analysis, dependency CVE matching (`package.json`, `requirements.txt`), and high-entropy secret detection with line numbers and snippets. |
-| **4** | **DAST + API Security Testing** | [zaproxy/zaproxy](https://github.com/zaproxy/zaproxy)<br>[OWASP/API-Security](https://github.com/OWASP/API-Security) | Dynamic endpoint audit for missing security headers (HSTS, CSP, X-Frame-Options), CORS misconfigurations, server leaks, and API Top 10 vulnerabilities. |
-| **5** | **Manual Security Testing** | [OWASP/wstg](https://github.com/OWASP/wstg) | Comprehensive WSTG v4.2 verification checklist with automated heuristic correlation from SAST/DAST results. |
-| **6** | **Penetration Test / VAPT** | [projectdiscovery/nuclei](https://github.com/projectdiscovery/nuclei)<br>[owasp-amass/amass](https://github.com/owasp-amass/amass) | Attack-surface discovery, open port scanning, sensitive file fuzzing (`.env`, `.git`, `/actuator`, backup files), and RFC 9116 `security.txt` check. |
-| **7** | **Fix & Retest** | [DefectDojo/django-DefectDojo](https://github.com/DefectDojo/django-DefectDojo) | Cross-stage finding deduplication, remediation SLA deadlines (Critical 7d, High 14d, Med 30d), DefectDojo API push, and `defectdojo-findings.json` export. |
-| **8** | **Security Signoff** | [ossf/scorecard](https://github.com/ossf/scorecard) | Automated repository posture check (branch protection, dangerous GitHub Actions, licenses, binary artifacts) and Release Gating verdict with digital SHA-256 stamp. |
-| **9** | **Monitoring & Incident Response** | [wazuh/wazuh](https://github.com/wazuh/wazuh) | FIM & telemetry audit, automated generation of custom Wazuh SIEM detection rules (`wazuh-local_rules.xml`), and a tailored Incident Response Playbook. |
+### Stage 1: Architecture & Threat Model ([OWASP Threat Dragon](https://github.com/OWASP/threat-dragon))
+- **Automatic Boundary & Component Discovery**: Auto-detects Actors, DMZ Ingress Proxies, Application APIs, Databases (SQL/NoSQL), Object Stores (S3), and Third-Party APIs.
+- **STRIDE & LINDDUN Matrix**: Maps threats against Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, and Elevation of Privilege.
+- **Visual Mermaid DFD**: Produces rendered Data Flow Diagrams in HTML and Markdown reports.
+- **Threat Dragon v2 Schema**: Exports valid JSON ready to load into OWASP Threat Dragon GUI (`threat-dragon-model.json`).
+
+### Stage 2: Security Requirements ([OWASP ASVS v4.0.3](https://github.com/OWASP/ASVS))
+- **Comprehensive Chapter Coverage**: V1 Architecture, V2 Authentication, V3 Session, V4 Access Control, V5 Input Validation, V6 Cryptography, V7 Logging/Error, V8 Data Protection, V9 Communications, V10 Malicious Code, V11 Business Logic, V12 Files, V13 API, V14 Configuration.
+- **Three-Tier Compliance Scoring**: Independent scoring and gap analysis for Level 1 (Baseline), Level 2 (Standard Enterprise), and Level 3 (High Assurance).
+
+### Stage 3: SAST + SCA + Secret Scanning ([Semgrep](https://github.com/semgrep/semgrep) + [Trivy](https://github.com/aquasecurity/trivy) + [Gitleaks](https://github.com/gitleaks/gitleaks))
+- **Python Abstract Syntax Tree (AST) Taint Analysis**: Parses code into Python AST nodes to identify dynamic SQL execution (`cursor.execute(f"...")`), unsafe `pickle.loads()`, `yaml.load()` without SafeLoader, and `subprocess(shell=True)`.
+- **Automated Unified Remediation Diffs**: Generates drop-in code fix patches for discovered SAST bugs.
+- **CycloneDX v1.5 SBOM**: Catalogs dependencies with Package URLs (`pkg:pypi/...`, `pkg:npm/...`), licenses, and CVE vulnerability ratings.
+- **High-Entropy Secret Detection**: Detects AWS Access & Secret keys, GitHub PATs, Stripe live keys, Slack tokens, private RSA/EC keys, and plaintext database URIs.
+
+### Stage 4: DAST + API Security Testing ([OWASP ZAP](https://github.com/zaproxy/zaproxy) + [OWASP API Security](https://github.com/OWASP/API-Security))
+- **OpenAPI 2.0 & 3.0 Spec Audit**: Analyzes Swagger/OpenAPI files for missing `securitySchemes`, unauthenticated sensitive endpoints, and broken access controls.
+- **Transport Security & TLS Handshake**: Inspects certificate expiration, protocol negotiation (TLS 1.2/1.3), and deprecated cipher suites.
+- **Header & CORS Dynamic Probes**: Audits HSTS, CSP, X-Frame-Options, X-Content-Type-Options, and detects wildcard CORS origins paired with credentials.
+
+### Stage 5: Manual Security Testing ([OWASP WSTG v4.2](https://github.com/OWASP/wstg))
+- **12 Testing Domains**: INFO, CONF, IDNT, ATHN, ATHZ, SESS, INPV, ERRH, CRYP, BUSL, CLNT, and APIT.
+- **Automated Heuristic Correlation**: Connects SAST and DAST findings directly to WSTG test cases, automatically updating test statuses and evidence.
+
+### Stage 6: Penetration Test / VAPT ([Nuclei](https://github.com/projectdiscovery/nuclei) + [OWASP Amass](https://github.com/owasp-amass/amass))
+- **Attack Surface Discovery**: Port scanning and service fingerprinting across standard web, API, database, and cache ports.
+- **50+ High-Value Asset Fuzzers**: Fuzzes for exposed `.git`, `.env`, backup SQL dumps, database binaries, and Spring Boot `/actuator`.
+- **RFC 9116 security.txt**: Validates vulnerability disclosure policies and contact vectors.
+
+### Stage 7: Fix & Retest ([OWASP DefectDojo](https://github.com/DefectDojo/django-DefectDojo))
+- **Cryptographic Fingerprint Deduplication**: Hashes finding attributes to merge duplicate alerts.
+- **Remediation SLA Engine**: Enforces exact calendar due dates (Critical: 7d, High: 14d, Medium: 30d, Low: 90d).
+- **OWASP DefectDojo API Client & JSON**: One-click import format (`defectdojo-findings.json`) + direct REST API sync.
+- **Jira Bulk Ticket Exporter**: Generates `jira-issues.json` ready for Jira issue import.
+- **Retest Regression Engine**: Tracks fixed vulnerabilities vs. newly introduced regressions against `omnisec-baseline.json`.
+
+### Stage 8: Security Signoff ([OpenSSF Scorecard](https://github.com/ossf/scorecard))
+- **All 18 OpenSSF Checks Implemented**: Binary-Artifacts, Branch-Protection, CI-Tests, CII-Best-Practices, Code-Review, Contributors, Dangerous-Workflow, Dependency-Update-Tool, Fuzzing, License, Maintained, Packaging, Pinned-Dependencies, SAST, Security-Policy, Signed-Releases, Token-Permissions, and Vulnerabilities.
+- **SLSA Provenance Evaluation**: Assigns SLSA Level 0, 1, or 2 rating.
+- **Cryptographic Release Gate**: Evaluates Critical/High thresholds and issues an immutable SHA-256 certificate stamp (`APPROVED`, `CONDITIONAL_APPROVAL`, `BLOCKED`).
+
+### Stage 9: Monitoring & Incident Response ([Wazuh](https://github.com/wazuh/wazuh) + [Sigma](https://github.com/SigmaHQ/sigma))
+- **Wazuh XML SIEM Rules**: Generates application-specific `wazuh-local_rules.xml`.
+- **Sigma YAML Detection Signatures**: Generates vendor-neutral `sigma-rules.yml` for Splunk, Elastic, Sentinel, and QRadar.
+- **MITRE ATT&CK Matrix**: Maps findings to ATT&CK techniques (T1190, T1059, T1552, T1595, T1078, T1195).
+- **NIST SP 800-61r2 Incident Response Playbook**: Generates custom classification criteria and containment runbooks (`incident-response-runbook.md`).
 
 ---
 
-## 🚀 Quickstart & 3 Ways to Run
+## 🚀 How to Run
 
 ### 1. Interactive Terminal Wizard
-Simply launch the tool without arguments or with `interactive` to enter a guided terminal interface:
 ```bash
 ./omnisec_cli.py interactive
 ```
-*Prompts for Project Name, Target Code, Optional Live URL, and displays an interactive multi-select menu to select any subset or all 9 stages.*
 
----
-
-### 2. Direct CLI Pipeline Execution
-Run all 9 stages or select specific stages directly from the command line:
-
+### 2. Direct CLI Command (All 9 Stages or Selected Stages)
 ```bash
-# Run ALL 9 stages against target code & live API
-./omnisec_cli.py scan \
-  --project "Core Banking API" \
-  --target ./samples/app \
-  --url http://127.0.0.1:5000 \
-  --output ./reports/audit
+# Run all 9 stages
+./omnisec_cli.py scan --project "Core Banking" --target ./samples/app --url http://127.0.0.1:5000 --output ./reports
 
-# Run SELECTIVE stages (e.g. Stage 1: Threat Model, Stage 3: SAST/SCA/Secrets, Stage 8: Signoff)
-./omnisec_cli.py scan \
-  --project "Quick PR Check" \
-  --target ./samples/app \
-  --stages 1,3,8 \
-  --output ./reports/pr_check
+# Run selective stages (e.g. Stage 1, 3, 8)
+./omnisec_cli.py scan --target ./samples/app --stages 1,3,8 --output ./reports/quick
+
+# CI/CD Gate Mode (Exits with code 1 if release is blocked)
+./omnisec_cli.py scan --target ./samples/app --fail-on-gate
 ```
 
----
-
 ### 3. Interactive Web GUI Dashboard
-Launch the built-in browser UI (zero external web frameworks needed):
 ```bash
 ./omnisec_cli.py ui --port 8080
 ```
-Open **`http://127.0.0.1:8080`** in your browser to:
-- Select/deselect any of the 9 stages with toggle switches.
-- Configure target paths and target URLs.
-- Watch real-time execution progress bars and streaming logs.
-- Instantly view and download interactive reports.
+Open `http://127.0.0.1:8080` in your browser.
 
 ---
 
-## 📊 Generated Artifacts & Unified Reporting
+## 📦 Output Artifacts Generated on Every Run
 
-Every audit run generates a complete suite of artifacts in the designated output directory:
-
-| Generated File | Purpose | Target Audience / Tool |
-| :--- | :--- | :--- |
-| **`omnisec-report.html`** | Standalone interactive dashboard with live filtering by severity, stage tabs, search bar, and print-to-PDF formatting. | CISO, Tech Leads, Auditors |
-| **`omnisec-report.md`** | Clean GitHub/GitLab markdown summary with status badges, KPI tables, and remediation instructions. | PR Comments, Jira, CI/CD Summaries |
-| **`omnisec-report.json`** | Machine-readable full audit data schema. | DevSecOps automation, SIEM pipelines |
-| **`defectdojo-findings.json`** | Standard OWASP DefectDojo Generic Finding format. | One-click import into DefectDojo |
-| **`threat-dragon-model.json`** | OWASP Threat Dragon v2 schema model. | Open in OWASP Threat Dragon GUI |
-| **`wazuh-local_rules.xml`** | Custom Wazuh SIEM XML detection rules tailored to app findings. | Deploy to `/var/ossec/etc/rules/` |
-| **`incident-response-runbook.md`** | Tailored Incident Response playbook with triage SLAs. | SOC / Incident Response Team |
-
----
-
-## ⚙️ Configuration (`omnisec.yml`)
-
-You can define standard organization security profiles using `omnisec.yml`:
-
-```yaml
-project_name: "My Enterprise App"
-target_path: "./src"
-target_url: "https://api.mycompany.com"
-output_dir: "./reports"
-
-# Release Gate thresholds
-signoff:
-  max_critical: 0
-  max_high: 0
-  min_score: 80.0
-
-# Optional integration credentials
-defectdojo:
-  url: "https://defectdojo.company.internal"
-  api_key: "${DEFECTDOJO_API_KEY}"
-  product_id: 1
-
-wazuh:
-  url: "https://wazuh.company.internal:55000"
-  user: "wazuh-api"
-  password: "${WAZUH_PASSWORD}"
-
-stages:
-  1: { enabled: true }  # Threat Model
-  2: { enabled: true }  # ASVS
-  3: { enabled: true }  # SAST/SCA/Secrets
-  4: { enabled: true }  # DAST/API
-  5: { enabled: true }  # WSTG Manual
-  6: { enabled: true }  # VAPT
-  7: { enabled: true }  # DefectDojo
-  8: { enabled: true }  # Signoff
-  9: { enabled: true }  # Wazuh
-```
-
----
-
-## 🐳 Docker Deployment
-
-Run with Docker Compose:
-```bash
-docker-compose up -d
-```
-Access the dashboard at `http://localhost:8080`.
-
----
-
-## 🧪 Testing
-
-Run the automated test suite covering all 9 stages, reporters, and CLI commands:
-```bash
-make test
-```
+1. **`omnisec-report.html`**: Interactive dark-mode dashboard with Mermaid DFD, filterable findings, patch diffs, and PDF styling.
+2. **`cyclonedx-sbom.json`**: Official CycloneDX v1.5 JSON Software Bill of Materials (SBOM).
+3. **`omnisec-results.sarif`**: Official OASIS SARIF v2.1.0 for GitHub / GitLab Code Scanning alerts.
+4. **`defectdojo-findings.json`**: OWASP DefectDojo Generic Finding format.
+5. **`threat-dragon-model.json`**: OWASP Threat Dragon v2 schema file.
+6. **`wazuh-local_rules.xml`**: Custom Wazuh SIEM XML rules.
+7. **`sigma-rules.yml`**: Generic Sigma YAML detection rules.
+8. **`incident-response-runbook.md`**: NIST SP 800-61r2 Incident Response Playbook.
+9. **`jira-issues.json`**: Jira bulk issue import file.
+10. **`omnisec-report.md`**: Clean markdown summary for PRs.
