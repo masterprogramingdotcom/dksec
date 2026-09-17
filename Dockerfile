@@ -15,10 +15,10 @@ WORKDIR /app
 # Copy application files
 COPY . /app
 
-# Install dependencies and OmniSec
+# Install dependencies and DKSec
 RUN pip install --no-cache-dir -e .
 
 EXPOSE 8080
 
-ENTRYPOINT ["omnisec"]
+ENTRYPOINT ["dksec"]
 CMD ["ui", "--host", "0.0.0.0", "--port", "8080"]

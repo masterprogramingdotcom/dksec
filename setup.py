@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 if __name__ == "__main__":
     setup(
-        name="omnisec",
+        name="dksec",
         version="1.0.0",
         description="Unified 9-Stage Product Security Lifecycle Orchestrator & Audit Engine",
         author="Product Security Architecture Team",
@@ -15,7 +15,7 @@ if __name__ == "__main__":
         ],
         entry_points={
             "console_scripts": [
-                "omnisec=omnisec.cli:main",
+                "dksec=dksec.cli:main",
             ],
         },
         classifiers=[

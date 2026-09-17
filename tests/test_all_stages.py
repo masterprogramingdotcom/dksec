@@ -1,28 +1,28 @@
 """
-Unit and integration tests for OmniSec 9-stage orchestrator (Enterprise Edition).
+Unit and integration tests for DKSec 9-stage orchestrator (Enterprise Edition).
 """
 
 import unittest
 import os
 import tempfile
-from omnisec.config import OmniSecConfig
-from omnisec.runner import OmniSecRunner
-from omnisec.models import Severity, FindingStatus
-from omnisec.stages import (
+from dksec.config import DKSecConfig
+from dksec.runner import DKSecRunner
+from dksec.models import Severity, FindingStatus
+from dksec.stages import (
     Stage1ThreatModel, Stage2Requirements, Stage3SastScaSecrets,
     Stage4DastApi, Stage5ManualWstg, Stage6Vapt,
     Stage7FixRetest, Stage8Signoff, Stage9Monitoring
 )
-from omnisec.reporters import (
+from dksec.reporters import (
     HtmlReporter, JsonReporter, MarkdownReporter,
     SarifReporter, CycloneDXReporter
 )
 
 
-class TestOmniSecStages(unittest.TestCase):
+class TestDKSecStages(unittest.TestCase):
     def setUp(self):
         self.tmp_dir = tempfile.mkdtemp()
-        self.config = OmniSecConfig(
+        self.config = DKSecConfig(
             project_name="Unit Test App",
             target_path="samples/app",
             output_dir=self.tmp_dir
@@ -69,7 +69,7 @@ class TestOmniSecStages(unittest.TestCase):
     def test_stage7_fix_retest(self):
         s3 = Stage3SastScaSecrets()
         f_list, _, _ = s3.run(self.config, self.context)
-        from omnisec.models import StageResult
+        from dksec.models import StageResult
         self.context["stage_results"][3] = StageResult(
             stage_id=3, stage_name="SAST", recommended_tools="Semgrep",
             what_it_covers="SAST", success=True, execution_time_seconds=0.1,
@@ -96,7 +96,7 @@ class TestOmniSecStages(unittest.TestCase):
         self.assertTrue(os.path.exists(metrics["incident_runbook_file"]))
 
     def test_full_runner_and_all_reporters(self):
-        runner = OmniSecRunner(self.config)
+        runner = DKSecRunner(self.config)
         report = runner.run()
         self.assertIsNotNone(report)
         self.assertEqual(len(report.stages_executed), 9)

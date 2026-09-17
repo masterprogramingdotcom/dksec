@@ -1,5 +1,5 @@
 """
-Sample Fintech Microservice Application for OmniSec demonstration.
+Sample Fintech Microservice Application for DKSec demonstration.
 """
 import os
 import sqlite3

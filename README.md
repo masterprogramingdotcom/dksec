@@ -1,4 +1,4 @@
-# 🛡️ OmniSec — Enterprise Product Security Lifecycle Platform
+# 🛡️ DKSec — Enterprise Product Security Lifecycle Platform
 
 > **An all-in-one, enterprise-grade Product Security platform that executes, audits, and orchestrates all 9 phases of the DevSecOps lifecycle at once, allows granular stage selection, and generates unified executive & technical reports compliant with OASIS SARIF v2.1.0, CycloneDX v1.5 SBOM, OWASP ASVS v4.0, OpenSSF Scorecard, and NIST SP 800-61r2.**
 
@@ -98,7 +98,7 @@
 - **Remediation SLA Engine**: Enforces exact calendar due dates (Critical: 7d, High: 14d, Medium: 30d, Low: 90d).
 - **OWASP DefectDojo API Client & JSON**: One-click import format (`defectdojo-findings.json`) + direct REST API sync.
 - **Jira Bulk Ticket Exporter**: Generates `jira-issues.json` ready for Jira issue import.
-- **Retest Regression Engine**: Tracks fixed vulnerabilities vs. newly introduced regressions against `omnisec-baseline.json`.
+- **Retest Regression Engine**: Tracks fixed vulnerabilities vs. newly introduced regressions against `dksec-baseline.json`.
 
 ### Stage 8: Security Signoff ([OpenSSF Scorecard](https://github.com/ossf/scorecard))
 - **All 18 OpenSSF Checks Implemented**: Binary-Artifacts, Branch-Protection, CI-Tests, CII-Best-Practices, Code-Review, Contributors, Dangerous-Workflow, Dependency-Update-Tool, Fuzzing, License, Maintained, Packaging, Pinned-Dependencies, SAST, Security-Policy, Signed-Releases, Token-Permissions, and Vulnerabilities.
@@ -117,24 +117,24 @@
 
 ### 1. Interactive Terminal Wizard
 ```bash
-./omnisec_cli.py interactive
+./dksec_cli.py interactive
 ```
 
 ### 2. Direct CLI Command (All 9 Stages or Selected Stages)
 ```bash
 # Run all 9 stages
-./omnisec_cli.py scan --project "Core Banking" --target ./samples/app --url http://127.0.0.1:5000 --output ./reports
+./dksec_cli.py scan --project "Core Banking" --target ./samples/app --url http://127.0.0.1:5000 --output ./reports
 
 # Run selective stages (e.g. Stage 1, 3, 8)
-./omnisec_cli.py scan --target ./samples/app --stages 1,3,8 --output ./reports/quick
+./dksec_cli.py scan --target ./samples/app --stages 1,3,8 --output ./reports/quick
 
 # CI/CD Gate Mode (Exits with code 1 if release is blocked)
-./omnisec_cli.py scan --target ./samples/app --fail-on-gate
+./dksec_cli.py scan --target ./samples/app --fail-on-gate
 ```
 
 ### 3. Interactive Web GUI Dashboard
 ```bash
-./omnisec_cli.py ui --port 8080
+./dksec_cli.py ui --port 8080
 ```
 Open `http://127.0.0.1:8080` in your browser.
 
@@ -142,13 +142,13 @@ Open `http://127.0.0.1:8080` in your browser.
 
 ## 📦 Output Artifacts Generated on Every Run
 
-1. **`omnisec-report.html`**: Interactive dark-mode dashboard with Mermaid DFD, filterable findings, patch diffs, and PDF styling.
+1. **`dksec-report.html`**: Interactive dark-mode dashboard with Mermaid DFD, filterable findings, patch diffs, and PDF styling.
 2. **`cyclonedx-sbom.json`**: Official CycloneDX v1.5 JSON Software Bill of Materials (SBOM).
-3. **`omnisec-results.sarif`**: Official OASIS SARIF v2.1.0 for GitHub / GitLab Code Scanning alerts.
+3. **`dksec-results.sarif`**: Official OASIS SARIF v2.1.0 for GitHub / GitLab Code Scanning alerts.
 4. **`defectdojo-findings.json`**: OWASP DefectDojo Generic Finding format.
 5. **`threat-dragon-model.json`**: OWASP Threat Dragon v2 schema file.
 6. **`wazuh-local_rules.xml`**: Custom Wazuh SIEM XML rules.
 7. **`sigma-rules.yml`**: Generic Sigma YAML detection rules.
 8. **`incident-response-runbook.md`**: NIST SP 800-61r2 Incident Response Playbook.
 9. **`jira-issues.json`**: Jira bulk issue import file.
-10. **`omnisec-report.md`**: Clean markdown summary for PRs.
+10. **`dksec-report.md`**: Clean markdown summary for PRs.
