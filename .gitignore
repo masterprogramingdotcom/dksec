@@ -7,7 +7,13 @@ dist/
 build/
 .pytest_cache/
 reports/cli_test/
+reports/cli_llm_test/
 reports/live_auth_test/
 reports/live_scan/
 reports/web_audit/
+reports/web_pentest/
+reports/code_audit/
+reports/test_ui/
+reports/threat-dragon-model.json
+
 
