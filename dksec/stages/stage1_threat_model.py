@@ -20,8 +20,10 @@ class Stage1ThreatModel(BaseStage):
     def run(self, config: DKSecConfig, context: Dict[str, Any]) -> Tuple[List[Finding], Dict[str, Any], Dict[str, Any]]:
         self.log("Initializing Advanced OWASP Threat Dragon & STRIDE/LINDDUN Threat Engine")
 
+        target_path = config.target_path or ""
+
         # 1. Inspect target architecture and discover components & trust boundaries
-        components, boundaries, data_flows = self._discover_architecture(config.target_path)
+        components, boundaries, data_flows = self._discover_architecture(target_path)
         self.log(f"Identified {len(components)} architectural elements across {len(boundaries)} trust boundaries.")
 
         # 2. Derive STRIDE & LINDDUN threat matrix

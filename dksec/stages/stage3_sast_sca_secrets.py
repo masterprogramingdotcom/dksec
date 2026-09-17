@@ -21,6 +21,30 @@ class Stage3SastScaSecrets(BaseStage):
 
     def run(self, config: DKSecConfig, context: Dict[str, Any]) -> Tuple[List[Finding], Dict[str, Any], Dict[str, Any]]:
         target = config.target_path
+        url_only = not target or not os.path.exists(str(target))
+
+        if url_only:
+            if config.target_url:
+                self.log(f"URL-only mode — no source code path provided. Skipping SAST/SCA/Secrets; use -t <dir> to enable code scanning.")
+            else:
+                self.log(f"No source code target found at '{target}'. Skipping SAST/SCA/Secrets.")
+            return [], {
+                "tools_used": ["Skipped (no source code target)"],
+                "secret_leaks_count": 0,
+                "sast_vulnerabilities_count": 0,
+                "sca_vulnerabilities_count": 0,
+                "total_dependencies_inventoried": 0,
+                "total_stage_findings": 0,
+                "note": "Pass -t <path> or set target_path in dksec.yml to enable SAST/SCA/Secret scanning."
+            }, {
+                "secrets": 0,
+                "sast": 0,
+                "sca": 0,
+                "sbom_summary": "No source code provided — SAST/SCA skipped (URL-only mode)",
+                "components": [],
+                "note": "To enable: dksec scan -u <url> -t <source_dir>"
+            }
+
         self.log(f"Starting Multi-Layer Code Security Audit on: {target}")
 
         findings: List[Finding] = []
@@ -62,6 +86,7 @@ class Stage3SastScaSecrets(BaseStage):
         }
 
         return findings, metrics, details
+
 
     # =========================================================================
     # 1. SECRET SCANNING (Gitleaks + Shannon Entropy)

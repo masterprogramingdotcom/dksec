@@ -22,8 +22,8 @@ class Stage2Requirements(BaseStage):
         checklist = self._get_full_asvs_checklist()
         self.log(f"Auditing {len(checklist)} verification requirements across Chapters V1 to V14.")
 
-        target_path = config.target_path
-        code_files = self._collect_code_files(target_path) if os.path.exists(target_path) else []
+        target_path = config.target_path or ""
+        code_files = self._collect_code_files(target_path) if target_path and os.path.exists(target_path) else []
 
         findings: List[Finding] = []
         verified_items = []

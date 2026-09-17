@@ -21,7 +21,7 @@ class Stage8Signoff(BaseStage):
     def run(self, config: DKSecConfig, context: Dict[str, Any]) -> Tuple[List[Finding], Dict[str, Any], Dict[str, Any]]:
         self.log("Evaluating full OpenSSF Scorecard v4 (18 Checks), SLSA Provenance, and Release Gating")
 
-        target = config.target_path
+        target = config.target_path or ""
         scorecard_18_checks = self._evaluate_18_scorecard_checks(target, context)
         self.log(f"Completed evaluation of all 18 OpenSSF Scorecard checks.")
 

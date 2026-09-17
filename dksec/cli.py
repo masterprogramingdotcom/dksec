@@ -236,7 +236,10 @@ def run_interactive_wizard():
 def execute_pipeline(config: DKSecConfig, stages_to_run: List[int], fail_on_gate: bool = False):
     print(f"{Colors.BOLD}🚀 Launching DKSec Pipeline...{Colors.RESET}")
     print(f"   Project:     {config.project_name}")
-    print(f"   Target Code: {os.path.abspath(config.target_path)}")
+    if config.target_path:
+        print(f"   Target Code: {os.path.abspath(config.target_path)}")
+    else:
+        print(f"   Target Code: {Colors.YELLOW}[None — URL-only mode, SAST/SCA skipped]{Colors.RESET}")
     if config.target_url:
         print(f"   Target URL:  {config.target_url}")
         if config.auth and config.auth.enabled:
@@ -347,7 +350,7 @@ def main():
     # Command: scan
     scan_parser = subparsers.add_parser("scan", help="Run security audit pipeline")
     scan_parser.add_argument("-p", "--project", default="DKSec Security Audit", help="Project name")
-    scan_parser.add_argument("-t", "--target", default=".", help="Target source code directory")
+    scan_parser.add_argument("-t", "--target", default=None, help="Target source code directory (omit for URL-only mode)")
     scan_parser.add_argument("-u", "--url", default=None, help="Live target URL / API endpoint")
     scan_parser.add_argument("-o", "--output", default="./reports", help="Output directory for reports")
     scan_parser.add_argument("-c", "--config", default=None, help="Path to dksec.yml configuration file")
@@ -436,8 +439,18 @@ def main():
         cfg = DKSecConfig.load(cfg_file) if cfg_file else DKSecConfig()
         if args.project:
             cfg.project_name = args.project
+
+        # Target path resolution:
+        # - --target given explicitly → use it
+        # - --url given, no --target → URL-only mode (skip SAST/SCA)
+        # - neither → fallback to "." (code-only scan of current directory)
         if args.target:
             cfg.target_path = args.target
+        elif args.url and not args.target:
+            cfg.target_path = None  # URL-only mode: skip source-code scanning
+        elif not args.target and not args.url:
+            cfg.target_path = cfg.target_path or "."  # keep YAML value or default to "."
+
         if args.url:
             cfg.target_url = args.url
         if args.output:

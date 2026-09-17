@@ -89,7 +89,7 @@ class StageConfig:
 @dataclass
 class DKSecConfig:
     project_name: str = "Application Security Review"
-    target_path: str = "."
+    target_path: Optional[str] = "."   # None = URL-only mode (no source code provided)
     target_url: Optional[str] = None
     auth: AuthConfig = field(default_factory=AuthConfig)
     llm: LLMConfig = field(default_factory=LLMConfig)

@@ -22,7 +22,7 @@ class Stage9Monitoring(BaseStage):
         self.log("Evaluating Wazuh SIEM/XDR, Sigma Detection Engineering, and Incident Response Posture")
 
         # 1. Audit Monitoring & FIM Telemetry Configuration
-        fim_checks = self._audit_fim_and_telemetry(config.target_path)
+        fim_checks = self._audit_fim_and_telemetry(config.target_path or "")
 
         # 2. Ingest Wazuh Manager API if configured
         wazuh_status = "Not configured"

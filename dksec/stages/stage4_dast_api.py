@@ -27,19 +27,21 @@ class Stage4DastApi(BaseStage):
 
     def run(self, config: DKSecConfig, context: Dict[str, Any]) -> Tuple[List[Finding], Dict[str, Any], Dict[str, Any]]:
         target_url = config.target_url
+        target_path = config.target_path or ""  # empty string → _audit_openapi/_audit_static_routes skip gracefully
         findings: List[Finding] = []
         metrics: Dict[str, Any] = {}
         details: Dict[str, Any] = {}
 
         # 1. OpenAPI / Swagger Specification Security Audit (Static & Dynamic)
-        spec_findings, spec_data = self._audit_openapi_specifications(config.target_path)
+        spec_findings, spec_data = self._audit_openapi_specifications(target_path)
         findings.extend(spec_findings)
         details["openapi_spec"] = spec_data
 
         # 2. Static Route Discovery from Source Code
-        route_findings, route_data = self._audit_static_routes(config.target_path)
+        route_findings, route_data = self._audit_static_routes(target_path)
         findings.extend(route_findings)
         details["static_routes"] = route_data
+
 
         if target_url:
             self.log(f"Running Advanced Dynamic API & DAST Audit against target URL: {target_url}")
