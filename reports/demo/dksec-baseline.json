@@ -19,7 +19,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.327797+00:00",
+    "discovered_at": "2026-09-17T09:12:39.898059+00:00",
     "references": [
       "https://owasp.org/www-project-threat-dragon/",
       "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -46,7 +46,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.327821+00:00",
+    "discovered_at": "2026-09-17T09:12:39.898095+00:00",
     "references": [
       "https://owasp.org/www-project-threat-dragon/",
       "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -73,7 +73,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 30,
-    "discovered_at": "2026-09-17T08:57:12.327830+00:00",
+    "discovered_at": "2026-09-17T09:12:39.898109+00:00",
     "references": [
       "https://owasp.org/www-project-threat-dragon/",
       "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -100,7 +100,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.327837+00:00",
+    "discovered_at": "2026-09-17T09:12:39.898117+00:00",
     "references": [
       "https://owasp.org/www-project-threat-dragon/",
       "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -127,7 +127,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.327844+00:00",
+    "discovered_at": "2026-09-17T09:12:39.898124+00:00",
     "references": [
       "https://owasp.org/www-project-threat-dragon/",
       "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -154,7 +154,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.327849+00:00",
+    "discovered_at": "2026-09-17T09:12:39.898130+00:00",
     "references": [
       "https://owasp.org/www-project-threat-dragon/",
       "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -181,7 +181,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.329905+00:00",
+    "discovered_at": "2026-09-17T09:12:39.900312+00:00",
     "references": [
       "https://owasp.org/www-project-application-security-verification-standard/"
     ]
@@ -206,7 +206,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.330088+00:00",
+    "discovered_at": "2026-09-17T09:12:39.900475+00:00",
     "references": [
       "https://owasp.org/www-project-application-security-verification-standard/"
     ]
@@ -231,7 +231,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.331414+00:00",
+    "discovered_at": "2026-09-17T09:12:39.901791+00:00",
     "references": [
       "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
     ]
@@ -256,7 +256,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.331437+00:00",
+    "discovered_at": "2026-09-17T09:12:39.901813+00:00",
     "references": [
       "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
     ]
@@ -281,7 +281,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.331457+00:00",
+    "discovered_at": "2026-09-17T09:12:39.901833+00:00",
     "references": [
       "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
     ]
@@ -306,7 +306,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.331474+00:00",
+    "discovered_at": "2026-09-17T09:12:39.901846+00:00",
     "references": [
       "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
     ]
@@ -315,12 +315,12 @@
     "id": "SAST-SQLI-001",
     "title": "SQL Injection via Formatted Query String (AST Verified)",
     "severity": "CRITICAL",
-    "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:27.",
+    "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:47.",
     "stage_id": 3,
     "stage_name": "SAST + SCA + Secret Scanning",
     "tool": "Semgrep AST Engine",
     "file_path": "server.py",
-    "line_number": 27,
+    "line_number": 47,
     "code_snippet": "cursor.execute(query)",
     "target": null,
     "cwe": "CWE-89",
@@ -328,10 +328,10 @@
     "cvss_score": null,
     "mitre_attack": "T1190",
     "remediation": "Replace string formatting with parameterized placeholders ('?' or '%s') and pass query parameters as a tuple.",
-    "remediation_diff": "--- server.py:27\n+++ server.py:27\n- cursor.execute(query)\n+ # Fix: Use parameterized statement:\n+ cursor.execute('SELECT ... WHERE field = ?', (user_input,))",
+    "remediation_diff": "--- server.py:47\n+++ server.py:47\n- cursor.execute(query)\n+ # Fix: Use parameterized statement:\n+ cursor.execute('SELECT ... WHERE field = ?', (user_input,))",
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.332694+00:00",
+    "discovered_at": "2026-09-17T09:12:39.904183+00:00",
     "references": [
       "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"
     ]
@@ -340,12 +340,12 @@
     "id": "SAST-YAML-002",
     "title": "Unsafe YAML Deserialization (RCE Risk)",
     "severity": "HIGH",
-    "description": "Called `yaml.load()` without SafeLoader in server.py:47.",
+    "description": "Called `yaml.load()` without SafeLoader in server.py:73.",
     "stage_id": 3,
     "stage_name": "SAST + SCA + Secret Scanning",
     "tool": "Semgrep AST Engine",
     "file_path": "server.py",
-    "line_number": 47,
+    "line_number": 73,
     "code_snippet": "cfg = yaml.load(content)",
     "target": null,
     "cwe": "CWE-502",
@@ -353,10 +353,10 @@
     "cvss_score": null,
     "mitre_attack": "T1059",
     "remediation": "Replace `yaml.load()` with `yaml.safe_load()`.",
-    "remediation_diff": "--- server.py:47\n+++ server.py:47\n- cfg = yaml.load(content)\n+ cfg = yaml.safe_load(content)",
+    "remediation_diff": "--- server.py:73\n+++ server.py:73\n- cfg = yaml.load(content)\n+ cfg = yaml.safe_load(content)",
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.332854+00:00",
+    "discovered_at": "2026-09-17T09:12:39.904338+00:00",
     "references": [
       "https://pyyaml.org/wiki/PyYAMLDocumentation"
     ]
@@ -381,7 +381,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.333247+00:00",
+    "discovered_at": "2026-09-17T09:12:39.905183+00:00",
     "references": [
       "https://nvd.nist.gov/vuln/detail/CVE-2023-30861"
     ]
@@ -406,7 +406,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 30,
-    "discovered_at": "2026-09-17T08:57:12.333265+00:00",
+    "discovered_at": "2026-09-17T09:12:39.905201+00:00",
     "references": [
       "https://nvd.nist.gov/vuln/detail/CVE-2023-32681"
     ]
@@ -431,7 +431,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.333276+00:00",
+    "discovered_at": "2026-09-17T09:12:39.905213+00:00",
     "references": [
       "https://nvd.nist.gov/vuln/detail/CVE-2023-45803"
     ]
@@ -456,7 +456,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.333285+00:00",
+    "discovered_at": "2026-09-17T09:12:39.905222+00:00",
     "references": [
       "https://nvd.nist.gov/vuln/detail/CVE-2020-14343"
     ]
@@ -481,7 +481,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.333408+00:00",
+    "discovered_at": "2026-09-17T09:12:39.905353+00:00",
     "references": [
       "https://nvd.nist.gov/vuln/detail/CVE-2021-3749"
     ]
@@ -506,7 +506,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.333421+00:00",
+    "discovered_at": "2026-09-17T09:12:39.905371+00:00",
     "references": [
       "https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
     ]
@@ -531,33 +531,10 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 7,
-    "discovered_at": "2026-09-17T08:57:12.333429+00:00",
+    "discovered_at": "2026-09-17T09:12:39.905381+00:00",
     "references": [
       "https://nvd.nist.gov/vuln/detail/CVE-2022-23529"
     ]
-  },
-  {
-    "id": "API-ROUTE-SENSITIVE-001",
-    "title": "Sensitive Administrative API Route: /api/v1/admin/debug",
-    "severity": "HIGH",
-    "description": "Administrative endpoint `/api/v1/admin/debug` declared in server.py. Verify explicit RBAC guards.",
-    "stage_id": 4,
-    "stage_name": "DAST + API Security Testing",
-    "tool": "OWASP API Security",
-    "file_path": "server.py",
-    "line_number": null,
-    "code_snippet": null,
-    "target": null,
-    "cwe": "CWE-306",
-    "owasp": "OWASP API5:2023-Broken Function Level Authorization",
-    "cvss_score": null,
-    "mitre_attack": null,
-    "remediation": "Ensure role-based authorization decorator / middleware wraps this controller.",
-    "remediation_diff": null,
-    "status": "OPEN",
-    "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.333906+00:00",
-    "references": []
   },
   {
     "id": "WSTG-ATHN-02",
@@ -579,9 +556,59 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.334084+00:00",
+    "discovered_at": "2026-09-17T09:12:39.906090+00:00",
     "references": [
       "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHN-02"
+    ]
+  },
+  {
+    "id": "WSTG-ATHN-03",
+    "title": "[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force",
+    "severity": "HIGH",
+    "description": "WSTG Domain: Authentication Testing\nObjective: Testing for Weak Lockout Mechanism and Brute Force\nEvidence: Automated probe sent 5 failed logins without receiving HTTP 429.",
+    "stage_id": 5,
+    "stage_name": "Manual Security Testing",
+    "tool": "OWASP WSTG v4.2",
+    "file_path": null,
+    "line_number": null,
+    "code_snippet": null,
+    "target": null,
+    "cwe": "CWE-20",
+    "owasp": "WSTG Authentication Testing",
+    "cvss_score": null,
+    "mitre_attack": null,
+    "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-03` to implement verified security control.",
+    "remediation_diff": null,
+    "status": "OPEN",
+    "sla_days": 14,
+    "discovered_at": "2026-09-17T09:12:39.906129+00:00",
+    "references": [
+      "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHN-03"
+    ]
+  },
+  {
+    "id": "WSTG-ATHZ-02",
+    "title": "[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)",
+    "severity": "HIGH",
+    "description": "WSTG Domain: Authorization Testing\nObjective: Testing for Bypassing Authorization Schema (IDOR/BOLA)\nEvidence: 1 authorization issues identified.",
+    "stage_id": 5,
+    "stage_name": "Manual Security Testing",
+    "tool": "OWASP WSTG v4.2",
+    "file_path": null,
+    "line_number": null,
+    "code_snippet": null,
+    "target": null,
+    "cwe": "CWE-20",
+    "owasp": "WSTG Authorization Testing",
+    "cvss_score": null,
+    "mitre_attack": null,
+    "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHZ-02` to implement verified security control.",
+    "remediation_diff": null,
+    "status": "OPEN",
+    "sla_days": 14,
+    "discovered_at": "2026-09-17T09:12:39.906156+00:00",
+    "references": [
+      "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHZ-02"
     ]
   },
   {
@@ -604,7 +631,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.334121+00:00",
+    "discovered_at": "2026-09-17T09:12:39.906188+00:00",
     "references": [
       "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-INPV-05"
     ]
@@ -629,7 +656,7 @@
     "remediation_diff": null,
     "status": "OPEN",
     "sla_days": 14,
-    "discovered_at": "2026-09-17T08:57:12.334247+00:00",
+    "discovered_at": "2026-09-17T09:12:39.906438+00:00",
     "references": []
   }
 ]

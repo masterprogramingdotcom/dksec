@@ -207,7 +207,7 @@
     {
       "title": "SQL Injection via Formatted Query String (AST Verified)",
       "severity": "Critical",
-      "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:27.",
+      "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:47.",
       "mitigation": "Replace string formatting with parameterized placeholders ('?' or '%s') and pass query parameters as a tuple.",
       "cwe": 89,
       "active": true,
@@ -218,13 +218,13 @@
       "impact": "Risk Rating: CRITICAL. Remediate within 7 days.",
       "references": "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html",
       "file_path": "server.py",
-      "line": 27,
+      "line": 47,
       "date": "2026-09-17"
     },
     {
       "title": "Unsafe YAML Deserialization (RCE Risk)",
       "severity": "High",
-      "description": "Called `yaml.load()` without SafeLoader in server.py:47.",
+      "description": "Called `yaml.load()` without SafeLoader in server.py:73.",
       "mitigation": "Replace `yaml.load()` with `yaml.safe_load()`.",
       "cwe": 502,
       "active": true,
@@ -235,7 +235,7 @@
       "impact": "Risk Rating: HIGH. Remediate within 14 days.",
       "references": "https://pyyaml.org/wiki/PyYAMLDocumentation",
       "file_path": "server.py",
-      "line": 47,
+      "line": 73,
       "date": "2026-09-17"
     },
     {
@@ -358,23 +358,6 @@
       "date": "2026-09-17"
     },
     {
-      "title": "Sensitive Administrative API Route: /api/v1/admin/debug",
-      "severity": "High",
-      "description": "Administrative endpoint `/api/v1/admin/debug` declared in server.py. Verify explicit RBAC guards.",
-      "mitigation": "Ensure role-based authorization decorator / middleware wraps this controller.",
-      "cwe": 306,
-      "active": true,
-      "verified": true,
-      "false_p": false,
-      "duplicate": false,
-      "out_of_scope": false,
-      "impact": "Risk Rating: HIGH. Remediate within 14 days.",
-      "references": "",
-      "file_path": "server.py",
-      "line": 1,
-      "date": "2026-09-17"
-    },
-    {
       "title": "[WSTG-ATHN-02] Manual Testing Check Failed: Test for Default, Weak, and Hardcoded Credentials",
       "severity": "High",
       "description": "WSTG Domain: Authentication Testing\nObjective: Test for Default, Weak, and Hardcoded Credentials\nEvidence: 4 hardcoded credential patterns found.",
@@ -387,6 +370,40 @@
       "out_of_scope": false,
       "impact": "Risk Rating: HIGH. Remediate within 14 days.",
       "references": "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHN-02",
+      "file_path": "N/A",
+      "line": 1,
+      "date": "2026-09-17"
+    },
+    {
+      "title": "[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force",
+      "severity": "High",
+      "description": "WSTG Domain: Authentication Testing\nObjective: Testing for Weak Lockout Mechanism and Brute Force\nEvidence: Automated probe sent 5 failed logins without receiving HTTP 429.",
+      "mitigation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-03` to implement verified security control.",
+      "cwe": 20,
+      "active": true,
+      "verified": true,
+      "false_p": false,
+      "duplicate": false,
+      "out_of_scope": false,
+      "impact": "Risk Rating: HIGH. Remediate within 14 days.",
+      "references": "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHN-03",
+      "file_path": "N/A",
+      "line": 1,
+      "date": "2026-09-17"
+    },
+    {
+      "title": "[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)",
+      "severity": "High",
+      "description": "WSTG Domain: Authorization Testing\nObjective: Testing for Bypassing Authorization Schema (IDOR/BOLA)\nEvidence: 1 authorization issues identified.",
+      "mitigation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHZ-02` to implement verified security control.",
+      "cwe": 20,
+      "active": true,
+      "verified": true,
+      "false_p": false,
+      "duplicate": false,
+      "out_of_scope": false,
+      "impact": "Risk Rating: HIGH. Remediate within 14 days.",
+      "references": "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHZ-02",
       "file_path": "N/A",
       "line": 1,
       "date": "2026-09-17"

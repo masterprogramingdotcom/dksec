@@ -2,8 +2,8 @@
   "project_name": "Fintech Core Banking Demo",
   "target_path": "samples/app",
   "target_url": null,
-  "timestamp": "2026-09-17T08:57:12.339645+00:00",
-  "duration_seconds": 0.01,
+  "timestamp": "2026-09-17T09:12:39.913448+00:00",
+  "duration_seconds": 0.02,
   "stages_executed": [
     1,
     2,
@@ -18,7 +18,7 @@
   "overall_score": 0.0,
   "severity_counts": {
     "CRITICAL": 9,
-    "HIGH": 14,
+    "HIGH": 15,
     "MEDIUM": 2,
     "LOW": 0,
     "INFO": 0
@@ -28,14 +28,14 @@
     "status": "BLOCKED",
     "score": 0.0,
     "critical_count": 9,
-    "high_count": 14,
+    "high_count": 15,
     "reasons": [
       "Blocked: Found 9 Critical vulnerabilities (Threshold: 0)",
-      "Blocked: Found 14 High vulnerabilities (Threshold: 0)",
+      "Blocked: Found 15 High vulnerabilities (Threshold: 0)",
       "Blocked: Composite security score 0.0/100 is below minimum threshold 75.0"
     ],
-    "signoff_hash": "4b0638aa74f1d003e0266ccceee9e935da3682b989343bb74c61249d99e674e2",
-    "timestamp": "2026-09-17T08:57:12.337248+00:00"
+    "signoff_hash": "238e4b33503120106de60c109dc36c3b14bbec786aacf5fdaf7907dc3ed7dad5",
+    "timestamp": "2026-09-17T09:12:39.911152+00:00"
   },
   "stage_results": {
     "1": {
@@ -67,7 +67,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.327797+00:00",
+          "discovered_at": "2026-09-17T09:12:39.898059+00:00",
           "references": [
             "https://owasp.org/www-project-threat-dragon/",
             "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -94,7 +94,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.327821+00:00",
+          "discovered_at": "2026-09-17T09:12:39.898095+00:00",
           "references": [
             "https://owasp.org/www-project-threat-dragon/",
             "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -121,7 +121,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 30,
-          "discovered_at": "2026-09-17T08:57:12.327830+00:00",
+          "discovered_at": "2026-09-17T09:12:39.898109+00:00",
           "references": [
             "https://owasp.org/www-project-threat-dragon/",
             "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -148,7 +148,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.327837+00:00",
+          "discovered_at": "2026-09-17T09:12:39.898117+00:00",
           "references": [
             "https://owasp.org/www-project-threat-dragon/",
             "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -175,7 +175,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.327844+00:00",
+          "discovered_at": "2026-09-17T09:12:39.898124+00:00",
           "references": [
             "https://owasp.org/www-project-threat-dragon/",
             "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -202,7 +202,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.327849+00:00",
+          "discovered_at": "2026-09-17T09:12:39.898130+00:00",
           "references": [
             "https://owasp.org/www-project-threat-dragon/",
             "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -366,12 +366,12 @@
         "mermaid_dfd": "flowchart TD\n  subgraph Untrusted_External[\"Trust Boundary: Untrusted External\"]\n    comp_client[\"\ud83d\udc64 Web / Mobile Client\"]\n  end\n  subgraph DMZ_Perimeter[\"Trust Boundary: DMZ Perimeter\"]\n    comp_edge[\"\u2699\ufe0f Ingress / Reverse Proxy\"]\n  end\n  subgraph Internal_Trusted_VPC[\"Trust Boundary: Internal Trusted VPC\"]\n    comp_app[\"\u2699\ufe0f Application Backend API\"]\n    comp_auth[\"\u2699\ufe0f Identity & Token Service\"]\n  end\n  subgraph Restricted_Core_Data[\"Trust Boundary: Restricted Core Data\"]\n    comp_db[\"\ud83d\uddc4\ufe0f Primary Database Store\"]\n  end\n  comp_client -->|\"HTTPS (TLS 1.3): User Credentials / API Requests\"| comp_edge\n  comp_edge -->|\"HTTP / gRPC: Authenticated Reverse Proxy Forward\"| comp_app\n  comp_app -->|\"Internal RPC: Token Verification & RBAC Check\"| comp_auth\n  comp_app -->|\"Encrypted TCP (TLS): Parameterized SQL / Data Queries\"| comp_db"
       },
       "logs": [
-        "[14:27:12] [Architecture & Threat Model] Starting Architecture & Threat Model (OWASP Threat Dragon)",
-        "[14:27:12] [Architecture & Threat Model] Initializing Advanced OWASP Threat Dragon & STRIDE/LINDDUN Threat Engine",
-        "[14:27:12] [Architecture & Threat Model] Identified 5 architectural elements across 4 trust boundaries.",
-        "[14:27:12] [Architecture & Threat Model] Synthesized 6 architectural threats mapped to STRIDE & MITRE ATT&CK.",
-        "[14:27:12] [Architecture & Threat Model] Exported OWASP Threat Dragon schema: reports/demo/threat-dragon-model.json",
-        "[14:27:12] [Architecture & Threat Model] Completed with 6 findings."
+        "[14:42:39] [Architecture & Threat Model] Starting Architecture & Threat Model (OWASP Threat Dragon)",
+        "[14:42:39] [Architecture & Threat Model] Initializing Advanced OWASP Threat Dragon & STRIDE/LINDDUN Threat Engine",
+        "[14:42:39] [Architecture & Threat Model] Identified 5 architectural elements across 4 trust boundaries.",
+        "[14:42:39] [Architecture & Threat Model] Synthesized 6 architectural threats mapped to STRIDE & MITRE ATT&CK.",
+        "[14:42:39] [Architecture & Threat Model] Exported OWASP Threat Dragon schema: reports/demo/threat-dragon-model.json",
+        "[14:42:39] [Architecture & Threat Model] Completed with 6 findings."
       ]
     },
     "2": {
@@ -403,7 +403,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.329905+00:00",
+          "discovered_at": "2026-09-17T09:12:39.900312+00:00",
           "references": [
             "https://owasp.org/www-project-application-security-verification-standard/"
           ]
@@ -428,7 +428,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.330088+00:00",
+          "discovered_at": "2026-09-17T09:12:39.900475+00:00",
           "references": [
             "https://owasp.org/www-project-application-security-verification-standard/"
           ]
@@ -712,10 +712,10 @@
         }
       },
       "logs": [
-        "[14:27:12] [Security Requirements] Starting Security Requirements (OWASP ASVS)",
-        "[14:27:12] [Security Requirements] Evaluating full OWASP ASVS (Application Security Verification Standard) v4.0.3 across Levels 1-3",
-        "[14:27:12] [Security Requirements] Auditing 19 verification requirements across Chapters V1 to V14.",
-        "[14:27:12] [Security Requirements] Completed with 2 findings."
+        "[14:42:39] [Security Requirements] Starting Security Requirements (OWASP ASVS)",
+        "[14:42:39] [Security Requirements] Evaluating full OWASP ASVS (Application Security Verification Standard) v4.0.3 across Levels 1-3",
+        "[14:42:39] [Security Requirements] Auditing 19 verification requirements across Chapters V1 to V14.",
+        "[14:42:39] [Security Requirements] Completed with 2 findings."
       ]
     },
     "3": {
@@ -747,7 +747,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.331414+00:00",
+          "discovered_at": "2026-09-17T09:12:39.901791+00:00",
           "references": [
             "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
           ]
@@ -772,7 +772,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.331437+00:00",
+          "discovered_at": "2026-09-17T09:12:39.901813+00:00",
           "references": [
             "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
           ]
@@ -797,7 +797,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.331457+00:00",
+          "discovered_at": "2026-09-17T09:12:39.901833+00:00",
           "references": [
             "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
           ]
@@ -822,7 +822,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.331474+00:00",
+          "discovered_at": "2026-09-17T09:12:39.901846+00:00",
           "references": [
             "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
           ]
@@ -831,12 +831,12 @@
           "id": "SAST-SQLI-001",
           "title": "SQL Injection via Formatted Query String (AST Verified)",
           "severity": "CRITICAL",
-          "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:27.",
+          "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:47.",
           "stage_id": 3,
           "stage_name": "SAST + SCA + Secret Scanning",
           "tool": "Semgrep AST Engine",
           "file_path": "server.py",
-          "line_number": 27,
+          "line_number": 47,
           "code_snippet": "cursor.execute(query)",
           "target": null,
           "cwe": "CWE-89",
@@ -844,10 +844,10 @@
           "cvss_score": null,
           "mitre_attack": "T1190",
           "remediation": "Replace string formatting with parameterized placeholders ('?' or '%s') and pass query parameters as a tuple.",
-          "remediation_diff": "--- server.py:27\n+++ server.py:27\n- cursor.execute(query)\n+ # Fix: Use parameterized statement:\n+ cursor.execute('SELECT ... WHERE field = ?', (user_input,))",
+          "remediation_diff": "--- server.py:47\n+++ server.py:47\n- cursor.execute(query)\n+ # Fix: Use parameterized statement:\n+ cursor.execute('SELECT ... WHERE field = ?', (user_input,))",
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.332694+00:00",
+          "discovered_at": "2026-09-17T09:12:39.904183+00:00",
           "references": [
             "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"
           ]
@@ -856,12 +856,12 @@
           "id": "SAST-YAML-002",
           "title": "Unsafe YAML Deserialization (RCE Risk)",
           "severity": "HIGH",
-          "description": "Called `yaml.load()` without SafeLoader in server.py:47.",
+          "description": "Called `yaml.load()` without SafeLoader in server.py:73.",
           "stage_id": 3,
           "stage_name": "SAST + SCA + Secret Scanning",
           "tool": "Semgrep AST Engine",
           "file_path": "server.py",
-          "line_number": 47,
+          "line_number": 73,
           "code_snippet": "cfg = yaml.load(content)",
           "target": null,
           "cwe": "CWE-502",
@@ -869,10 +869,10 @@
           "cvss_score": null,
           "mitre_attack": "T1059",
           "remediation": "Replace `yaml.load()` with `yaml.safe_load()`.",
-          "remediation_diff": "--- server.py:47\n+++ server.py:47\n- cfg = yaml.load(content)\n+ cfg = yaml.safe_load(content)",
+          "remediation_diff": "--- server.py:73\n+++ server.py:73\n- cfg = yaml.load(content)\n+ cfg = yaml.safe_load(content)",
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.332854+00:00",
+          "discovered_at": "2026-09-17T09:12:39.904338+00:00",
           "references": [
             "https://pyyaml.org/wiki/PyYAMLDocumentation"
           ]
@@ -897,7 +897,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.333247+00:00",
+          "discovered_at": "2026-09-17T09:12:39.905183+00:00",
           "references": [
             "https://nvd.nist.gov/vuln/detail/CVE-2023-30861"
           ]
@@ -922,7 +922,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 30,
-          "discovered_at": "2026-09-17T08:57:12.333265+00:00",
+          "discovered_at": "2026-09-17T09:12:39.905201+00:00",
           "references": [
             "https://nvd.nist.gov/vuln/detail/CVE-2023-32681"
           ]
@@ -947,7 +947,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.333276+00:00",
+          "discovered_at": "2026-09-17T09:12:39.905213+00:00",
           "references": [
             "https://nvd.nist.gov/vuln/detail/CVE-2023-45803"
           ]
@@ -972,7 +972,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.333285+00:00",
+          "discovered_at": "2026-09-17T09:12:39.905222+00:00",
           "references": [
             "https://nvd.nist.gov/vuln/detail/CVE-2020-14343"
           ]
@@ -997,7 +997,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.333408+00:00",
+          "discovered_at": "2026-09-17T09:12:39.905353+00:00",
           "references": [
             "https://nvd.nist.gov/vuln/detail/CVE-2021-3749"
           ]
@@ -1022,7 +1022,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.333421+00:00",
+          "discovered_at": "2026-09-17T09:12:39.905371+00:00",
           "references": [
             "https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
           ]
@@ -1047,7 +1047,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 7,
-          "discovered_at": "2026-09-17T08:57:12.333429+00:00",
+          "discovered_at": "2026-09-17T09:12:39.905381+00:00",
           "references": [
             "https://nvd.nist.gov/vuln/detail/CVE-2022-23529"
           ]
@@ -1172,11 +1172,11 @@
         ]
       },
       "logs": [
-        "[14:27:12] [SAST + SCA + Secret Scanning] Starting SAST + SCA + Secret Scanning (Semgrep + Trivy + Gitleaks)",
-        "[14:27:12] [SAST + SCA + Secret Scanning] Starting Multi-Layer Code Security Audit on: samples/app",
-        "[14:27:12] [SAST + SCA + Secret Scanning] Executing High-Entropy Pattern Secret Scanner...",
-        "[14:27:12] [SAST + SCA + Secret Scanning] Running Python Abstract Syntax Tree (AST) Taint/Sink Analysis...",
-        "[14:27:12] [SAST + SCA + Secret Scanning] Completed with 13 findings."
+        "[14:42:39] [SAST + SCA + Secret Scanning] Starting SAST + SCA + Secret Scanning (Semgrep + Trivy + Gitleaks)",
+        "[14:42:39] [SAST + SCA + Secret Scanning] Starting Multi-Layer Code Security Audit on: samples/app",
+        "[14:42:39] [SAST + SCA + Secret Scanning] Executing High-Entropy Pattern Secret Scanner...",
+        "[14:42:39] [SAST + SCA + Secret Scanning] Running Python Abstract Syntax Tree (AST) Taint/Sink Analysis...",
+        "[14:42:39] [SAST + SCA + Secret Scanning] Completed with 13 findings."
       ]
     },
     "4": {
@@ -1186,50 +1186,28 @@
       "what_it_covers": "Web/API dynamic testing, automated scanning and API-specific security guidance",
       "success": true,
       "execution_time_seconds": 0.0,
-      "findings_count": 1,
-      "findings": [
-        {
-          "id": "API-ROUTE-SENSITIVE-001",
-          "title": "Sensitive Administrative API Route: /api/v1/admin/debug",
-          "severity": "HIGH",
-          "description": "Administrative endpoint `/api/v1/admin/debug` declared in server.py. Verify explicit RBAC guards.",
-          "stage_id": 4,
-          "stage_name": "DAST + API Security Testing",
-          "tool": "OWASP API Security",
-          "file_path": "server.py",
-          "line_number": null,
-          "code_snippet": null,
-          "target": null,
-          "cwe": "CWE-306",
-          "owasp": "OWASP API5:2023-Broken Function Level Authorization",
-          "cvss_score": null,
-          "mitre_attack": null,
-          "remediation": "Ensure role-based authorization decorator / middleware wraps this controller.",
-          "remediation_diff": null,
-          "status": "OPEN",
-          "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.333906+00:00",
-          "references": []
-        }
-      ],
+      "findings_count": 0,
+      "findings": [],
       "metrics": {
         "scan_mode": "Static API Surface & Spec Audit",
         "openapi_endpoints_audited": 0,
-        "code_routes_audited": 4,
-        "dast_findings_count": 1
+        "code_routes_audited": 0,
+        "dast_findings_count": 0
       },
       "details": {
         "openapi_spec": {
-          "endpoints_found": 0
+          "endpoints_found": 0,
+          "endpoints_list": []
         },
         "static_routes": {
-          "routes_found": 4
+          "routes_found": 0,
+          "routes_list": []
         }
       },
       "logs": [
-        "[14:27:12] [DAST + API Security Testing] Starting DAST + API Security Testing (OWASP ZAP + OWASP API Security)",
-        "[14:27:12] [DAST + API Security Testing] No live target_url provided; auditing static API route definitions & OpenAPI surface...",
-        "[14:27:12] [DAST + API Security Testing] Completed with 1 findings."
+        "[14:42:39] [DAST + API Security Testing] Starting DAST + API Security Testing (OWASP ZAP + OWASP API Security)",
+        "[14:42:39] [DAST + API Security Testing] No live target_url provided; completed static API route definitions & OpenAPI surface audit.",
+        "[14:42:39] [DAST + API Security Testing] Completed with 0 findings."
       ]
     },
     "5": {
@@ -1239,7 +1217,7 @@
       "what_it_covers": "Comprehensive manual web/API security-testing methodology and checklist",
       "success": true,
       "execution_time_seconds": 0.0,
-      "findings_count": 2,
+      "findings_count": 4,
       "findings": [
         {
           "id": "WSTG-ATHN-02",
@@ -1261,9 +1239,59 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.334084+00:00",
+          "discovered_at": "2026-09-17T09:12:39.906090+00:00",
           "references": [
             "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHN-02"
+          ]
+        },
+        {
+          "id": "WSTG-ATHN-03",
+          "title": "[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force",
+          "severity": "HIGH",
+          "description": "WSTG Domain: Authentication Testing\nObjective: Testing for Weak Lockout Mechanism and Brute Force\nEvidence: Automated probe sent 5 failed logins without receiving HTTP 429.",
+          "stage_id": 5,
+          "stage_name": "Manual Security Testing",
+          "tool": "OWASP WSTG v4.2",
+          "file_path": null,
+          "line_number": null,
+          "code_snippet": null,
+          "target": null,
+          "cwe": "CWE-20",
+          "owasp": "WSTG Authentication Testing",
+          "cvss_score": null,
+          "mitre_attack": null,
+          "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-03` to implement verified security control.",
+          "remediation_diff": null,
+          "status": "OPEN",
+          "sla_days": 14,
+          "discovered_at": "2026-09-17T09:12:39.906129+00:00",
+          "references": [
+            "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHN-03"
+          ]
+        },
+        {
+          "id": "WSTG-ATHZ-02",
+          "title": "[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)",
+          "severity": "HIGH",
+          "description": "WSTG Domain: Authorization Testing\nObjective: Testing for Bypassing Authorization Schema (IDOR/BOLA)\nEvidence: 1 authorization issues identified.",
+          "stage_id": 5,
+          "stage_name": "Manual Security Testing",
+          "tool": "OWASP WSTG v4.2",
+          "file_path": null,
+          "line_number": null,
+          "code_snippet": null,
+          "target": null,
+          "cwe": "CWE-20",
+          "owasp": "WSTG Authorization Testing",
+          "cvss_score": null,
+          "mitre_attack": null,
+          "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHZ-02` to implement verified security control.",
+          "remediation_diff": null,
+          "status": "OPEN",
+          "sla_days": 14,
+          "discovered_at": "2026-09-17T09:12:39.906156+00:00",
+          "references": [
+            "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHZ-02"
           ]
         },
         {
@@ -1286,7 +1314,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.334121+00:00",
+          "discovered_at": "2026-09-17T09:12:39.906188+00:00",
           "references": [
             "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-INPV-05"
           ]
@@ -1295,10 +1323,10 @@
       "metrics": {
         "wstg_standard": "OWASP WSTG v4.2",
         "total_test_cases": 20,
-        "passed_cases": 15,
-        "failed_cases": 2,
-        "pending_manual_verification": 3,
-        "test_coverage_rate": 85.0
+        "passed_cases": 14,
+        "failed_cases": 4,
+        "pending_manual_verification": 2,
+        "test_coverage_rate": 90.0
       },
       "details": {
         "checklist": [
@@ -1354,9 +1382,9 @@
             "id": "WSTG-ATHN-03",
             "category": "Authentication Testing",
             "name": "Testing for Weak Lockout Mechanism and Brute Force",
-            "status": "PASS",
-            "tester_notes": "Automated baseline check passed.",
-            "evidence": ""
+            "status": "FAIL",
+            "tester_notes": "Login endpoint lacks rate limiting and lockout mechanism.",
+            "evidence": "Automated probe sent 5 failed logins without receiving HTTP 429."
           },
           {
             "id": "WSTG-ATHZ-01",
@@ -1370,9 +1398,9 @@
             "id": "WSTG-ATHZ-02",
             "category": "Authorization Testing",
             "name": "Testing for Bypassing Authorization Schema (IDOR/BOLA)",
-            "status": "UNTESTED",
-            "tester_notes": "Requires manual multi-role account testing & workflow fuzzing by penetration tester.",
-            "evidence": ""
+            "status": "FAIL",
+            "tester_notes": "Access control bypass or broken function level authorization detected.",
+            "evidence": "1 authorization issues identified."
           },
           {
             "id": "WSTG-SESS-02",
@@ -1464,24 +1492,24 @@
           }
         ],
         "domains": [
-          "Session Management",
-          "Business Logic",
+          "Cryptography",
           "Authentication Testing",
           "Authorization Testing",
-          "Cryptography",
-          "Information Gathering",
-          "API Testing",
           "Configuration Management",
+          "API Testing",
+          "Session Management",
           "Client Side Testing",
+          "Information Gathering",
+          "Identity Management",
           "Input Validation",
-          "Identity Management"
+          "Business Logic"
         ]
       },
       "logs": [
-        "[14:27:12] [Manual Security Testing] Starting Manual Security Testing (OWASP WSTG)",
-        "[14:27:12] [Manual Security Testing] Evaluating OWASP Web Security Testing Guide (WSTG v4.2) across all 12 testing domains",
-        "[14:27:12] [Manual Security Testing] Auditing 20 manual & heuristic verification methodology test cases.",
-        "[14:27:12] [Manual Security Testing] Completed with 2 findings."
+        "[14:42:39] [Manual Security Testing] Starting Manual Security Testing (OWASP WSTG)",
+        "[14:42:39] [Manual Security Testing] Evaluating OWASP Web Security Testing Guide (WSTG v4.2) across all 12 testing domains",
+        "[14:42:39] [Manual Security Testing] Auditing 20 manual & heuristic verification methodology test cases.",
+        "[14:42:39] [Manual Security Testing] Completed with 4 findings."
       ]
     },
     "6": {
@@ -1513,7 +1541,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.334247+00:00",
+          "discovered_at": "2026-09-17T09:12:39.906438+00:00",
           "references": []
         }
       ],
@@ -1531,9 +1559,9 @@
         }
       },
       "logs": [
-        "[14:27:12] [Penetration Test / VAPT] Starting Penetration Test / VAPT (OWASP WSTG + Nuclei + OWASP Amass)",
-        "[14:27:12] [Penetration Test / VAPT] No live target_url provided; conducting Static Attack-Surface Vector Mapping...",
-        "[14:27:12] [Penetration Test / VAPT] Completed with 1 findings."
+        "[14:42:39] [Penetration Test / VAPT] Starting Penetration Test / VAPT (OWASP WSTG + Nuclei + OWASP Amass)",
+        "[14:42:39] [Penetration Test / VAPT] No live target_url provided; conducting Static Attack-Surface Vector Mapping...",
+        "[14:42:39] [Penetration Test / VAPT] Completed with 1 findings."
       ]
     },
     "7": {
@@ -1546,14 +1574,14 @@
       "findings_count": 0,
       "findings": [],
       "metrics": {
-        "total_deduplicated_findings": 25,
+        "total_deduplicated_findings": 26,
         "critical_sla_count": 9,
-        "high_sla_count": 14,
+        "high_sla_count": 15,
         "defectdojo_export_file": "reports/demo/defectdojo-findings.json",
         "jira_export_file": "reports/demo/jira-issues.json",
         "defectdojo_api_status": "Not configured",
-        "retest_regressions": 0,
-        "fixed_and_retested": 0
+        "retest_regressions": 2,
+        "fixed_and_retested": 1
       },
       "details": {
         "remediation_plan": [
@@ -1644,7 +1672,7 @@
             "sla_days": 7,
             "target_due_date": "2026-09-24",
             "remediation": "Replace string formatting with parameterized placeholders ('?' or '%s') and pass query parameters as a tuple.",
-            "remediation_diff": "--- server.py:27\n+++ server.py:27\n- cursor.execute(query)\n+ # Fix: Use parameterized statement:\n+ cursor.execute('SELECT ... WHERE field = ?', (user_input,))",
+            "remediation_diff": "--- server.py:47\n+++ server.py:47\n- cursor.execute(query)\n+ # Fix: Use parameterized statement:\n+ cursor.execute('SELECT ... WHERE field = ?', (user_input,))",
             "status": "OPEN",
             "mitre_attack": "T1190"
           },
@@ -1748,7 +1776,7 @@
             "sla_days": 14,
             "target_due_date": "2026-10-01",
             "remediation": "Replace `yaml.load()` with `yaml.safe_load()`.",
-            "remediation_diff": "--- server.py:47\n+++ server.py:47\n- cfg = yaml.load(content)\n+ cfg = yaml.safe_load(content)",
+            "remediation_diff": "--- server.py:73\n+++ server.py:73\n- cfg = yaml.load(content)\n+ cfg = yaml.safe_load(content)",
             "status": "OPEN",
             "mitre_attack": "T1059"
           },
@@ -1805,19 +1833,6 @@
             "mitre_attack": "T1190"
           },
           {
-            "id": "API-ROUTE-SENSITIVE-001",
-            "title": "Sensitive Administrative API Route: /api/v1/admin/debug",
-            "severity": "HIGH",
-            "tool": "OWASP API Security",
-            "stage": "DAST + API Security Testing",
-            "sla_days": 14,
-            "target_due_date": "2026-10-01",
-            "remediation": "Ensure role-based authorization decorator / middleware wraps this controller.",
-            "remediation_diff": null,
-            "status": "OPEN",
-            "mitre_attack": "N/A"
-          },
-          {
             "id": "WSTG-ATHN-02",
             "title": "[WSTG-ATHN-02] Manual Testing Check Failed: Test for Default, Weak, and Hardcoded Credentials",
             "severity": "HIGH",
@@ -1826,6 +1841,32 @@
             "sla_days": 14,
             "target_due_date": "2026-10-01",
             "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-02` to implement verified security control.",
+            "remediation_diff": null,
+            "status": "OPEN",
+            "mitre_attack": "N/A"
+          },
+          {
+            "id": "WSTG-ATHN-03",
+            "title": "[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force",
+            "severity": "HIGH",
+            "tool": "OWASP WSTG v4.2",
+            "stage": "Manual Security Testing",
+            "sla_days": 14,
+            "target_due_date": "2026-10-01",
+            "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-03` to implement verified security control.",
+            "remediation_diff": null,
+            "status": "OPEN",
+            "mitre_attack": "N/A"
+          },
+          {
+            "id": "WSTG-ATHZ-02",
+            "title": "[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)",
+            "severity": "HIGH",
+            "tool": "OWASP WSTG v4.2",
+            "stage": "Manual Security Testing",
+            "sla_days": 14,
+            "target_due_date": "2026-10-01",
+            "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHZ-02` to implement verified security control.",
             "remediation_diff": null,
             "status": "OPEN",
             "mitre_attack": "N/A"
@@ -1885,20 +1926,25 @@
         ],
         "retest_summary": {
           "first_scan": false,
-          "new_regressions_count": 0,
-          "fixed_vulnerabilities_count": 0,
-          "fixed_titles": [],
-          "new_regression_titles": []
+          "new_regressions_count": 2,
+          "fixed_vulnerabilities_count": 1,
+          "fixed_titles": [
+            "Sensitive Administrative API Route: /api/v1/admin/debug"
+          ],
+          "new_regression_titles": [
+            "[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)",
+            "[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force"
+          ]
         },
         "defectdojo_sync": "Not configured"
       },
       "logs": [
-        "[14:27:12] [Fix & Retest] Starting Fix & Retest (OWASP DefectDojo)",
-        "[14:27:12] [Fix & Retest] Synthesizing all lifecycle findings into OWASP DefectDojo & Triage Retest Tracker",
-        "[14:27:12] [Fix & Retest] Deduplicated 25 raw observations into 25 distinct vulnerability issues.",
-        "[14:27:12] [Fix & Retest] Exported OWASP DefectDojo artifact: reports/demo/defectdojo-findings.json",
-        "[14:27:12] [Fix & Retest] Exported Jira bulk ticket artifact: reports/demo/jira-issues.json",
-        "[14:27:12] [Fix & Retest] Completed with 0 findings."
+        "[14:42:39] [Fix & Retest] Starting Fix & Retest (OWASP DefectDojo)",
+        "[14:42:39] [Fix & Retest] Synthesizing all lifecycle findings into OWASP DefectDojo & Triage Retest Tracker",
+        "[14:42:39] [Fix & Retest] Deduplicated 26 raw observations into 26 distinct vulnerability issues.",
+        "[14:42:39] [Fix & Retest] Exported OWASP DefectDojo artifact: reports/demo/defectdojo-findings.json",
+        "[14:42:39] [Fix & Retest] Exported Jira bulk ticket artifact: reports/demo/jira-issues.json",
+        "[14:42:39] [Fix & Retest] Completed with 0 findings."
       ]
     },
     "8": {
@@ -1930,7 +1976,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 30,
-          "discovered_at": "2026-09-17T08:57:12.337135+00:00",
+          "discovered_at": "2026-09-17T09:12:39.911048+00:00",
           "references": [
             "https://github.com/ossf/scorecard"
           ]
@@ -1955,7 +2001,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 30,
-          "discovered_at": "2026-09-17T08:57:12.337152+00:00",
+          "discovered_at": "2026-09-17T09:12:39.911066+00:00",
           "references": [
             "https://github.com/ossf/scorecard"
           ]
@@ -1980,7 +2026,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 30,
-          "discovered_at": "2026-09-17T08:57:12.337160+00:00",
+          "discovered_at": "2026-09-17T09:12:39.911074+00:00",
           "references": [
             "https://github.com/ossf/scorecard"
           ]
@@ -2005,7 +2051,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.337166+00:00",
+          "discovered_at": "2026-09-17T09:12:39.911080+00:00",
           "references": [
             "https://github.com/ossf/scorecard"
           ]
@@ -2030,7 +2076,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 30,
-          "discovered_at": "2026-09-17T08:57:12.337172+00:00",
+          "discovered_at": "2026-09-17T09:12:39.911086+00:00",
           "references": [
             "https://github.com/ossf/scorecard"
           ]
@@ -2055,7 +2101,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.337178+00:00",
+          "discovered_at": "2026-09-17T09:12:39.911093+00:00",
           "references": [
             "https://github.com/ossf/scorecard"
           ]
@@ -2080,7 +2126,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 30,
-          "discovered_at": "2026-09-17T08:57:12.337183+00:00",
+          "discovered_at": "2026-09-17T09:12:39.911098+00:00",
           "references": [
             "https://github.com/ossf/scorecard"
           ]
@@ -2105,7 +2151,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.337188+00:00",
+          "discovered_at": "2026-09-17T09:12:39.911103+00:00",
           "references": [
             "https://github.com/ossf/scorecard"
           ]
@@ -2116,7 +2162,7 @@
         "slsa_provenance_level": "SLSA Level 1 (Scripted Build & Version Controlled)",
         "gate_decision": "BLOCKED",
         "overall_posture_score": 0.0,
-        "signoff_audit_hash": "4b0638aa74f1d003e0266ccceee9e935da3682b989343bb74c61249d99e674e2",
+        "signoff_audit_hash": "238e4b33503120106de60c109dc36c3b14bbec786aacf5fdaf7907dc3ed7dad5",
         "release_approved": false
       },
       "details": {
@@ -2235,22 +2281,22 @@
           "status": "BLOCKED",
           "score": 0.0,
           "critical_count": 9,
-          "high_count": 14,
+          "high_count": 15,
           "reasons": [
             "Blocked: Found 9 Critical vulnerabilities (Threshold: 0)",
-            "Blocked: Found 14 High vulnerabilities (Threshold: 0)",
+            "Blocked: Found 15 High vulnerabilities (Threshold: 0)",
             "Blocked: Composite security score 0.0/100 is below minimum threshold 75.0"
           ],
-          "signoff_hash": "4b0638aa74f1d003e0266ccceee9e935da3682b989343bb74c61249d99e674e2",
-          "timestamp": "2026-09-17T08:57:12.337248+00:00"
+          "signoff_hash": "238e4b33503120106de60c109dc36c3b14bbec786aacf5fdaf7907dc3ed7dad5",
+          "timestamp": "2026-09-17T09:12:39.911152+00:00"
         },
         "slsa_level": "SLSA Level 1 (Scripted Build & Version Controlled)"
       },
       "logs": [
-        "[14:27:12] [Security Signoff] Starting Security Signoff (OpenSSF Scorecard)",
-        "[14:27:12] [Security Signoff] Evaluating full OpenSSF Scorecard v4 (18 Checks), SLSA Provenance, and Release Gating",
-        "[14:27:12] [Security Signoff] Completed evaluation of all 18 OpenSSF Scorecard checks.",
-        "[14:27:12] [Security Signoff] Completed with 8 findings."
+        "[14:42:39] [Security Signoff] Starting Security Signoff (OpenSSF Scorecard)",
+        "[14:42:39] [Security Signoff] Evaluating full OpenSSF Scorecard v4 (18 Checks), SLSA Provenance, and Release Gating",
+        "[14:42:39] [Security Signoff] Completed evaluation of all 18 OpenSSF Scorecard checks.",
+        "[14:42:39] [Security Signoff] Completed with 8 findings."
       ]
     },
     "9": {
@@ -2282,7 +2328,7 @@
           "remediation_diff": null,
           "status": "OPEN",
           "sla_days": 14,
-          "discovered_at": "2026-09-17T08:57:12.339535+00:00",
+          "discovered_at": "2026-09-17T09:12:39.913305+00:00",
           "references": [
             "https://documentation.wazuh.com/current/user-manual/capabilities/file-integrity/index.html"
           ]
@@ -2332,11 +2378,12 @@
               "Vulnerable NPM Dependency: axios@0.21.1 (CVE-2021-3749)",
               "Vulnerable NPM Dependency: lodash@4.17.20 (CVE-2021-23337)",
               "Vulnerable NPM Dependency: jsonwebtoken@8.5.1 (CVE-2022-23529)",
-              "Sensitive Administrative API Route: /api/v1/admin/debug",
               "[WSTG-ATHN-02] Manual Testing Check Failed: Test for Default, Weak, and Hardcoded Credentials",
+              "[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force",
+              "[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)",
               "[WSTG-INPV-05] Manual Testing Check Failed: Testing for SQL Injection (SQLi)"
             ],
-            "count": 14
+            "count": 15
           },
           {
             "technique_id": "T1059",
@@ -2381,16 +2428,16 @@
         ]
       },
       "logs": [
-        "[14:27:12] [Monitoring & Incident Response] Starting Monitoring & Incident Response (Wazuh)",
-        "[14:27:12] [Monitoring & Incident Response] Evaluating Wazuh SIEM/XDR, Sigma Detection Engineering, and Incident Response Posture",
-        "[14:27:12] [Monitoring & Incident Response] Exported custom Wazuh SIEM rules: reports/demo/wazuh-local_rules.xml",
-        "[14:27:12] [Monitoring & Incident Response] Exported standard Sigma detection rules: reports/demo/sigma-rules.yml",
-        "[14:27:12] [Monitoring & Incident Response] Exported Incident Response Playbook: reports/demo/incident-response-runbook.md",
-        "[14:27:12] [Monitoring & Incident Response] Completed with 1 findings."
+        "[14:42:39] [Monitoring & Incident Response] Starting Monitoring & Incident Response (Wazuh)",
+        "[14:42:39] [Monitoring & Incident Response] Evaluating Wazuh SIEM/XDR, Sigma Detection Engineering, and Incident Response Posture",
+        "[14:42:39] [Monitoring & Incident Response] Exported custom Wazuh SIEM rules: reports/demo/wazuh-local_rules.xml",
+        "[14:42:39] [Monitoring & Incident Response] Exported standard Sigma detection rules: reports/demo/sigma-rules.yml",
+        "[14:42:39] [Monitoring & Incident Response] Exported Incident Response Playbook: reports/demo/incident-response-runbook.md",
+        "[14:42:39] [Monitoring & Incident Response] Completed with 1 findings."
       ]
     }
   },
-  "total_findings": 25,
+  "total_findings": 26,
   "findings": [
     {
       "id": "TM-SPO-001",
@@ -2412,7 +2459,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.327797+00:00",
+      "discovered_at": "2026-09-17T09:12:39.898059+00:00",
       "references": [
         "https://owasp.org/www-project-threat-dragon/",
         "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -2439,7 +2486,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.327821+00:00",
+      "discovered_at": "2026-09-17T09:12:39.898095+00:00",
       "references": [
         "https://owasp.org/www-project-threat-dragon/",
         "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -2466,7 +2513,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 30,
-      "discovered_at": "2026-09-17T08:57:12.327830+00:00",
+      "discovered_at": "2026-09-17T09:12:39.898109+00:00",
       "references": [
         "https://owasp.org/www-project-threat-dragon/",
         "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -2493,7 +2540,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.327837+00:00",
+      "discovered_at": "2026-09-17T09:12:39.898117+00:00",
       "references": [
         "https://owasp.org/www-project-threat-dragon/",
         "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -2520,7 +2567,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.327844+00:00",
+      "discovered_at": "2026-09-17T09:12:39.898124+00:00",
       "references": [
         "https://owasp.org/www-project-threat-dragon/",
         "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -2547,7 +2594,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.327849+00:00",
+      "discovered_at": "2026-09-17T09:12:39.898130+00:00",
       "references": [
         "https://owasp.org/www-project-threat-dragon/",
         "https://owasp.org/www-community/Threat_Modeling_Process",
@@ -2574,7 +2621,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.329905+00:00",
+      "discovered_at": "2026-09-17T09:12:39.900312+00:00",
       "references": [
         "https://owasp.org/www-project-application-security-verification-standard/"
       ]
@@ -2599,7 +2646,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.330088+00:00",
+      "discovered_at": "2026-09-17T09:12:39.900475+00:00",
       "references": [
         "https://owasp.org/www-project-application-security-verification-standard/"
       ]
@@ -2624,7 +2671,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.331414+00:00",
+      "discovered_at": "2026-09-17T09:12:39.901791+00:00",
       "references": [
         "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
       ]
@@ -2649,7 +2696,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.331437+00:00",
+      "discovered_at": "2026-09-17T09:12:39.901813+00:00",
       "references": [
         "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
       ]
@@ -2674,7 +2721,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.331457+00:00",
+      "discovered_at": "2026-09-17T09:12:39.901833+00:00",
       "references": [
         "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
       ]
@@ -2699,7 +2746,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.331474+00:00",
+      "discovered_at": "2026-09-17T09:12:39.901846+00:00",
       "references": [
         "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
       ]
@@ -2708,12 +2755,12 @@
       "id": "SAST-SQLI-001",
       "title": "SQL Injection via Formatted Query String (AST Verified)",
       "severity": "CRITICAL",
-      "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:27.",
+      "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:47.",
       "stage_id": 3,
       "stage_name": "SAST + SCA + Secret Scanning",
       "tool": "Semgrep AST Engine",
       "file_path": "server.py",
-      "line_number": 27,
+      "line_number": 47,
       "code_snippet": "cursor.execute(query)",
       "target": null,
       "cwe": "CWE-89",
@@ -2721,10 +2768,10 @@
       "cvss_score": null,
       "mitre_attack": "T1190",
       "remediation": "Replace string formatting with parameterized placeholders ('?' or '%s') and pass query parameters as a tuple.",
-      "remediation_diff": "--- server.py:27\n+++ server.py:27\n- cursor.execute(query)\n+ # Fix: Use parameterized statement:\n+ cursor.execute('SELECT ... WHERE field = ?', (user_input,))",
+      "remediation_diff": "--- server.py:47\n+++ server.py:47\n- cursor.execute(query)\n+ # Fix: Use parameterized statement:\n+ cursor.execute('SELECT ... WHERE field = ?', (user_input,))",
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.332694+00:00",
+      "discovered_at": "2026-09-17T09:12:39.904183+00:00",
       "references": [
         "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"
       ]
@@ -2733,12 +2780,12 @@
       "id": "SAST-YAML-002",
       "title": "Unsafe YAML Deserialization (RCE Risk)",
       "severity": "HIGH",
-      "description": "Called `yaml.load()` without SafeLoader in server.py:47.",
+      "description": "Called `yaml.load()` without SafeLoader in server.py:73.",
       "stage_id": 3,
       "stage_name": "SAST + SCA + Secret Scanning",
       "tool": "Semgrep AST Engine",
       "file_path": "server.py",
-      "line_number": 47,
+      "line_number": 73,
       "code_snippet": "cfg = yaml.load(content)",
       "target": null,
       "cwe": "CWE-502",
@@ -2746,10 +2793,10 @@
       "cvss_score": null,
       "mitre_attack": "T1059",
       "remediation": "Replace `yaml.load()` with `yaml.safe_load()`.",
-      "remediation_diff": "--- server.py:47\n+++ server.py:47\n- cfg = yaml.load(content)\n+ cfg = yaml.safe_load(content)",
+      "remediation_diff": "--- server.py:73\n+++ server.py:73\n- cfg = yaml.load(content)\n+ cfg = yaml.safe_load(content)",
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.332854+00:00",
+      "discovered_at": "2026-09-17T09:12:39.904338+00:00",
       "references": [
         "https://pyyaml.org/wiki/PyYAMLDocumentation"
       ]
@@ -2774,7 +2821,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.333247+00:00",
+      "discovered_at": "2026-09-17T09:12:39.905183+00:00",
       "references": [
         "https://nvd.nist.gov/vuln/detail/CVE-2023-30861"
       ]
@@ -2799,7 +2846,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 30,
-      "discovered_at": "2026-09-17T08:57:12.333265+00:00",
+      "discovered_at": "2026-09-17T09:12:39.905201+00:00",
       "references": [
         "https://nvd.nist.gov/vuln/detail/CVE-2023-32681"
       ]
@@ -2824,7 +2871,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.333276+00:00",
+      "discovered_at": "2026-09-17T09:12:39.905213+00:00",
       "references": [
         "https://nvd.nist.gov/vuln/detail/CVE-2023-45803"
       ]
@@ -2849,7 +2896,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.333285+00:00",
+      "discovered_at": "2026-09-17T09:12:39.905222+00:00",
       "references": [
         "https://nvd.nist.gov/vuln/detail/CVE-2020-14343"
       ]
@@ -2874,7 +2921,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.333408+00:00",
+      "discovered_at": "2026-09-17T09:12:39.905353+00:00",
       "references": [
         "https://nvd.nist.gov/vuln/detail/CVE-2021-3749"
       ]
@@ -2899,7 +2946,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.333421+00:00",
+      "discovered_at": "2026-09-17T09:12:39.905371+00:00",
       "references": [
         "https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
       ]
@@ -2924,33 +2971,10 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 7,
-      "discovered_at": "2026-09-17T08:57:12.333429+00:00",
+      "discovered_at": "2026-09-17T09:12:39.905381+00:00",
       "references": [
         "https://nvd.nist.gov/vuln/detail/CVE-2022-23529"
       ]
-    },
-    {
-      "id": "API-ROUTE-SENSITIVE-001",
-      "title": "Sensitive Administrative API Route: /api/v1/admin/debug",
-      "severity": "HIGH",
-      "description": "Administrative endpoint `/api/v1/admin/debug` declared in server.py. Verify explicit RBAC guards.",
-      "stage_id": 4,
-      "stage_name": "DAST + API Security Testing",
-      "tool": "OWASP API Security",
-      "file_path": "server.py",
-      "line_number": null,
-      "code_snippet": null,
-      "target": null,
-      "cwe": "CWE-306",
-      "owasp": "OWASP API5:2023-Broken Function Level Authorization",
-      "cvss_score": null,
-      "mitre_attack": null,
-      "remediation": "Ensure role-based authorization decorator / middleware wraps this controller.",
-      "remediation_diff": null,
-      "status": "OPEN",
-      "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.333906+00:00",
-      "references": []
     },
     {
       "id": "WSTG-ATHN-02",
@@ -2972,9 +2996,59 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.334084+00:00",
+      "discovered_at": "2026-09-17T09:12:39.906090+00:00",
       "references": [
         "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHN-02"
+      ]
+    },
+    {
+      "id": "WSTG-ATHN-03",
+      "title": "[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force",
+      "severity": "HIGH",
+      "description": "WSTG Domain: Authentication Testing\nObjective: Testing for Weak Lockout Mechanism and Brute Force\nEvidence: Automated probe sent 5 failed logins without receiving HTTP 429.",
+      "stage_id": 5,
+      "stage_name": "Manual Security Testing",
+      "tool": "OWASP WSTG v4.2",
+      "file_path": null,
+      "line_number": null,
+      "code_snippet": null,
+      "target": null,
+      "cwe": "CWE-20",
+      "owasp": "WSTG Authentication Testing",
+      "cvss_score": null,
+      "mitre_attack": null,
+      "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-03` to implement verified security control.",
+      "remediation_diff": null,
+      "status": "OPEN",
+      "sla_days": 14,
+      "discovered_at": "2026-09-17T09:12:39.906129+00:00",
+      "references": [
+        "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHN-03"
+      ]
+    },
+    {
+      "id": "WSTG-ATHZ-02",
+      "title": "[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)",
+      "severity": "HIGH",
+      "description": "WSTG Domain: Authorization Testing\nObjective: Testing for Bypassing Authorization Schema (IDOR/BOLA)\nEvidence: 1 authorization issues identified.",
+      "stage_id": 5,
+      "stage_name": "Manual Security Testing",
+      "tool": "OWASP WSTG v4.2",
+      "file_path": null,
+      "line_number": null,
+      "code_snippet": null,
+      "target": null,
+      "cwe": "CWE-20",
+      "owasp": "WSTG Authorization Testing",
+      "cvss_score": null,
+      "mitre_attack": null,
+      "remediation": "Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHZ-02` to implement verified security control.",
+      "remediation_diff": null,
+      "status": "OPEN",
+      "sla_days": 14,
+      "discovered_at": "2026-09-17T09:12:39.906156+00:00",
+      "references": [
+        "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-ATHZ-02"
       ]
     },
     {
@@ -2997,7 +3071,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.334121+00:00",
+      "discovered_at": "2026-09-17T09:12:39.906188+00:00",
       "references": [
         "https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/WSTG-INPV-05"
       ]
@@ -3022,7 +3096,7 @@
       "remediation_diff": null,
       "status": "OPEN",
       "sla_days": 14,
-      "discovered_at": "2026-09-17T08:57:12.334247+00:00",
+      "discovered_at": "2026-09-17T09:12:39.906438+00:00",
       "references": []
     }
   ],

@@ -200,7 +200,7 @@
                 "text": "Unsafe YAML Deserialization (RCE Risk)"
               },
               "fullDescription": {
-                "text": "Called `yaml.load()` without SafeLoader in server.py:47."
+                "text": "Called `yaml.load()` without SafeLoader in server.py:73."
               },
               "helpUri": "https://pyyaml.org/wiki/PyYAMLDocumentation",
               "help": {
@@ -235,29 +235,6 @@
                   "security",
                   "stage-3",
                   "trivy / cyclonedx engine"
-                ],
-                "security-severity": "7"
-              }
-            },
-            {
-              "id": "CWE-306",
-              "name": "Sensitive Administrative API Route: /api/v1/admin/debug",
-              "shortDescription": {
-                "text": "Sensitive Administrative API Route: /api/v1/admin/debug"
-              },
-              "fullDescription": {
-                "text": "Administrative endpoint `/api/v1/admin/debug` declared in server.py. Verify explicit RBAC guards."
-              },
-              "helpUri": "https://owasp.org",
-              "help": {
-                "text": "Remediation: Ensure role-based authorization decorator / middleware wraps this controller.",
-                "markdown": "### Remediation Guidance\nEnsure role-based authorization decorator / middleware wraps this controller.\n\n*References:*\n"
-              },
-              "properties": {
-                "tags": [
-                  "security",
-                  "stage-4",
-                  "owasp api security"
                 ],
                 "security-severity": "7"
               }
@@ -481,7 +458,7 @@
           "ruleIndex": 1,
           "level": "error",
           "message": {
-            "text": "SQL Injection via Formatted Query String (AST Verified): AST analyzer detected dynamic query construction passed to `execute()` in server.py:27."
+            "text": "SQL Injection via Formatted Query String (AST Verified): AST analyzer detected dynamic query construction passed to `execute()` in server.py:47."
           },
           "locations": [
             {
@@ -490,7 +467,7 @@
                   "uri": "server.py"
                 },
                 "region": {
-                  "startLine": 27,
+                  "startLine": 47,
                   "snippet": {
                     "text": "cursor.execute(query)"
                   }
@@ -504,7 +481,7 @@
           "ruleIndex": 8,
           "level": "error",
           "message": {
-            "text": "Unsafe YAML Deserialization (RCE Risk): Called `yaml.load()` without SafeLoader in server.py:47."
+            "text": "Unsafe YAML Deserialization (RCE Risk): Called `yaml.load()` without SafeLoader in server.py:73."
           },
           "locations": [
             {
@@ -513,7 +490,7 @@
                   "uri": "server.py"
                 },
                 "region": {
-                  "startLine": 47,
+                  "startLine": 73,
                   "snippet": {
                     "text": "cfg = yaml.load(content)"
                   }
@@ -684,31 +661,8 @@
           ]
         },
         {
-          "ruleId": "CWE-306",
-          "ruleIndex": 10,
-          "level": "error",
-          "message": {
-            "text": "Sensitive Administrative API Route: /api/v1/admin/debug: Administrative endpoint `/api/v1/admin/debug` declared in server.py. Verify explicit RBAC guards."
-          },
-          "locations": [
-            {
-              "physicalLocation": {
-                "artifactLocation": {
-                  "uri": "server.py"
-                },
-                "region": {
-                  "startLine": 1,
-                  "snippet": {
-                    "text": ""
-                  }
-                }
-              }
-            }
-          ]
-        },
-        {
           "ruleId": "CWE-20",
-          "ruleIndex": 11,
+          "ruleIndex": 10,
           "level": "error",
           "message": {
             "text": "[WSTG-ATHN-02] Manual Testing Check Failed: Test for Default, Weak, and Hardcoded Credentials: WSTG Domain: Authentication Testing\nObjective: Test for Default, Weak, and Hardcoded Credentials\nEvidence: 4 hardcoded credential patterns found."
@@ -717,7 +671,25 @@
         },
         {
           "ruleId": "CWE-20",
-          "ruleIndex": 11,
+          "ruleIndex": 10,
+          "level": "error",
+          "message": {
+            "text": "[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force: WSTG Domain: Authentication Testing\nObjective: Testing for Weak Lockout Mechanism and Brute Force\nEvidence: Automated probe sent 5 failed logins without receiving HTTP 429."
+          },
+          "locations": []
+        },
+        {
+          "ruleId": "CWE-20",
+          "ruleIndex": 10,
+          "level": "error",
+          "message": {
+            "text": "[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA): WSTG Domain: Authorization Testing\nObjective: Testing for Bypassing Authorization Schema (IDOR/BOLA)\nEvidence: 1 authorization issues identified."
+          },
+          "locations": []
+        },
+        {
+          "ruleId": "CWE-20",
+          "ruleIndex": 10,
           "level": "error",
           "message": {
             "text": "[WSTG-INPV-05] Manual Testing Check Failed: Testing for SQL Injection (SQLi): WSTG Domain: Input Validation\nObjective: Testing for SQL Injection (SQLi)\nEvidence: 2 SQL injection vulnerabilities detected."
@@ -726,7 +698,7 @@
         },
         {
           "ruleId": "CWE-538",
-          "ruleIndex": 12,
+          "ruleIndex": 11,
           "level": "error",
           "message": {
             "text": "Exposed High-Value Asset in Attack Surface: .env: Sensitive asset `.env` was committed into repository root."

@@ -1,5 +1,5 @@
 # 🛡️ DKSec Product Security Audit Report: Fintech Core Banking Demo
-*Generated on 2026-09-17T08:57:12.339645+00:00 | Audit Duration: 0.01s*
+*Generated on 2026-09-17T09:12:39.913448+00:00 | Audit Duration: 0.02s*
 
 ## 📋 Executive Summary & Release Gate
 | Metric | Status / Value |
@@ -7,14 +7,14 @@
 | **Gate Verdict** | 🔴 **RELEASE BLOCKED** |
 | **Security Posture Score** | **0.0 / 100** |
 | **Critical Findings** | `9` (Target: 0) |
-| **High Findings** | `14` (Target: 0) |
+| **High Findings** | `15` (Target: 0) |
 | **Medium Findings** | `2` |
 | **Low / Info Findings** | `0` |
-| **Signoff Audit Hash** | `4b0638aa74f1d003...` |
+| **Signoff Audit Hash** | `238e4b3350312010...` |
 
 ### Release Gate Notes:
 - Blocked: Found 9 Critical vulnerabilities (Threshold: 0)
-- Blocked: Found 14 High vulnerabilities (Threshold: 0)
+- Blocked: Found 15 High vulnerabilities (Threshold: 0)
 - Blocked: Composite security score 0.0/100 is below minimum threshold 75.0
 
 ## 🔄 9-Stage Product Security Lifecycle Breakdown
@@ -23,8 +23,8 @@
 | 1 | Architecture & Threat Model | `OWASP Threat Dragon` | ⚠️ Review | 6 | 0.0s |
 | 2 | Security Requirements | `OWASP ASVS` | ⚠️ Review | 2 | 0.0s |
 | 3 | SAST + SCA + Secret Scanning | `Semgrep + Trivy + Gitleaks` | ⚠️ Review | 13 | 0.0s |
-| 4 | DAST + API Security Testing | `OWASP ZAP + OWASP API Security` | ⚠️ Review | 1 | 0.0s |
-| 5 | Manual Security Testing | `OWASP WSTG` | ⚠️ Review | 2 | 0.0s |
+| 4 | DAST + API Security Testing | `OWASP ZAP + OWASP API Security` | ✅ Pass | 0 | 0.0s |
+| 5 | Manual Security Testing | `OWASP WSTG` | ⚠️ Review | 4 | 0.0s |
 | 6 | Penetration Test / VAPT | `OWASP WSTG + Nuclei + OWASP Amass` | ⚠️ Review | 1 | 0.0s |
 | 7 | Fix & Retest | `OWASP DefectDojo` | ✅ Pass | 0 | 0.0s |
 | 8 | Security Signoff | `OpenSSF Scorecard` | ⚠️ Review | 8 | 0.0s |
@@ -52,8 +52,9 @@
 | `SCA-CVE-2023-45803` | 🟠 HIGH | Stage 3 | Trivy / CycloneDX Engine | **Vulnerable Dependency: urllib3@1.26.12 (CVE-2023-45803)** | `CWE-1395` | 14d |
 | `SCA-CVE-2021-3749` | 🟠 HIGH | Stage 3 | Trivy / CycloneDX Engine | **Vulnerable NPM Dependency: axios@0.21.1 (CVE-2021-3749)** | `CWE-1395` | 14d |
 | `SCA-CVE-2021-23337` | 🟠 HIGH | Stage 3 | Trivy / CycloneDX Engine | **Vulnerable NPM Dependency: lodash@4.17.20 (CVE-2021-23337)** | `CWE-1395` | 14d |
-| `API-ROUTE-SENSITIVE-001` | 🟠 HIGH | Stage 4 | OWASP API Security | **Sensitive Administrative API Route: /api/v1/admin/debug** | `CWE-306` | 14d |
 | `WSTG-ATHN-02` | 🟠 HIGH | Stage 5 | OWASP WSTG v4.2 | **[WSTG-ATHN-02] Manual Testing Check Failed: Test for Default, Weak, and Hardcoded Credentials** | `CWE-20` | 14d |
+| `WSTG-ATHN-03` | 🟠 HIGH | Stage 5 | OWASP WSTG v4.2 | **[WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force** | `CWE-20` | 14d |
+| `WSTG-ATHZ-02` | 🟠 HIGH | Stage 5 | OWASP WSTG v4.2 | **[WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)** | `CWE-20` | 14d |
 | `WSTG-INPV-05` | 🟠 HIGH | Stage 5 | OWASP WSTG v4.2 | **[WSTG-INPV-05] Manual Testing Check Failed: Testing for SQL Injection (SQLi)** | `CWE-20` | 14d |
 | `VAPT-SURFACE-001` | 🟠 HIGH | Stage 6 | Nuclei / Amass (Attack Surface Engine) | **Exposed High-Value Asset in Attack Surface: .env** | `CWE-538` | 14d |
 | `TM-REP-003` | 🟡 MEDIUM | Stage 1 | OWASP Threat Dragon (STRIDE/LINDDUN) | **[Repudiation] Missing Non-Repudiation Audit Logs on State-Altering Operations (Application Backend API)** | `CWE-778` | 30d |
@@ -105,8 +106,8 @@ STRIPE_API_KEY=sk_l********************************7890
 - **Remediation:** Extract credential into an environment variable or secrets vault (e.g. AWS Secrets Manager, HashiCorp Vault). Revoke currently exposed secret.
 
 #### [CRITICAL] SQL Injection via Formatted Query String (AST Verified) (`SAST-SQLI-001`)
-- **Target / File:** `server.py`:27
-- **Description:** AST analyzer detected dynamic query construction passed to `execute()` in server.py:27.
+- **Target / File:** `server.py`:47
+- **Description:** AST analyzer detected dynamic query construction passed to `execute()` in server.py:47.
 ```text
 cursor.execute(query)
 ```

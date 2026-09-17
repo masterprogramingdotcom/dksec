@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:910e5a2d-792d-4a28-843a-83863663cf84",
+  "serialNumber": "urn:uuid:9b86e3ba-e139-4aab-81f6-12f4242ada28",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-09-17T08:57:12.352264+00:00",
+    "timestamp": "2026-09-17T09:12:39.927864+00:00",
     "tools": [
       {
         "vendor": "DKSec",

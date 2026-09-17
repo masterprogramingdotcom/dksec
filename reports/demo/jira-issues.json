@@ -246,7 +246,7 @@
           "key": "SEC"
         },
         "summary": "[CRITICAL] SQL Injection via Formatted Query String (AST Verified)",
-        "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:27.\n\n*Target:* server.py\n*Remediation:* Replace string formatting with parameterized placeholders ('?' or '%s') and pass query parameters as a tuple.",
+        "description": "AST analyzer detected dynamic query construction passed to `execute()` in server.py:47.\n\n*Target:* server.py\n*Remediation:* Replace string formatting with parameterized placeholders ('?' or '%s') and pass query parameters as a tuple.",
         "issuetype": {
           "name": "Security Vulnerability"
         },
@@ -266,7 +266,7 @@
           "key": "SEC"
         },
         "summary": "[HIGH] Unsafe YAML Deserialization (RCE Risk)",
-        "description": "Called `yaml.load()` without SafeLoader in server.py:47.\n\n*Target:* server.py\n*Remediation:* Replace `yaml.load()` with `yaml.safe_load()`.",
+        "description": "Called `yaml.load()` without SafeLoader in server.py:73.\n\n*Target:* server.py\n*Remediation:* Replace `yaml.load()` with `yaml.safe_load()`.",
         "issuetype": {
           "name": "Security Vulnerability"
         },
@@ -425,8 +425,8 @@
         "project": {
           "key": "SEC"
         },
-        "summary": "[HIGH] Sensitive Administrative API Route: /api/v1/admin/debug",
-        "description": "Administrative endpoint `/api/v1/admin/debug` declared in server.py. Verify explicit RBAC guards.\n\n*Target:* server.py\n*Remediation:* Ensure role-based authorization decorator / middleware wraps this controller.",
+        "summary": "[HIGH] [WSTG-ATHN-02] Manual Testing Check Failed: Test for Default, Weak, and Hardcoded Credentials",
+        "description": "WSTG Domain: Authentication Testing\nObjective: Test for Default, Weak, and Hardcoded Credentials\nEvidence: 4 hardcoded credential patterns found.\n\n*Target:* None\n*Remediation:* Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-02` to implement verified security control.",
         "issuetype": {
           "name": "Security Vulnerability"
         },
@@ -435,8 +435,8 @@
         },
         "labels": [
           "dksec",
-          "stage-4",
-          "owasp-api-security"
+          "stage-5",
+          "owasp-wstg-v4.2"
         ]
       }
     },
@@ -445,8 +445,28 @@
         "project": {
           "key": "SEC"
         },
-        "summary": "[HIGH] [WSTG-ATHN-02] Manual Testing Check Failed: Test for Default, Weak, and Hardcoded Credentials",
-        "description": "WSTG Domain: Authentication Testing\nObjective: Test for Default, Weak, and Hardcoded Credentials\nEvidence: 4 hardcoded credential patterns found.\n\n*Target:* None\n*Remediation:* Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-02` to implement verified security control.",
+        "summary": "[HIGH] [WSTG-ATHN-03] Manual Testing Check Failed: Testing for Weak Lockout Mechanism and Brute Force",
+        "description": "WSTG Domain: Authentication Testing\nObjective: Testing for Weak Lockout Mechanism and Brute Force\nEvidence: Automated probe sent 5 failed logins without receiving HTTP 429.\n\n*Target:* None\n*Remediation:* Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHN-03` to implement verified security control.",
+        "issuetype": {
+          "name": "Security Vulnerability"
+        },
+        "priority": {
+          "name": "High"
+        },
+        "labels": [
+          "dksec",
+          "stage-5",
+          "owasp-wstg-v4.2"
+        ]
+      }
+    },
+    {
+      "fields": {
+        "project": {
+          "key": "SEC"
+        },
+        "summary": "[HIGH] [WSTG-ATHZ-02] Manual Testing Check Failed: Testing for Bypassing Authorization Schema (IDOR/BOLA)",
+        "description": "WSTG Domain: Authorization Testing\nObjective: Testing for Bypassing Authorization Schema (IDOR/BOLA)\nEvidence: 1 authorization issues identified.\n\n*Target:* None\n*Remediation:* Consult OWASP WSTG v4.2 guide for test ID `WSTG-ATHZ-02` to implement verified security control.",
         "issuetype": {
           "name": "Security Vulnerability"
         },
