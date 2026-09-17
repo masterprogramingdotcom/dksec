@@ -6,6 +6,7 @@ Generates an executive-ready dark/light dashboard with Mermaid DFDs, SARIF/SBOM 
 
 import os
 import json
+import re
 from dksec.models import DKSecReport, Severity
 
 
@@ -37,6 +38,31 @@ class HtmlReporter:
         target_display = f"Target: {report.target_path}"
         if report.target_url:
             target_display += f" | URL: {report.target_url}"
+
+        ai_briefing_html = ""
+        if report.ai_executive_summary:
+            paragraphs = report.ai_executive_summary.strip().split("\n\n")
+            body_parts = []
+            for p in paragraphs:
+                p = p.strip()
+                if p.startswith("### "):
+                    body_parts.append(f'<h3 style="font-size: 16px; color: #c7d2fe; margin: 14px 0 6px 0; font-weight: 700;">{p[4:]}</h3>')
+                elif p:
+                    p_html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', p)
+                    body_parts.append(f'<p style="margin-bottom: 10px; line-height: 1.6; font-size: 13.5px; color: #e0e7ff;">{p_html}</p>')
+            formatted_html = "\n".join(body_parts)
+            ai_briefing_html = f"""
+    <!-- AI Executive Security Briefing -->
+    <div class="ai-briefing-card">
+      <div class="ai-briefing-header">
+        <span class="ai-tag">🤖 DKSec AI Security Intelligence</span>
+        <span style="font-size: 12px; color: #a5b4fc; font-weight: 600;">Autonomous Executive Triaging &amp; Posture Synthesis</span>
+      </div>
+      <div style="margin-top: 12px;">
+        {formatted_html}
+      </div>
+    </div>
+"""
 
         html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -338,6 +364,44 @@ class HtmlReporter:
     .status-pill-fail {{ color: #f87171; font-weight: 700; }}
     .status-pill-verify {{ color: #fbbf24; font-weight: 700; }}
 
+    /* AI Security Intelligence */
+    .ai-briefing-card {{
+      background: linear-gradient(135deg, rgba(30, 27, 75, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1.5px solid #6366f1;
+      border-radius: 14px;
+      padding: 24px 28px;
+      margin-bottom: 28px;
+      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.2);
+    }}
+    .ai-briefing-header {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }}
+    .ai-tag {{
+      background: linear-gradient(90deg, #6366f1, #a855f7);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+    }}
+    .ai-analysis-box {{
+      background: rgba(49, 46, 129, 0.25);
+      border-left: 3px solid #818cf8;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      font-size: 13px;
+      color: #c7d2fe;
+      margin: 8px 0 10px 0;
+      line-height: 1.5;
+    }}
+
     .tab-content {{ display: none; }}
     .tab-content.active {{ display: block; }}
   </style>
@@ -378,6 +442,8 @@ class HtmlReporter:
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">{report.timestamp[:19]} UTC</div>
       </div>
     </div>
+
+    {ai_briefing_html}
 
     <!-- Executive KPI Grid -->
     <div class="kpi-grid">
@@ -485,14 +551,25 @@ class HtmlReporter:
 """
 
         for f in report.all_findings:
+            ai_badge = ""
+            if f.ai_triage:
+                triage_color = "#34d399" if f.ai_triage == "TRUE_POSITIVE" else ("#f87171" if f.ai_triage == "FALSE_POSITIVE" else "#fbbf24")
+                conf_pct = int((f.ai_confidence or 0.9) * 100)
+                ai_badge = f'<span class="badge" style="background: rgba(99, 102, 241, 0.2); color: {triage_color}; border: 1px solid #6366f1;">🤖 {f.ai_triage} ({conf_pct}%)</span>'
+
+            ai_box = ""
+            if f.ai_analysis:
+                ai_box = f'<div class="ai-analysis-box"><strong>🤖 DKSec AI Context &amp; Triage:</strong> {f.ai_analysis}</div>'
+
             html_content += f"""
-        <div class="finding-card {f.severity.value}" data-severity="{f.severity.value}" data-stage="{f.stage_id}" data-search="{f.title.lower()} {f.tool.lower()} {str(f.cwe).lower()} {str(f.mitre_attack).lower()} {str(f.file_path).lower()}">
+        <div class="finding-card {f.severity.value}" data-severity="{f.severity.value}" data-stage="{f.stage_id}" data-search="{f.title.lower()} {f.tool.lower()} {str(f.cwe).lower()} {str(f.mitre_attack).lower()} {str(f.file_path).lower()} {str(f.ai_triage or '').lower()}">
           <div class="finding-header">
             <div>
               <span style="color: var(--text-muted); font-family: monospace; font-size: 12px; margin-right: 8px;">{f.id}</span>
               <span class="finding-title">{f.title}</span>
             </div>
             <div class="finding-badges">
+              {ai_badge}
               <span class="badge badge-{f.severity.value}">{f.severity.value}</span>
               <span class="badge" style="background: #1e293b; color: #94a3b8;">Stage {f.stage_id}</span>
               {f'<span class="badge" style="background: #1e1b4b; color: #a5b4fc; border: 1px solid #4338ca;">MITRE {f.mitre_attack}</span>' if f.mitre_attack else ''}
@@ -505,6 +582,7 @@ class HtmlReporter:
             <span>⏱️ SLA: <strong>{f.sla_days} Days</strong></span>
           </div>
           <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 8px;">{f.description}</p>
+          {ai_box}
           {f'<div class="code-box">{f.code_snippet}</div>' if f.code_snippet else ''}
           {f'<div class="diff-box"><strong>Proposed Patch (Unified Diff):</strong><br/>{f.remediation_diff}</div>' if f.remediation_diff else ''}
           {f'<div class="remediation-box"><strong>💡 Remediation Guidance:</strong> {f.remediation}</div>' if f.remediation else ''}

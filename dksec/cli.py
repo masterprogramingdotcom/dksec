@@ -13,6 +13,7 @@ from typing import List, Optional
 from dksec import __version__
 from dksec.config import DKSecConfig, STAGE_METADATA
 from dksec.auth import AuthConfig
+from dksec.llm import LLMConfig
 from dksec.runner import DKSecRunner
 from dksec.models import Severity
 from dksec.reporters import (
@@ -23,14 +24,15 @@ from dksec.web.server import start_server
 
 
 class Colors:
-    BLUE = "[94m"
-    CYAN = "[96m"
-    GREEN = "[92m"
-    YELLOW = "[93m"
-    RED = "[91m"
-    BOLD = "[1m"
-    DIM = "[2m"
-    RESET = "[0m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    PURPLE = "\033[95m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
 
 
 BANNER = rf"""{Colors.CYAN}{Colors.BOLD}
@@ -133,6 +135,35 @@ def run_interactive_wizard():
                 p_word = input(f"{Colors.BOLD}Password: {Colors.RESET}").strip()
                 auth_cfg = AuthConfig(enabled=True, auth_type="login", login_url=l_url, username=u_name, password=p_word)
 
+    # Dynamic LLM Smartness configuration
+    llm_ask = input(f"\n{Colors.BOLD}Enable Dynamic AI / LLM Security Assistant?{Colors.RESET} (y/N): ").strip().lower()
+    llm_cfg = LLMConfig()
+    if llm_ask in ("y", "yes"):
+        print(f"\n{Colors.BOLD}Select LLM Provider:{Colors.RESET}")
+        print(" [1] OpenAI (GPT-4o / GPT-4o-mini)")
+        print(" [2] Google Gemini (gemini-1.5-pro / flash)")
+        print(" [3] Anthropic Claude (Claude 3.5 Sonnet)")
+        print(" [4] Ollama Local / Private (Zero cloud telemetry)")
+        print(" [5] Custom OpenAI-Compatible Endpoint")
+        llm_p_choice = input(f"\n{Colors.BOLD}Select provider [1]: {Colors.RESET}").strip()
+        prov_map = {
+            "1": ("openai", "gpt-4o"),
+            "2": ("gemini", "gemini-1.5-pro"),
+            "3": ("anthropic", "claude-3-5-sonnet-20240620"),
+            "4": ("ollama", "llama3"),
+            "5": ("custom", "default")
+        }
+        prov, def_mod = prov_map.get(llm_p_choice, ("openai", "gpt-4o"))
+        mod = input(f"{Colors.BOLD}Model name{Colors.RESET} [{def_mod}]: ").strip() or def_mod
+        key = None
+        if prov != "ollama":
+            key = input(f"{Colors.BOLD}API Key (press Enter to use {prov.upper()}_API_KEY from environment){Colors.RESET}: ").strip() or None
+        url = None
+        if prov in ("ollama", "custom"):
+            def_url = "http://localhost:11434/v1" if prov == "ollama" else "http://localhost:8000/v1"
+            url = input(f"{Colors.BOLD}Base URL{Colors.RESET} [{def_url}]: ").strip() or def_url
+        llm_cfg = LLMConfig(enabled=True, provider=prov, model=mod, api_key=key, api_base_url=url)
+
     output_dir = input(f"\n{Colors.BOLD}Output Directory for Reports{Colors.RESET} [./reports]: ").strip()
     if not output_dir:
         output_dir = "./reports"
@@ -145,6 +176,7 @@ def run_interactive_wizard():
         target_path=target_path,
         target_url=target_url,
         auth=auth_cfg,
+        llm=llm_cfg,
         output_dir=output_dir
     )
     execute_pipeline(cfg, selected_stages)
@@ -162,6 +194,8 @@ def execute_pipeline(config: DKSecConfig, stages_to_run: List[int], fail_on_gate
                 print(f"   Login Endpoint: {config.auth.login_url} (User: {config.auth.username})")
             elif config.auth.bearer_token:
                 print(f"   Bearer Token: {config.auth.bearer_token[:20]}...")
+    if config.llm and config.llm.enabled:
+        print(f"   Smart AI:    {Colors.GREEN}Enabled ({config.llm.provider.upper()} - {config.llm.model}){Colors.RESET}")
     print(f"   Outputs:     {os.path.abspath(config.output_dir)}\n")
 
     def event_logger(evt: str, payload: dict):
@@ -179,6 +213,15 @@ def execute_pipeline(config: DKSecConfig, stages_to_run: List[int], fail_on_gate
             s_id = payload.get("stage_id")
             err = payload.get("error")
             print(f"  {Colors.RED}✖ Stage {s_id} encountered an error: {err}{Colors.RESET}")
+        elif evt == "llm_started":
+            provider = payload.get("provider", "AI").upper()
+            model = payload.get("model", "")
+            print(f"\n{Colors.PURPLE}🤖 [Dynamic AI Smartness] Triaging findings and synthesizing CISO executive briefing ({provider} {model})...{Colors.RESET}")
+        elif evt == "llm_completed":
+            print(f"  {Colors.GREEN}✔ AI triage and executive intelligence synthesis complete.{Colors.RESET}")
+        elif evt == "llm_error":
+            err = payload.get("error")
+            print(f"  {Colors.YELLOW}⚠ AI engine warning ({err}) - activated high-confidence heuristic fallback.{Colors.RESET}")
 
     runner = DKSecRunner(config, event_callback=event_logger)
     report = runner.run(selected_stages=stages_to_run)
@@ -282,6 +325,13 @@ def main():
     scan_parser.add_argument("--cookie", default=None, help="Session cookies (e.g. 'session=xyz; token=123')")
     scan_parser.add_argument("--header", default=None, help="Custom authorization header (e.g. 'X-API-Key: secret')")
 
+    # Dynamic LLM Smartness arguments
+    scan_parser.add_argument("--llm", action="store_true", help="Enable Dynamic AI / LLM Security Assistant for triage & executive briefing")
+    scan_parser.add_argument("--llm-provider", choices=["openai", "gemini", "anthropic", "ollama", "custom"], default=None, help="LLM provider (default: openai)")
+    scan_parser.add_argument("--llm-model", default=None, help="LLM model name (e.g., gpt-4o, gemini-1.5-pro, claude-3-5-sonnet, llama3)")
+    scan_parser.add_argument("--llm-key", default=None, help="API key for LLM provider (or use environment variable)")
+    scan_parser.add_argument("--llm-url", default=None, help="Custom base URL for OpenAI-compatible endpoint or local Ollama")
+
     # Command: interactive / wizard
     subparsers.add_parser("wizard", help="Launch interactive terminal wizard with preset selection")
     subparsers.add_parser("interactive", help="Launch interactive step-by-step terminal wizard")
@@ -364,6 +414,18 @@ def main():
                 cfg.auth.username = args.username
             if args.password:
                 cfg.auth.password = args.password
+
+        # Configure Dynamic LLM parameters if provided
+        if args.llm or args.llm_provider or args.llm_key or args.llm_url:
+            cfg.llm.enabled = True
+            if args.llm_provider:
+                cfg.llm.provider = args.llm_provider
+            if args.llm_model:
+                cfg.llm.model = args.llm_model
+            if args.llm_key:
+                cfg.llm.api_key = args.llm_key
+            if args.llm_url:
+                cfg.llm.api_base_url = args.llm_url
 
         # Determine stages
         if args.preset == "full":

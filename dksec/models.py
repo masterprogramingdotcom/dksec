@@ -77,6 +77,10 @@ class Finding:
     sla_days: int = 30
     discovered_at: str = field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
     references: List[str] = field(default_factory=list)
+    ai_triage: Optional[str] = None  # TRUE_POSITIVE, FALSE_POSITIVE, SUSPICIOUS
+    ai_confidence: Optional[float] = None  # 0.0 to 1.0
+    ai_analysis: Optional[str] = None  # Smart LLM contextual rationale
+
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -213,6 +217,7 @@ class DKSecReport:
     overall_score: float
     gate_verdict: GateVerdict
     sbom_components: List[SBOMComponent] = field(default_factory=list)
+    ai_executive_summary: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -225,8 +230,10 @@ class DKSecReport:
             "overall_score": round(self.overall_score, 1),
             "severity_counts": self.severity_counts,
             "gate_verdict": self.gate_verdict.to_dict(),
+            "ai_executive_summary": self.ai_executive_summary,
             "stage_results": {k: v.to_dict() for k, v in self.stage_results.items()},
             "total_findings": len(self.all_findings),
             "findings": [f.to_dict() for f in self.all_findings],
             "sbom_components": [asdict(c) for c in self.sbom_components]
         }
+

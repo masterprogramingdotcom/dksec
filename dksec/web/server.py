@@ -12,6 +12,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 from dksec.config import DKSecConfig, STAGE_METADATA
 from dksec.auth import AuthConfig, DKSecSessionManager
+from dksec.llm import LLMConfig, LLMAssistant
 from dksec.runner import DKSecRunner
 from dksec.reporters import (
     HtmlReporter, JsonReporter, MarkdownReporter,
@@ -94,6 +95,21 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             if session_mgr.login_error:
                 status["login_error"] = session_mgr.login_error
 
+            self._serve_json(status)
+            return
+
+        elif path == "/api/llm/test":
+            content_len = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_len).decode("utf-8")
+            try:
+                data = json.loads(body)
+            except Exception:
+                data = {}
+
+            llm_cfg = LLMConfig.from_dict(data)
+            llm_cfg.enabled = True
+            assistant = LLMAssistant(llm_cfg)
+            status = assistant.test_connection()
             self._serve_json(status)
             return
 
@@ -317,6 +333,59 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       <div id="authTestResult" style="display: none; margin-top: 10px; padding: 10px 14px; border-radius: 8px; font-size: 12px; font-family: monospace;"></div>
     </div>
 
+    <!-- Dynamic AI / LLM Intelligence Panel -->
+    <div class="panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2><span>🤖</span> 1c. Dynamic AI / LLM Security Assistant (Optional)</h2>
+        <span id="llmStatusBadge" class="auth-badge ok" style="display: none;"></span>
+      </div>
+      <p style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">
+        Empower audits with autonomous AI triaging, false-positive elimination, contextual remediation diffs, and board-ready CISO executive summaries.
+      </p>
+
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+        <input type="checkbox" id="llmEnabled" onchange="onLLMEnabledChange()" style="width: 18px; height: 18px; cursor: pointer;" />
+        <label for="llmEnabled" style="font-weight: 700; color: #fff; cursor: pointer;">Enable Smart LLM Engine</label>
+      </div>
+
+      <div id="llmConfigFields" style="display: none;">
+        <div class="form-row">
+          <div class="form-group">
+            <label>LLM Provider</label>
+            <select id="llmProvider" onchange="onLLMProviderChange()">
+              <option value="openai" selected>OpenAI (GPT-4o / GPT-4o-mini)</option>
+              <option value="gemini">Google Gemini (Gemini 1.5 Pro / Flash)</option>
+              <option value="anthropic">Anthropic Claude (Claude 3.5 Sonnet)</option>
+              <option value="ollama">Ollama Local / Private (Zero Telemetry)</option>
+              <option value="custom">Custom OpenAI-Compatible Endpoint</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Model Name</label>
+            <input type="text" id="llmModel" value="gpt-4o" placeholder="gpt-4o, gemini-1.5-pro, claude-3-5-sonnet, llama3..." />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>API Key <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(Optional if ENV var set: OPENAI_API_KEY, GEMINI_API_KEY, etc.)</span></label>
+            <input type="password" id="llmApiKey" placeholder="sk-... (Leave empty to use environment variable)" />
+          </div>
+          <div class="form-group">
+            <label>Custom Base URL <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(For Ollama or private LLM gateway)</span></label>
+            <input type="text" id="llmBaseUrl" placeholder="http://localhost:11434/v1" />
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="testLLMConnection()" style="height: 38px;">⚡ Test AI Connection</button>
+          <span style="font-size: 12px; color: var(--muted);">Tests live LLM model connectivity and verifies credentials</span>
+        </div>
+
+        <div id="llmTestResult" style="display: none; margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 12px; font-family: monospace;"></div>
+      </div>
+    </div>
+
     <div class="panel">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <h2><span>🎯</span> 2. Select Workflow Preset or Custom Stages</h2>
@@ -426,6 +495,67 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       }});
     }}
 
+    function onLLMEnabledChange() {{
+      const en = document.getElementById('llmEnabled').checked;
+      document.getElementById('llmConfigFields').style.display = en ? 'block' : 'none';
+    }}
+
+    function onLLMProviderChange() {{
+      const prov = document.getElementById('llmProvider').value;
+      const modelMap = {{
+        'openai': 'gpt-4o',
+        'gemini': 'gemini-1.5-pro',
+        'anthropic': 'claude-3-5-sonnet-20240620',
+        'ollama': 'llama3',
+        'custom': 'default'
+      }};
+      document.getElementById('llmModel').value = modelMap[prov] || 'gpt-4o';
+      if (prov === 'ollama') {{
+        document.getElementById('llmBaseUrl').value = 'http://localhost:11434/v1';
+      }}
+    }}
+
+    function getLLMConfig() {{
+      const enabled = document.getElementById('llmEnabled').checked;
+      return {{
+        enabled: enabled,
+        provider: document.getElementById('llmProvider').value,
+        model: document.getElementById('llmModel').value,
+        api_key: document.getElementById('llmApiKey').value || null,
+        api_base_url: document.getElementById('llmBaseUrl').value || null
+      }};
+    }}
+
+    function testLLMConnection() {{
+      const cfg = getLLMConfig();
+      const resBox = document.getElementById('llmTestResult');
+      resBox.style.display = 'block';
+      resBox.style.background = '#090d16';
+      resBox.style.border = '1px solid var(--border)';
+      resBox.style.color = '#93c5fd';
+      resBox.innerHTML = 'Testing connection to ' + cfg.provider.toUpperCase() + ' (' + cfg.model + ')...';
+
+      fetch('/api/llm/test', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json' }},
+        body: JSON.stringify(cfg)
+      }}).then(r => r.json()).then(d => {{
+        if (d.success) {{
+          resBox.style.border = '1px solid #10b981';
+          resBox.style.color = '#34d399';
+          resBox.innerText = `✔ Success: ${{d.message}}`;
+        }} else {{
+          resBox.style.border = '1px solid #ef4444';
+          resBox.style.color = '#f87171';
+          resBox.innerText = `✖ Connection failed: ${{d.message}}`;
+        }}
+      }}).catch(err => {{
+        resBox.style.border = '1px solid #ef4444';
+        resBox.style.color = '#f87171';
+        resBox.innerText = 'Connection error: ' + err;
+      }});
+    }}
+
     function toggleStage(sId) {{
       const cb = document.getElementById('stage-' + sId);
       cb.checked = !cb.checked;
@@ -479,6 +609,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         target_path: document.getElementById('targetPath').value,
         target_url: document.getElementById('targetUrl').value || null,
         auth: getAuthConfig(),
+        llm: getLLMConfig(),
         output_dir: document.getElementById('outputDir').value,
         stages: selected
       }};
@@ -543,11 +674,15 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             auth_data = data.get("auth", {})
             auth_cfg = AuthConfig.from_dict(auth_data)
 
+            llm_data = data.get("llm", {})
+            llm_cfg = LLMConfig.from_dict(llm_data)
+
             cfg = DKSecConfig(
                 project_name=data.get("project_name", "Enterprise Security Audit"),
                 target_path=data.get("target_path", "."),
                 target_url=data.get("target_url"),
                 auth=auth_cfg,
+                llm=llm_cfg,
                 output_dir=output_dir
             )
 
@@ -570,6 +705,14 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
                     s_id = payload.get("stage_id")
                     err = payload.get("error")
                     CURRENT_RUN["logs"].append(f"[ERROR] Stage {s_id}: {err}")
+                elif evt == "llm_started":
+                    prov = payload.get("provider", "AI").upper()
+                    mod = payload.get("model", "")
+                    CURRENT_RUN["logs"].append(f"[AI ENGINE] Starting Smart Triage & CISO Executive Synthesis ({prov} {mod})...")
+                elif evt == "llm_completed":
+                    CURRENT_RUN["logs"].append("[AI ENGINE] LLM triaging and executive briefing generated.")
+                elif evt == "llm_error":
+                    CURRENT_RUN["logs"].append(f"[AI WARNING] LLM issue ({payload.get('error')}) - activated heuristic fallback.")
 
             runner = DKSecRunner(cfg, event_callback=event_callback)
             report = runner.run(selected_stages=stages)

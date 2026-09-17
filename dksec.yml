@@ -15,6 +15,18 @@ auth:
   token_json_path: null
   username: null
 git_repo_url: null
+llm:
+  api_base_url: null
+  api_key: null
+  auto_generate_patches: true
+  enabled: false
+  generate_executive_summary: true
+  max_tokens: 1500
+  model: gpt-4o
+  provider: openai
+  temperature: 0.2
+  timeout: 12
+  triage_findings: true
 output_dir: ./reports
 project_name: Application Security Review
 report_formats:

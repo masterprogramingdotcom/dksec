@@ -159,6 +159,35 @@ Example:
 
 ---
 
+## 🤖 Dynamic AI / LLM Security Assistant (Optional)
+
+DKSec includes an autonomous, zero-dependency **Smart LLM Security Engine** (`dksec/llm.py`) that empowers security teams with generative AI intelligence:
+
+- **Autonomous False-Positive Reduction**: Evaluates code context and AST signals to classify findings as `TRUE_POSITIVE`, `FALSE_POSITIVE`, or `SUSPICIOUS` with confidence ratings.
+- **Contextual Remediation Patches**: Generates unified git diff patches (`--- a/app.py / +++ b/app.py`) for instantaneous developer remediations.
+- **Executive CISO Briefings**: Synthesizes cross-stage audit telemetry into board-ready executive summaries in both interactive HTML and Markdown.
+- **Multi-Provider Support**:
+  - 🌐 **OpenAI**: `gpt-4o`, `gpt-4o-mini` (uses `$OPENAI_API_KEY`)
+  - 💎 **Google Gemini**: `gemini-1.5-pro`, `gemini-1.5-flash` (uses `$GEMINI_API_KEY`)
+  - 🧠 **Anthropic Claude**: `claude-3-5-sonnet` (uses `$ANTHROPIC_API_KEY`)
+  - 🦙 **Ollama Local / Private**: `llama3`, `mistral`, `codellama` (100% private, zero telemetry, no cloud keys needed)
+  - ⚡ **Custom OpenAI-Compatible**: vLLM, LocalAI, or self-hosted enterprise model gateways
+- **Graceful Fallback**: If offline or if no API keys are supplied, DKSec automatically activates a built-in high-confidence heuristic rule engine with zero pipeline disruptions.
+
+### Enabling Dynamic AI via CLI
+```bash
+# Enable with OpenAI
+./dksec-cli scan --llm --llm-provider openai --llm-model gpt-4o
+
+# Enable with Local Ollama (Zero Telemetry, 100% On-Premise)
+./dksec-cli scan --llm --llm-provider ollama --llm-model llama3 --llm-url http://localhost:11434/v1
+
+# Enable with Google Gemini
+./dksec-cli scan --llm --llm-provider gemini --llm-model gemini-1.5-pro --llm-key $GEMINI_API_KEY
+```
+
+---
+
 ## 🛠️ Makefile Command Reference
 
 The provided [Makefile](Makefile) gives you one-word shortcuts for all operations:
@@ -173,7 +202,7 @@ make ui            # Start the web dashboard on http://127.0.0.1:8080
 make live-scan     # Launch sample app & run authenticated live scan
 make scan          # Run scan on default target (customize with TARGET=... PRESET=...)
 make pr-check      # Run fast PR gate with --fail-on-gate
-make test          # Run automated 20-test unit & integration test suite
+make test          # Run automated 28-test unit & integration test suite
 make clean         # Delete temporary scan reports and python caches
 make docker-build  # Build Docker container image
 make docker-run    # Run Web Dashboard in Docker container
@@ -183,7 +212,7 @@ make docker-run    # Run Web Dashboard in Docker container
 
 ## ⚙️ Configuration File (`dksec.yml`)
 
-You can define all targets, authentication parameters, and gating criteria in `dksec.yml`:
+You can define all targets, authentication parameters, LLM preferences, and gating criteria in `dksec.yml`:
 
 ```yaml
 project_name: "Fintech Core Banking API"
@@ -191,6 +220,18 @@ target_path: "samples/app"
 target_url: "http://127.0.0.1:5000"
 output_dir: "./reports"
 
+# Dynamic AI / LLM Security Assistant
+llm:
+  enabled: true
+  provider: "openai"       # "openai", "gemini", "anthropic", "ollama", "custom"
+  model: "gpt-4o"
+  api_key: null            # Reads from OPENAI_API_KEY if null
+  api_base_url: null       # Set for Ollama (e.g. http://localhost:11434/v1)
+  triage_findings: true
+  auto_generate_patches: true
+  generate_executive_summary: true
+
+# Live Authentication
 auth:
   enabled: true
   auth_type: "login" # "login", "bearer", "cookie", or "header"
@@ -290,8 +331,8 @@ jobs:
 
 ## 🧪 Testing & Verification
 
-Run the complete 20-test automated suite:
+Run the complete 28-test automated suite:
 ```bash
 make test
 ```
-All tests run with zero external network dependencies in **~1.2 seconds**.
+All tests run with zero external network dependencies in **~1.4 seconds**.

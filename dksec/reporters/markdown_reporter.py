@@ -40,6 +40,11 @@ class MarkdownReporter:
                 md.append(f"- {reason}")
             md.append("")
 
+        if report.ai_executive_summary:
+            md.append("## 🤖 DKSec AI Security Intelligence")
+            md.append(report.ai_executive_summary)
+            md.append("")
+
         md.append("## 🔄 9-Stage Product Security Lifecycle Breakdown")
         md.append("| # | Stage Name | Recommended Tool(s) | Status | Findings | Time |")
         md.append("| :-: | :--- | :--- | :-: | :-: | -: |")
@@ -73,8 +78,15 @@ class MarkdownReporter:
                 md.append(f"#### [{f.severity.value}] {f.title} (`{f.id}`)")
                 md.append(f"- **Target / File:** `{f.file_path or f.target or 'N/A'}`" + (f":{f.line_number}" if f.line_number else ""))
                 md.append(f"- **Description:** {f.description}")
+                if f.ai_triage:
+                    conf = int((f.ai_confidence or 0.9) * 100)
+                    md.append(f"- **🤖 AI Triage Verdict:** `{f.ai_triage}` (Confidence: {conf}%)")
+                if f.ai_analysis:
+                    md.append(f"- **🤖 AI Context & Rationale:** {f.ai_analysis}")
                 if f.code_snippet:
                     md.append(f"```text\n{f.code_snippet}\n```")
+                if f.remediation_diff:
+                    md.append(f"**Proposed Unified Diff Patch:**\n```diff\n{f.remediation_diff}\n```")
                 md.append(f"- **Remediation:** {f.remediation}")
                 md.append("")
 

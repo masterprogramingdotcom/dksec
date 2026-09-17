@@ -40,6 +40,24 @@ class TestDKSecCLI(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(out_dir, "dksec-report.json")))
         self.assertTrue(os.path.exists(os.path.join(out_dir, "dksec-report.md")))
 
+    def test_cli_scan_with_llm(self):
+        out_dir = "reports/cli_llm_test"
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+        res = subprocess.run([
+            "./dksec_cli.py", "scan",
+            "-p", "CLI LLM Test",
+            "-t", "samples/app",
+            "-s", "1,3",
+            "--llm",
+            "--llm-provider", "openai",
+            "--llm-model", "gpt-4o",
+            "-o", out_dir
+        ], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Smart AI:", res.stdout)
+        self.assertTrue(os.path.exists(os.path.join(out_dir, "dksec-report.html")))
+
 
 if __name__ == "__main__":
     unittest.main()

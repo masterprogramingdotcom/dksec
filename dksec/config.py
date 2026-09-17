@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 import yaml
 from dksec.auth import AuthConfig
+from dksec.llm import LLMConfig
+
 
 
 
@@ -90,6 +92,7 @@ class DKSecConfig:
     target_path: str = "."
     target_url: Optional[str] = None
     auth: AuthConfig = field(default_factory=AuthConfig)
+    llm: LLMConfig = field(default_factory=LLMConfig)
     git_repo_url: Optional[str] = None
     output_dir: str = "./reports"
     report_formats: List[str] = field(default_factory=lambda: ["html", "json", "markdown"])
@@ -128,6 +131,8 @@ class DKSecConfig:
                     config.target_url = data["target_url"]
                 if "auth" in data:
                     config.auth = AuthConfig.from_dict(data["auth"])
+                if "llm" in data:
+                    config.llm = LLMConfig.from_dict(data["llm"])
                 if "git_repo_url" in data:
                     config.git_repo_url = data["git_repo_url"]
                 if "output_dir" in data:
@@ -167,10 +172,12 @@ class DKSecConfig:
             "target_path": self.target_path,
             "target_url": self.target_url,
             "auth": self.auth.to_dict(),
+            "llm": self.llm.to_dict(),
             "git_repo_url": self.git_repo_url,
             "output_dir": self.output_dir,
             "report_formats": self.report_formats,
             "signoff": {
+
                 "max_critical": self.signoff_max_critical,
                 "max_high": self.signoff_max_high,
                 "min_score": self.signoff_min_score,

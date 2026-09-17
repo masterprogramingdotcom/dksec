@@ -109,6 +109,44 @@ class DKSecRunner:
 
         sbom_components = self.context.get("sbom_components", [])
 
+        # Execute Smart LLM Analysis if enabled
+        ai_summary = None
+        if self.config.llm and self.config.llm.enabled:
+            try:
+                self.emit("llm_started", provider=self.config.llm.provider, model=self.config.llm.model)
+                from dksec.llm import LLMAssistant
+                assistant = LLMAssistant(self.config.llm)
+
+                # 1. Triage top findings
+                if self.config.llm.triage_findings:
+                    for f in deduped:
+                        if f.severity in (Severity.CRITICAL, Severity.HIGH) or len(deduped) <= 8:
+                            triage_verdict, conf, analysis = assistant.triage_finding(f)
+                            f.ai_triage = triage_verdict
+                            f.ai_confidence = conf
+                            f.ai_analysis = analysis
+
+                # 2. Executive AI Summary
+                if self.config.llm.generate_executive_summary:
+                    temp_rep = DKSecReport(
+                        project_name=self.config.project_name,
+                        target_path=self.config.target_path,
+                        target_url=self.config.target_url,
+                        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        duration_seconds=total_duration,
+                        stages_executed=stages_to_run,
+                        stage_results=stage_results,
+                        all_findings=deduped,
+                        severity_counts=counts,
+                        overall_score=round(overall_score, 1),
+                        gate_verdict=verdict,
+                        sbom_components=sbom_components
+                    )
+                    ai_summary = assistant.generate_executive_summary(temp_rep)
+                self.emit("llm_completed")
+            except Exception as e:
+                self.emit("llm_error", error=str(e))
+
         report = DKSecReport(
             project_name=self.config.project_name,
             target_path=self.config.target_path,
@@ -121,8 +159,10 @@ class DKSecRunner:
             severity_counts=counts,
             overall_score=round(overall_score, 1),
             gate_verdict=verdict,
-            sbom_components=sbom_components
+            sbom_components=sbom_components,
+            ai_executive_summary=ai_summary
         )
 
         self.emit("run_completed", total_findings=len(deduped), overall_score=report.overall_score)
         return report
+
