@@ -1,15 +1,18 @@
 # ==============================================================================
 # DKSec - Unified Enterprise Product Security Lifecycle Platform
-# Makefile for Easy Setup, Testing, and Pipeline Execution
+# Makefile for Setup, Testing, Single/Multi-Stage Audits & CI/CD Pipelines
 # ==============================================================================
 
-PYTHON ?= python3
-PIP    ?= $(PYTHON) -m pip
-PORT   ?= 8080
-TARGET ?= samples/app
-OUTPUT ?= reports/run
-PRESET ?= full
-PROJECT ?= "DKSec Security Review"
+PYTHON     ?= python3
+PIP        ?= $(PYTHON) -m pip
+PORT       ?= 8080
+TARGET     ?= samples/app
+URL        ?=
+OUTPUT     ?= reports/run
+PRESET     ?= full
+STAGES     ?=
+PROJECT    ?= "DKSec Security Review"
+EXTRA_ARGS ?=
 
 # Terminal Colors
 CYAN   := \033[36m
@@ -19,7 +22,10 @@ RED    := \033[31m
 BOLD   := \033[1m
 RESET  := \033[0m
 
-.PHONY: help setup venv install quickstart demo wizard ui live-scan scan pr-check test clean docker-build docker-run
+.PHONY: help setup venv install quickstart demo wizard ui dashboard live-scan \
+        scan pr-check test clean docker-build docker-run \
+        vapt pentest sast threat threat-model asvs dast wstg defectdojo dojo signoff scorecard wazuh siem \
+        api-audit code-audit supply-chain
 
 # ------------------------------------------------------------------------------
 # 1. Help Menu (Default)
@@ -35,25 +41,48 @@ help:
 	@echo "$(BOLD) Unified Enterprise Product Security Lifecycle Platform$(RESET)"
 	@echo ""
 	@echo "$(BOLD)⚡ QUICK START COMMANDS:$(RESET)"
-	@echo "  $(GREEN)make setup$(RESET)        Install all dependencies & configure DKSec locally"
-	@echo "  $(GREEN)make quickstart$(RESET)   Run one-click complete 9-stage demo and view reports"
-	@echo "  $(GREEN)make wizard$(RESET)       Launch interactive step-by-step terminal audit wizard"
-	@echo "  $(GREEN)make ui$(RESET)           Start the interactive Web GUI dashboard on http://127.0.0.1:8080"
-	@echo "  $(GREEN)make live-scan$(RESET)    Run live authenticated scan against sample microservice"
+	@echo "  $(GREEN)make setup$(RESET)                 Install dependencies and configure DKSec locally"
+	@echo "  $(GREEN)make quickstart$(RESET)            Run one-click 9-stage demo and view reports"
+	@echo "  $(GREEN)make wizard$(RESET)                Launch interactive step-by-step terminal wizard"
+	@echo "  $(GREEN)make ui$(RESET)                    Start Web GUI dashboard on http://127.0.0.1:8080"
+	@echo "  $(GREEN)make live-scan$(RESET)             Run live authenticated scan against sample microservice"
 	@echo ""
-	@echo "$(BOLD)🔧 AUDIT & CI/CD COMMANDS:$(RESET)"
-	@echo "  $(YELLOW)make scan$(RESET)         Run scan on TARGET (e.g. make scan TARGET=./my-app PRESET=full)"
-	@echo "  $(YELLOW)make pr-check$(RESET)     Run fast pull request gate (Stages 1, 3, 8 with --fail-on-gate)"
-	@echo "  $(YELLOW)make test$(RESET)         Execute automated 20-test unit and integration test suite"
+	@echo "$(BOLD)🎯 SINGLE-STAGE AUDITS (Run Specific Stage Only):$(RESET)"
+	@echo "  $(YELLOW)make vapt$(RESET)                  [Stage 6] Penetration Test & Attack Surface Discovery"
+	@echo "  $(YELLOW)make sast$(RESET)                  [Stage 3] Static Code Analysis, SCA & Secret Scanning"
+	@echo "  $(YELLOW)make threat$(RESET)                [Stage 1] STRIDE Threat Model & OWASP Threat Dragon DFD"
+	@echo "  $(YELLOW)make asvs$(RESET)                  [Stage 2] OWASP ASVS 4.0.3 Security Requirements & Verification"
+	@echo "  $(YELLOW)make dast$(RESET)                  [Stage 4] Dynamic Application & API Security Fuzzing"
+	@echo "  $(YELLOW)make wstg$(RESET)                  [Stage 5] OWASP Web Security Testing Guide (WSTG v4.2)"
+	@echo "  $(YELLOW)make defectdojo$(RESET)            [Stage 7] DefectDojo Vulnerability Tracking & Retest Sync"
+	@echo "  $(YELLOW)make signoff$(RESET)               [Stage 8] OpenSSF Scorecard & Cryptographic Release Gate"
+	@echo "  $(YELLOW)make wazuh$(RESET)                 [Stage 9] Wazuh SIEM XML Rules & Sigma Detection Engine"
 	@echo ""
-	@echo "$(BOLD)🐳 DOCKER & MAINTENANCE:$(RESET)"
-	@echo "  $(CYAN)make docker-build$(RESET) Build minimal DKSec Docker image"
-	@echo "  $(CYAN)make docker-run$(RESET)   Run DKSec Web Dashboard in Docker container"
-	@echo "  $(CYAN)make clean$(RESET)        Remove temporary reports, test caches, and build artifacts"
+	@echo "$(BOLD)🔀 MULTI-STAGE & CUSTOM PIPELINES:$(RESET)"
+	@echo "  $(CYAN)make scan STAGES=sast,vapt$(RESET) Run custom combination of named stages"
+	@echo "  $(CYAN)make scan STAGES=1,3,6$(RESET)     Run custom combination by stage IDs"
+	@echo "  $(CYAN)make scan PRESET=pr$(RESET)        Run fast PR gate preset (Stages 1, 3, 8)"
+	@echo "  $(CYAN)make scan PRESET=api$(RESET)       Run API/dynamic preset (Stages 4, 5, 6)"
+	@echo "  $(CYAN)make code-audit$(RESET)            Combined Threat Model + SAST + Secrets (Stages 1, 3)"
+	@echo "  $(CYAN)make api-audit$(RESET)             Combined Live DAST + WSTG + VAPT (Stages 4, 5, 6)"
+	@echo "  $(CYAN)make supply-chain$(RESET)          Combined ASVS + CycloneDX SBOM + OpenSSF (Stages 2, 3, 8)"
+	@echo ""
+	@echo "$(BOLD)🔧 CUSTOMIZATION PARAMETERS:$(RESET)"
+	@echo "  TARGET=<dir>              Target source code directory (default: samples/app)"
+	@echo "  URL=<http://...>          Target live URL / API endpoint for DAST/VAPT"
+	@echo "  OUTPUT=<dir>              Output directory for reports (default: reports/run)"
+	@echo "  EXTRA_ARGS=\"<flags>\"      Additional CLI flags (e.g. EXTRA_ARGS=\"--llm --token abc\")"
+	@echo ""
+	@echo "$(BOLD)🧪 TESTING & CI/CD:$(RESET)"
+	@echo "  $(GREEN)make test$(RESET)                  Run complete unit & integration test suite"
+	@echo "  $(GREEN)make pr-check$(RESET)              Run fast PR gate with --fail-on-gate"
+	@echo "  $(CYAN)make clean$(RESET)                 Clean temporary reports, cache files, and builds"
+	@echo "  $(CYAN)make docker-build$(RESET)          Build minimal DKSec Docker image"
+	@echo "  $(CYAN)make docker-run$(RESET)            Run DKSec Web Dashboard in Docker container"
 	@echo ""
 
 # ------------------------------------------------------------------------------
-# 2. Easy Setup & Virtual Environment
+# 2. Setup & Virtual Environment
 # ------------------------------------------------------------------------------
 setup: install
 	@chmod +x dksec-cli dksec.py dksec_cli.py
@@ -61,8 +90,9 @@ setup: install
 	@echo "$(GREEN)$(BOLD)✔ DKSec setup successfully completed!$(RESET)"
 	@echo "  You can now run:"
 	@echo "    • $(CYAN)./dksec-cli wizard$(RESET)     (Interactive terminal wizard)"
-	@echo "    • $(CYAN)make ui$(RESET)                 (Browser GUI on http://127.0.0.1:8080)"
-	@echo "    • $(CYAN)make demo$(RESET)               (One-click sample audit)"
+	@echo "    • $(CYAN)make vapt$(RESET)                 (Run VAPT & attack surface discovery)"
+	@echo "    • $(CYAN)make sast$(RESET)                 (Run SAST & secret scanning)"
+	@echo "    • $(CYAN)make ui$(RESET)                   (Browser GUI on http://127.0.0.1:8080)"
 	@echo ""
 
 install:
@@ -79,7 +109,7 @@ venv:
 	@echo "$(GREEN)✔ Virtual environment created. Activate with: source .venv/bin/activate$(RESET)"
 
 # ------------------------------------------------------------------------------
-# 3. Workflows & Execution
+# 3. Interactive Tools & Demonstration
 # ------------------------------------------------------------------------------
 quickstart: demo
 
@@ -88,6 +118,8 @@ demo:
 
 wizard:
 	@$(PYTHON) ./dksec-cli wizard
+
+interactive: wizard
 
 ui:
 	@echo "$(GREEN)$(BOLD)Starting DKSec Web Dashboard on port $(PORT)...$(RESET)"
@@ -111,22 +143,125 @@ live-scan:
 	kill $$SERVER_PID 2>/dev/null || true
 	@echo "$(GREEN)$(BOLD)✔ Live authenticated audit complete! View: reports/live_scan/dksec-report.html$(RESET)"
 
+# ------------------------------------------------------------------------------
+# 4. Single-Stage Audit Targets
+# ------------------------------------------------------------------------------
+vapt pentest:
+	@echo "$(BOLD)🎯 Executing Stage 6: Penetration Testing & Attack Surface Discovery...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
+		-s vapt \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+sast:
+	@echo "$(BOLD)🔍 Executing Stage 3: SAST, SCA & Secret Scanning...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		-s sast \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+threat threat-model:
+	@echo "$(BOLD)📐 Executing Stage 1: Architecture & STRIDE Threat Modeling...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		-s threat \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+asvs:
+	@echo "$(BOLD)📋 Executing Stage 2: OWASP ASVS 4.0.3 Security Requirements & Verification...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		-s asvs \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+dast:
+	@echo "$(BOLD)⚡ Executing Stage 4: DAST & API Security Fuzzing...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
+		-s dast \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+wstg:
+	@echo "$(BOLD)📑 Executing Stage 5: OWASP Web Security Testing Guide (WSTG v4.2)...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
+		-s wstg \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+defectdojo dojo:
+	@echo "$(BOLD)🎯 Executing Stage 7: DefectDojo Vulnerability Tracking & Retest Sync...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		-s defectdojo \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+signoff scorecard:
+	@echo "$(BOLD)🛡️ Executing Stage 8: OpenSSF Scorecard & Cryptographic Release Gate...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		-s signoff \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+wazuh siem:
+	@echo "$(BOLD)🚨 Executing Stage 9: Wazuh SIEM XML Rules & Sigma Detection Engine...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		-s wazuh \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+# ------------------------------------------------------------------------------
+# 5. Multi-Stage Combinations & Workflows
+# ------------------------------------------------------------------------------
 scan:
-	@$(PYTHON) ./dksec-cli scan -p $(PROJECT) -t $(TARGET) --preset $(PRESET) -o $(OUTPUT)
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
+		$$(if [ -n "$(STAGES)" ]; then echo "-s $(STAGES)"; else echo "--preset $(PRESET)"; fi) \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+code-audit:
+	@echo "$(BOLD)🔍 Running Code & Architecture Audit (Threat Model + SAST + Secrets)...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan -p $(PROJECT) -t $(TARGET) -s "1,3" -o $(OUTPUT) $(EXTRA_ARGS)
+
+api-audit:
+	@echo "$(BOLD)⚡ Running Dynamic Web & API Penetration Audit (DAST + WSTG + VAPT)...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan \
+		-p $(PROJECT) \
+		-t $(TARGET) \
+		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
+		-s "4,5,6" \
+		-o $(OUTPUT) $(EXTRA_ARGS)
+
+supply-chain:
+	@echo "$(BOLD)📦 Running Supply Chain & Compliance Audit (ASVS + SBOM + OpenSSF)...$(RESET)"
+	@$(PYTHON) ./dksec-cli scan -p $(PROJECT) -t $(TARGET) -s "2,3,8" -o $(OUTPUT) $(EXTRA_ARGS)
 
 pr-check:
 	@echo "$(BOLD)Executing Fast Pull Request Security Gate (Stages 1, 3, 8)...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan -t $(TARGET) --preset pr --fail-on-gate -o reports/pr_gate
+	@$(PYTHON) ./dksec-cli scan -t $(TARGET) --preset pr --fail-on-gate -o reports/pr_gate $(EXTRA_ARGS)
 
 # ------------------------------------------------------------------------------
-# 4. Testing & Quality Assurance
+# 6. Testing & Quality Assurance
 # ------------------------------------------------------------------------------
 test:
 	@echo "$(BOLD)Running DKSec Automated Test Suite...$(RESET)"
 	@$(PYTHON) -m unittest discover tests
 
 # ------------------------------------------------------------------------------
-# 5. Docker Containers
+# 7. Docker Containers
 # ------------------------------------------------------------------------------
 docker-build:
 	@docker build -t dksec:latest .
@@ -136,7 +271,7 @@ docker-run:
 	@docker run --rm -p 8080:8080 -v $$(pwd)/reports:/app/reports dksec:latest ui --host 0.0.0.0 --port 8080
 
 # ------------------------------------------------------------------------------
-# 6. Housekeeping & Cleanup
+# 8. Housekeeping & Cleanup
 # ------------------------------------------------------------------------------
 clean:
 	@echo "$(YELLOW)Cleaning temporary test reports, cache files, and builds...$(RESET)"

@@ -79,7 +79,10 @@ class HtmlReporter:
       --bg-card-hover: #1c2742;
       --border: #233252;
       --text-main: #f1f5f9;
+      --text-heading: #ffffff;
       --text-muted: #94a3b8;
+      --header-bg: linear-gradient(180deg, #162035 0%, #0b0f19 100%);
+      --card-title: #ffffff;
       --accent: #3b82f6;
       --crit: #ef4444;
       --high: #f97316;
@@ -87,11 +90,39 @@ class HtmlReporter:
       --low: #3b82f6;
       --info: #64748b;
       --success: #10b981;
+      --code-bg: #090d16;
+      --diff-bg: #090d16;
+      --table-header: #162035;
+      --pill-bg: #1e293b;
+      --shadow: 0 4px 14px rgba(0,0,0,0.4);
+    }}
+    [data-theme="light"] {{
+      --bg-main: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f1f5f9;
+      --border: #cbd5e1;
+      --text-main: #1e293b;
+      --text-heading: #0f172a;
+      --text-muted: #64748b;
+      --header-bg: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+      --card-title: #0f172a;
+      --accent: #2563eb;
+      --crit: #dc2626;
+      --high: #ea580c;
+      --med: #d97706;
+      --low: #2563eb;
+      --info: #64748b;
+      --success: #059669;
+      --code-bg: #f8fafc;
+      --diff-bg: #f8fafc;
+      --table-header: #f1f5f9;
+      --pill-bg: #e2e8f0;
+      --shadow: 0 4px 16px rgba(0,0,0,0.06);
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
-    body {{ background: var(--bg-main); color: var(--text-main); line-height: 1.5; padding-bottom: 80px; }}
+    body {{ background: var(--bg-main); color: var(--text-main); line-height: 1.5; padding-bottom: 80px; transition: background 0.2s, color 0.2s; }}
     header {{
-      background: linear-gradient(180deg, #162035 0%, #0b0f19 100%);
+      background: var(--header-bg);
       border-bottom: 1px solid var(--border);
       padding: 24px 36px;
       display: flex;
@@ -99,6 +130,7 @@ class HtmlReporter:
       align-items: center;
       flex-wrap: wrap;
       gap: 16px;
+      transition: background 0.2s;
     }}
     .logo-area {{ display: flex; align-items: center; gap: 14px; }}
     .logo-shield {{
@@ -114,7 +146,7 @@ class HtmlReporter:
       justify-content: center;
       box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
     }}
-    h1 {{ font-size: 22px; font-weight: 700; color: #fff; }}
+    h1 {{ font-size: 22px; font-weight: 700; color: var(--text-heading); }}
     .subtitle {{ font-size: 13px; color: var(--text-muted); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }}
     .header-actions {{ display: flex; gap: 10px; flex-wrap: wrap; }}
     .btn {{
@@ -418,6 +450,7 @@ class HtmlReporter:
       </div>
     </div>
     <div class="header-actions">
+      <button id="themeToggleBtn" class="btn" onclick="toggleTheme()">🌓 Theme</button>
       <button class="btn" onclick="window.print()">🖨️ Print to PDF</button>
       <button class="btn" onclick="downloadFile('dksec-results.sarif', 'application/json')">📥 SARIF v2.1.0</button>
       <button class="btn" onclick="downloadFile('cyclonedx-sbom.json', 'application/json')">📦 CycloneDX SBOM</button>
@@ -842,6 +875,28 @@ class HtmlReporter:
     const reportData = {report_data_json};
     let currentSeverity = 'ALL';
     let currentStage = 'ALL';
+
+    function setTheme(t) {{
+      document.documentElement.setAttribute('data-theme', t);
+      try {{ localStorage.setItem('dksec_theme', t); }} catch(e) {{}}
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {{
+        btn.innerHTML = (t === 'light') ? '☀️ Light' : '🌙 Dark';
+      }}
+    }}
+
+    function toggleTheme() {{
+      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      setTheme(cur === 'light' ? 'dark' : 'light');
+    }}
+
+    (function() {{
+      let saved = 'dark';
+      try {{
+        saved = localStorage.getItem('dksec_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      }} catch(e) {{}}
+      setTheme(saved);
+    }})();
 
     function switchTab(tabId, btn) {{
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));

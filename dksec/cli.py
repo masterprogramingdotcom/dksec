@@ -62,11 +62,67 @@ def print_stage_catalog():
     print("-" * 110 + "\n")
 
 
+STAGE_ALIAS_MAP = {
+    "1": 1, "threat": 1, "threat-model": 1, "threat_model": 1, "dfd": 1, "stride": 1,
+    "2": 2, "asvs": 2, "requirements": 2, "reqs": 2,
+    "3": 3, "sast": 3, "sca": 3, "secrets": 3, "gitleaks": 3, "semgrep": 3, "trivy": 3,
+    "4": 4, "dast": 4, "api": 4, "zap": 4, "apisec": 4,
+    "5": 5, "wstg": 5, "manual": 5, "checklist": 5,
+    "6": 6, "vapt": 6, "pentest": 6, "nuclei": 6, "amass": 6, "attack-surface": 6,
+    "7": 7, "defectdojo": 7, "dojo": 7, "fix": 7, "retest": 7, "jira": 7,
+    "8": 8, "signoff": 8, "scorecard": 8, "openssf": 8, "gate": 8,
+    "9": 9, "wazuh": 9, "siem": 9, "sigma": 9, "monitoring": 9, "ir": 9,
+}
+
+
+def resolve_stages(stage_str: Optional[str] = None, preset: Optional[str] = None) -> List[int]:
+    """Resolve stage numbers from comma-separated names/numbers or presets."""
+    if preset:
+        p = preset.lower().strip()
+        if p in ("full", "all"):
+            return list(range(1, 10))
+        elif p == "pr":
+            return [1, 3, 8]
+        elif p in ("api", "web"):
+            return [4, 5, 6]
+        elif p in ("sbom", "compliance"):
+            return [2, 3, 8]
+        elif p in ("vapt", "pentest"):
+            return [6]
+        elif p in ("sast", "code"):
+            return [3]
+        elif p in ("dast", "dynamic"):
+            return [4]
+        elif p in ("threat", "threat-model"):
+            return [1]
+
+    if not stage_str:
+        return list(range(1, 10))
+
+    if stage_str.lower().strip() == "all":
+        return list(range(1, 10))
+
+    stages = set()
+    for token in stage_str.split(","):
+        token = token.strip().lower()
+        if not token:
+            continue
+        if token in STAGE_ALIAS_MAP:
+            stages.add(STAGE_ALIAS_MAP[token])
+        elif token.isdigit() and 1 <= int(token) <= 9:
+            stages.add(int(token))
+
+    return sorted(list(stages)) if stages else list(range(1, 10))
+
+
 PRESETS = {
     "1": ("Full 9-Stage DevSecOps Lifecycle (End-to-End)", list(range(1, 10))),
     "2": ("Pull Request / Fast CI Gate (Threat Model, SAST, Secrets, Signoff)", [1, 3, 8]),
     "3": ("Dynamic Web & API Pentest (DAST, API Fuzzing, WSTG, VAPT)", [4, 5, 6]),
     "4": ("Supply Chain & Compliance Audit (ASVS, SCA, CycloneDX SBOM, OpenSSF)", [2, 3, 8]),
+    "5": ("🎯 Penetration Test / VAPT Surface Discovery Only (Stage 6)", [6]),
+    "6": ("🔍 Static Code Analysis Only (SAST + SCA + Secrets - Stage 3)", [3]),
+    "7": ("📐 Architecture & Threat Model DFD Only (Stage 1)", [1]),
 }
 
 
@@ -77,22 +133,17 @@ def run_interactive_wizard():
     print(f"{Colors.BOLD}Choose an audit workflow preset:{Colors.RESET}")
     for key, (label, stgs) in PRESETS.items():
         print(f" [{key}] {label}")
-    print(" [5] Custom Stage Selection (pick specific numbers 1-9)")
+    print(" [8] Custom Stage Selection (enter numbers 1-9 or names like 'sast,vapt')")
 
     choice = input(f"\n{Colors.BOLD}Select workflow profile [1]: {Colors.RESET}").strip()
     if choice in PRESETS:
         selected_stages = PRESETS[choice][1]
-    elif choice == "5":
-        print(f"\n{Colors.BOLD}Select from the 9 lifecycle stages:{Colors.RESET}")
+    elif choice == "8":
+        print(f"\n{Colors.BOLD}Available 9 Lifecycle Stages:{Colors.RESET}")
         for s_id, meta in sorted(STAGE_METADATA.items()):
             print(f"   [{s_id}] Stage {s_id}: {meta['name']} ({meta['recommended_repo']})")
-        custom_input = input(f"\n{Colors.BOLD}Enter comma-separated stage numbers: {Colors.RESET}").strip()
-        selected_stages = []
-        for p in custom_input.split(","):
-            if p.strip().isdigit() and 1 <= int(p.strip()) <= 9:
-                selected_stages.append(int(p.strip()))
-        if not selected_stages:
-            selected_stages = list(range(1, 10))
+        custom_input = input(f"\n{Colors.BOLD}Enter comma-separated stage numbers or names (e.g. '3,6' or 'sast,vapt'): {Colors.RESET}").strip()
+        selected_stages = resolve_stages(custom_input)
     else:
         selected_stages = list(range(1, 10))
 
@@ -302,9 +353,9 @@ def main():
     scan_parser.add_argument("-c", "--config", default=None, help="Path to dksec.yml configuration file")
     scan_parser.add_argument(
         "--preset",
-        choices=["full", "pr", "api", "sbom"],
+        choices=["full", "pr", "api", "sbom", "vapt", "sast", "dast", "threat", "all"],
         default=None,
-        help="Quick workflow preset: full (1-9), pr (1,3,8), api (4,5,6), sbom (2,3,8)"
+        help="Quick workflow preset: full (1-9), pr (1,3,8), api (4,5,6), sbom (2,3,8), vapt (6), sast (3), dast (4), threat (1)"
     )
     scan_parser.add_argument(
         "-s", "--stages",
@@ -427,25 +478,8 @@ def main():
             if args.llm_url:
                 cfg.llm.api_base_url = args.llm_url
 
-        # Determine stages
-        if args.preset == "full":
-            stages = list(range(1, 10))
-        elif args.preset == "pr":
-            stages = [1, 3, 8]
-        elif args.preset == "api":
-            stages = [4, 5, 6]
-        elif args.preset == "sbom":
-            stages = [2, 3, 8]
-        elif args.stages:
-            if args.stages.lower() == "all":
-                stages = list(range(1, 10))
-            else:
-                stages = [int(s.strip()) for s in args.stages.split(",") if s.strip().isdigit() and 1 <= int(s.strip()) <= 9]
-        else:
-            stages = list(range(1, 10))
-
-        if not stages:
-            stages = list(range(1, 10))
+        # Determine stages (supports names like 'vapt', 'sast,vapt', numbers '1,3,6', or presets)
+        stages = resolve_stages(args.stages, preset=args.preset)
 
         execute_pipeline(cfg, stages, fail_on_gate=args.fail_on_gate)
         return

@@ -58,6 +58,58 @@ class TestDKSecCLI(unittest.TestCase):
         self.assertIn("Smart AI:", res.stdout)
         self.assertTrue(os.path.exists(os.path.join(out_dir, "dksec-report.html")))
 
+    def test_cli_scan_single_stage_named_vapt(self):
+        out_dir = "reports/cli_vapt_test"
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+        res = subprocess.run([
+            "./dksec_cli.py", "scan",
+            "-p", "CLI VAPT Test",
+            "-t", "samples/app",
+            "-s", "vapt",
+            "-o", out_dir
+        ], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Starting Penetration Test / VAPT", res.stdout)
+        self.assertTrue(os.path.exists(os.path.join(out_dir, "dksec-report.html")))
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+
+    def test_cli_scan_multi_stage_named(self):
+        out_dir = "reports/cli_multi_test"
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+        res = subprocess.run([
+            "./dksec_cli.py", "scan",
+            "-p", "CLI Multi Stage Test",
+            "-t", "samples/app",
+            "-s", "sast,vapt",
+            "-o", out_dir
+        ], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Starting SAST + SCA + Secret Scanning", res.stdout)
+        self.assertIn("Starting Penetration Test / VAPT", res.stdout)
+        self.assertTrue(os.path.exists(os.path.join(out_dir, "dksec-report.html")))
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+
+    def test_cli_scan_preset_vapt(self):
+        out_dir = "reports/cli_preset_test"
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+        res = subprocess.run([
+            "./dksec_cli.py", "scan",
+            "-p", "CLI Preset Test",
+            "-t", "samples/app",
+            "--preset", "vapt",
+            "-o", out_dir
+        ], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Starting Penetration Test / VAPT", res.stdout)
+        if os.path.exists(out_dir):
+            shutil.rmtree(out_dir)
+
 
 if __name__ == "__main__":
     unittest.main()
+

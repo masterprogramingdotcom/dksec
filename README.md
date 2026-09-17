@@ -22,7 +22,10 @@ make setup
 
 | Method | Command | Best For |
 | :--- | :--- | :--- |
-| **🌐 Interactive Web GUI** | `make ui` | Visual dashboard on `http://127.0.0.1:8080` with instant session connection testing |
+| **🌐 Interactive Web GUI** | `make ui` | Visual dashboard on `http://127.0.0.1:8080` with Light/Dark theme & live session testing |
+| **🎯 Single-Stage VAPT** | `make vapt` | Run penetration testing & attack surface discovery only (Stage 6) |
+| **🔍 Single-Stage SAST** | `make sast` | Run static code analysis, SCA & secret scanning only (Stage 3) |
+| **🔀 Custom Multi-Stage** | `make scan STAGES=sast,vapt` | Run any combination of stages (by name or ID) |
 | **🧙 Terminal Wizard** | `make wizard` | Step-by-step interactive CLI wizard with workflow presets |
 | **⚡ One-Click Demo** | `make quickstart` | Instant full 9-stage audit against built-in vulnerable fintech app |
 | **🔐 Live Authenticated Scan** | `make live-scan` | Automated live scan with background app, login session, & token audit |
@@ -89,6 +92,138 @@ DKSec replaces 10+ disjointed security tools with a single unified engine:
 
 ---
 
+## 🎯 Running Single-Stage Audits (Targeted Security Testing)
+
+You can run **any of the 9 stages independently** using either **Makefile shortcuts** or the **`./dksec-cli`** command line tool without running prior stages.
+
+### Stage 6: Penetration Testing & Attack Surface (VAPT)
+Audits live target URLs or source directories for exposed sensitive endpoints, administrative consoles, debug interfaces, weak TLS, and attack surface:
+```bash
+# Via Makefile
+make vapt TARGET=./my-app
+make vapt URL=http://127.0.0.1:5000
+
+# Via CLI (using stage name alias or number)
+./dksec-cli scan -s vapt -t samples/app
+./dksec-cli scan -s 6 -u http://127.0.0.1:5000
+./dksec-cli scan --preset vapt -u http://127.0.0.1:5000
+```
+
+### Stage 3: Static Code Analysis (SAST, SCA & Secret Scanning)
+Performs static AST rule checks (SQLi, SSRF, Command Injection), detects leaked hardcoded API keys/passwords/private keys, and compiles a CycloneDX 1.5 SBOM of third-party dependencies:
+```bash
+# Via Makefile
+make sast TARGET=./my-app
+
+# Via CLI
+./dksec-cli scan -s sast -t samples/app
+./dksec-cli scan -s 3 -t samples/app
+./dksec-cli scan --preset sast -t samples/app
+```
+
+### Stage 1: Architecture & STRIDE Threat Modeling
+Parses system boundaries, generates an OWASP Threat Dragon v2 data flow model, visualizes trust zones in Mermaid, and identifies STRIDE/LINDDUN threats:
+```bash
+# Via Makefile
+make threat TARGET=./my-app
+
+# Via CLI
+./dksec-cli scan -s threat -t samples/app
+./dksec-cli scan -s 1 -t samples/app
+```
+
+### Stage 2: Security Requirements & Verification (OWASP ASVS 4.0.3)
+Maps the target against Level 1, 2, and 3 verification requirements across 14 ASVS domains:
+```bash
+# Via Makefile
+make asvs TARGET=./my-app
+
+# Via CLI
+./dksec-cli scan -s asvs -t samples/app
+./dksec-cli scan -s 2 -t samples/app
+```
+
+### Stage 4: Dynamic Application & API Security (DAST)
+Probes live REST and GraphQL endpoints for OWASP API Top 10 vulnerabilities (BOLA/IDOR, BFLA, Mass Assignment, rate limiting, and JWT flaws):
+```bash
+# Via Makefile
+make dast URL=http://127.0.0.1:5000
+
+# Via CLI
+./dksec-cli scan -s dast -u http://127.0.0.1:5000
+./dksec-cli scan -s 4 -u http://127.0.0.1:5000
+```
+
+### Stage 5: Manual Security Testing Guide (OWASP WSTG v4.2)
+Verifies 12 testing domains including authentication mechanisms, session fixation, input sanitization heuristics, and access control matrices:
+```bash
+# Via Makefile
+make wstg TARGET=./my-app URL=http://127.0.0.1:5000
+
+# Via CLI
+./dksec-cli scan -s wstg -t samples/app -u http://127.0.0.1:5000
+```
+
+### Stage 7: Vulnerability Management, Fix & Retest (OWASP DefectDojo)
+Generates DefectDojo generic findings, tracks remediation SLAs, produces Jira tickets, and verifies resolved issues:
+```bash
+# Via Makefile
+make defectdojo TARGET=./my-app
+
+# Via CLI
+./dksec-cli scan -s defectdojo -t samples/app
+./dksec-cli scan -s 7 -t samples/app
+```
+
+### Stage 8: Security Signoff & Cryptographic Release Gate (OpenSSF Scorecard)
+Evaluates 18 OpenSSF supply-chain security checks, SLSA security levels, and issues a SHA-256 digital release certificate:
+```bash
+# Via Makefile
+make signoff TARGET=./my-app
+
+# Via CLI
+./dksec-cli scan -s signoff -t samples/app
+./dksec-cli scan -s 8 -t samples/app
+```
+
+### Stage 9: SIEM Rules & Sigma Detection Engine (Wazuh & Sigma)
+Automatically synthesizes Wazuh XML rules, Sigma YAML detection rules, and NIST SP 800-61 incident response runbooks based on detected vulnerabilities:
+```bash
+# Via Makefile
+make wazuh TARGET=./my-app
+
+# Via CLI
+./dksec-cli scan -s wazuh -t samples/app
+./dksec-cli scan -s 9 -t samples/app
+```
+
+---
+
+## 🔀 Running Multi-Stage Audits & Custom Combinations
+
+You can execute **any combination** of stages in a single pass using comma-separated stage names or stage numbers:
+
+```bash
+# Run SAST + Penetration Testing (Stages 3 & 6)
+make scan STAGES=sast,vapt TARGET=./my-app
+./dksec-cli scan -s sast,vapt -t samples/app
+
+# Run Threat Modeling + SAST + OpenSSF Signoff (Stages 1, 3, 8)
+make scan STAGES=1,3,8 TARGET=./my-app
+./dksec-cli scan -s 1,3,8 -t samples/app
+
+# Run DAST + WSTG + VAPT with live endpoint authentication
+make scan STAGES=dast,wstg,vapt URL=http://127.0.0.1:5000 TARGET=samples/app
+
+# Pre-packaged multi-stage workflow recipes:
+make code-audit     # Runs Stages 1 & 3 (Threat Model + Code SAST + Secrets)
+make api-audit      # Runs Stages 4, 5 & 6 (DAST + WSTG + VAPT)
+make supply-chain   # Runs Stages 2, 3 & 8 (ASVS + CycloneDX SBOM + OpenSSF)
+make pr-check       # Fast PR check (Stages 1, 3, 8 with --fail-on-gate)
+```
+
+---
+
 ## 🔐 Live URL & Authenticated Application Testing
 
 DKSec features a built-in **Session Manager** (`dksec/auth.py`) to test endpoints **behind logins**:
@@ -143,19 +278,45 @@ You can run predefined workflow profiles for common engineering use cases:
 
 | Preset | Name | Stages Included | Typical Use Case |
 | :---: | :--- | :--- | :--- |
-| `full` | **Full 9-Stage DevSecOps** | `1, 2, 3, 4, 5, 6, 7, 8, 9` | Complete application security review & release signoff |
+| `full` / `all` | **Full 9-Stage DevSecOps** | `1, 2, 3, 4, 5, 6, 7, 8, 9` | Complete application security review & release signoff |
 | `pr` | **Fast CI / PR Gate** | `1, 3, 8` | Pull request validation (Threat Model, SAST, Secrets, Signoff) |
-| `api` | **Web & API Pentest** | `4, 5, 6` | Dynamic vulnerability assessment & attack-surface fuzzing |
+| `api` / `web` | **Web & API Pentest** | `4, 5, 6` | Dynamic vulnerability assessment & attack-surface fuzzing |
 | `sbom` | **Supply Chain Audit** | `2, 3, 8` | ASVS requirements, SCA vulnerabilities, and CycloneDX SBOM |
+| `vapt` | **Penetration Test Only** | `6` | Quick attack-surface discovery & sensitive endpoint exposure |
+| `sast` | **Static Analysis Only** | `3` | Fast AST code scanning, secret detection & CycloneDX SBOM |
+| `threat` | **Threat Modeling Only** | `1` | Architecture STRIDE threat modeling & OWASP Threat Dragon DFD |
 
 Example:
 ```bash
+# Run VAPT only via preset
+./dksec-cli scan --preset vapt -u http://127.0.0.1:5000
+
 # Fast PR gate that fails if critical/high bugs exist
 ./dksec-cli scan --preset pr --fail-on-gate
 
 # Dynamic API penetration test against a running service
 ./dksec-cli scan --preset api --url http://127.0.0.1:5000
 ```
+
+---
+
+## 🖥️ Interactive Web Dashboard (Light & Dark Theme)
+
+DKSec includes a built-in, lightweight web GUI that requires zero Node.js/npm dependencies:
+
+```bash
+make ui
+# or: ./dksec-cli ui --port 8080
+```
+Visit **`http://127.0.0.1:8080`** in your browser.
+
+### Key Web Dashboard Features:
+- **🌓 Dynamic Light & Dark Theme**: Toggle instantly between a modern high-contrast Light Theme (ideal for day-to-day work and reports) and an executive Dark Theme. Preference is saved automatically in `localStorage`.
+- **🎯 One-Click Stage Presets**: Instantly toggle **Full 9-Stage Audit**, **Fast PR Gate**, **API Pentest**, **VAPT Only**, **SAST Only**, or **Threat Model Only**.
+- **🔐 Session Connection Tester**: Test automated logins, Bearer JWTs, session cookies, and custom headers live against your target application before initiating full scans.
+- **🤖 AI Engine Verification**: Verify API keys and test connectivity to OpenAI, Gemini, Claude, or local Ollama with a single click.
+- **📡 Real-Time Telemetry & Progress**: Watch stages execute live with streaming logs and dynamic progress bars.
+- **📦 Direct Artifact Downloads**: Instantly open or download generated HTML reports, CycloneDX 1.5 SBOM, SARIF 2.1.0, DefectDojo JSON, Threat Dragon models, and Wazuh/Sigma SIEM rules.
 
 ---
 
@@ -190,19 +351,46 @@ DKSec includes an autonomous, zero-dependency **Smart LLM Security Engine** (`dk
 
 ## 🛠️ Makefile Command Reference
 
-The provided [Makefile](Makefile) gives you one-word shortcuts for all operations:
+The provided [Makefile](Makefile) gives you intuitive shortcuts for all operations:
 
+### Quick Start & Exploration
 ```bash
-make help          # View beautiful interactive menu
+make help          # View interactive color menu of all commands
 make setup         # Install dependencies & set executable permissions
 make venv          # Create an isolated Python virtual environment in .venv
 make quickstart    # Run complete 9-stage demo audit immediately
 make wizard        # Launch step-by-step interactive terminal wizard
-make ui            # Start the web dashboard on http://127.0.0.1:8080
+make ui            # Start the web dashboard on http://127.0.0.1:8080 (Light/Dark theme)
 make live-scan     # Launch sample app & run authenticated live scan
-make scan          # Run scan on default target (customize with TARGET=... PRESET=...)
-make pr-check      # Run fast PR gate with --fail-on-gate
-make test          # Run automated 28-test unit & integration test suite
+```
+
+### Targeted Single-Stage Audits
+```bash
+make vapt          # [Stage 6] Penetration test & attack surface discovery
+make sast          # [Stage 3] Static code analysis, SCA & secret scanning
+make threat        # [Stage 1] STRIDE threat model & Threat Dragon DFD
+make asvs          # [Stage 2] OWASP ASVS 4.0.3 requirements verification
+make dast          # [Stage 4] Dynamic application & API security fuzzing
+make wstg          # [Stage 5] OWASP Web Security Testing Guide checklist
+make defectdojo    # [Stage 7] DefectDojo vulnerability tracking & retest
+make signoff       # [Stage 8] OpenSSF Scorecard & cryptographic release gate
+make wazuh         # [Stage 9] Wazuh SIEM XML rules & Sigma detection engine
+```
+
+### Multi-Stage & Custom Pipelines
+```bash
+make scan STAGES=sast,vapt        # Run custom combination of named stages
+make scan STAGES=1,3,6 TARGET=... # Run custom combination by stage IDs
+make scan PRESET=pr               # Run fast PR gate preset (Stages 1, 3, 8)
+make code-audit                   # Combined Threat Model + SAST + Secrets (1, 3)
+make api-audit                    # Combined Live DAST + WSTG + VAPT (4, 5, 6)
+make supply-chain                 # Combined ASVS + SBOM + OpenSSF (2, 3, 8)
+make pr-check                     # Run fast PR gate with --fail-on-gate
+```
+
+### Testing, Containers & Housekeeping
+```bash
+make test          # Run automated 31-test unit & integration test suite
 make clean         # Delete temporary scan reports and python caches
 make docker-build  # Build Docker container image
 make docker-run    # Run Web Dashboard in Docker container
@@ -331,8 +519,8 @@ jobs:
 
 ## 🧪 Testing & Verification
 
-Run the complete 28-test automated suite:
+Run the complete 31-test automated suite:
 ```bash
 make test
 ```
-All tests run with zero external network dependencies in **~1.4 seconds**.
+All tests run with zero external network dependencies in **~1.8 seconds**.

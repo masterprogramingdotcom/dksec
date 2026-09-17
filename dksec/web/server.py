@@ -172,41 +172,90 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     :root {{
       --bg: #0b0f19;
       --card: #131b2e;
+      --card-inner: #0d1424;
       --card-hover: #1c2742;
       --border: #233252;
       --accent: #3b82f6;
       --accent-hover: #1d4ed8;
       --text: #f1f5f9;
+      --heading: #ffffff;
       --muted: #94a3b8;
       --green: #10b981;
+      --input-bg: #090d16;
+      --input-text: #ffffff;
+      --card-selected: #14203a;
+      --stage-badge-bg: #233252;
+      --stage-badge-text: #93c5fd;
+      --stage-tool-text: #60a5fa;
+      --console-bg: #090d16;
+      --console-text: #94a3b8;
+      --btn-preset-bg: #1a253e;
+      --btn-preset-text: #cbd5e1;
+      --btn-secondary-bg: #1e293b;
+      --btn-secondary-text: #cbd5e1;
+      --progress-track: #090d16;
+      --dl-btn-bg: #162238;
+      --dl-btn-text: #e2e8f0;
+      --shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }}
+    [data-theme="light"] {{
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --card-inner: #ffffff;
+      --card-hover: #f1f5f9;
+      --border: #cbd5e1;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --text: #1e293b;
+      --heading: #0f172a;
+      --muted: #64748b;
+      --green: #059669;
+      --input-bg: #ffffff;
+      --input-text: #0f172a;
+      --card-selected: #eff6ff;
+      --stage-badge-bg: #dbeafe;
+      --stage-badge-text: #1d4ed8;
+      --stage-tool-text: #2563eb;
+      --console-bg: #f8fafc;
+      --console-text: #334155;
+      --btn-preset-bg: #f1f5f9;
+      --btn-preset-text: #334155;
+      --btn-secondary-bg: #f1f5f9;
+      --btn-secondary-text: #334155;
+      --progress-track: #e2e8f0;
+      --dl-btn-bg: #f1f5f9;
+      --dl-btn-text: #1e293b;
+      --shadow: 0 4px 16px rgba(0,0,0,0.06);
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
-    body {{ background: var(--bg); color: var(--text); padding: 28px 20px; line-height: 1.5; }}
+    body {{ background: var(--bg); color: var(--text); padding: 28px 20px; line-height: 1.5; transition: background 0.2s, color 0.2s; }}
     .container {{ max-width: 1180px; margin: 0 auto; }}
     header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 18px; flex-wrap: wrap; gap: 16px; }}
     .logo {{ display: flex; align-items: center; gap: 14px; }}
     .shield {{ background: linear-gradient(135deg, #2563eb, #1d4ed8); width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.4); }}
-    .panel {{ background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 22px; }}
-    h2 {{ font-size: 17px; margin-bottom: 14px; color: #fff; display: flex; align-items: center; gap: 8px; }}
+    .panel {{ background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 22px; box-shadow: var(--shadow); transition: background 0.2s, border-color 0.2s; }}
+    h2 {{ font-size: 17px; margin-bottom: 14px; color: var(--heading); display: flex; align-items: center; gap: 8px; }}
 
     .preset-bar {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }}
-    .btn-preset {{ background: #1a253e; border: 1px solid var(--border); color: #cbd5e1; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }}
-    .btn-preset:hover {{ background: #233252; color: #fff; }}
+    .btn-preset {{ background: var(--btn-preset-bg); border: 1px solid var(--border); color: var(--btn-preset-text); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }}
+    .btn-preset:hover {{ background: var(--card-hover); color: var(--heading); }}
     .btn-preset.active {{ background: #2563eb; color: #fff; border-color: #3b82f6; }}
 
     .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }}
     .form-group {{ display: flex; flex-direction: column; gap: 6px; }}
     label {{ font-size: 13px; font-weight: 600; color: var(--muted); }}
-    input[type="text"], input[type="password"], select {{ background: #090d16; border: 1px solid var(--border); color: #fff; padding: 9px 12px; border-radius: 8px; font-size: 13px; }}
+    input[type="text"], input[type="password"], select {{ background: var(--input-bg); border: 1px solid var(--border); color: var(--input-text); padding: 9px 12px; border-radius: 8px; font-size: 13px; transition: border-color 0.2s; }}
+    input[type="text"]:focus, input[type="password"]:focus, select:focus {{ outline: none; border-color: var(--accent); }}
 
     .stages-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
-    .stage-card {{ background: #0d1424; border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; gap: 12px; cursor: pointer; transition: all 0.2s; }}
-    .stage-card:hover {{ border-color: var(--accent); }}
-    .stage-card.selected {{ border-color: #3b82f6; background: #14203a; }}
+    .stage-card {{ background: var(--card-inner); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; gap: 12px; cursor: pointer; transition: all 0.2s; }}
+    .stage-card:hover {{ border-color: var(--accent); background: var(--card-hover); }}
+    .stage-card.selected {{ border-color: #3b82f6; background: var(--card-selected); }}
     .stage-cb input {{ width: 18px; height: 18px; cursor: pointer; margin-top: 2px; }}
     .stage-hdr {{ display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }}
-    .stage-badge {{ background: #233252; color: #93c5fd; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; }}
-    .stage-tool {{ font-size: 12px; color: #60a5fa; font-family: monospace; margin-bottom: 4px; }}
+    .stage-hdr strong {{ color: var(--heading); }}
+    .stage-badge {{ background: var(--stage-badge-bg); color: var(--stage-badge-text); font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; }}
+    .stage-tool {{ font-size: 12px; color: var(--stage-tool-text); font-family: monospace; margin-bottom: 4px; }}
     .stage-desc {{ font-size: 12px; color: var(--muted); }}
 
     .action-row {{ display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }}
@@ -215,21 +264,23 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     .btn-primary:hover {{ background: #1d4ed8; }}
     .btn-success {{ background: #10b981; color: #fff; }}
     .btn-success:hover {{ background: #059669; }}
-    .btn-secondary {{ background: #1e293b; color: #cbd5e1; border: 1px solid var(--border); }}
-    .btn-secondary:hover {{ background: #2b3950; }}
+    .btn-secondary {{ background: var(--btn-secondary-bg); color: var(--btn-secondary-text); border: 1px solid var(--border); }}
+    .btn-secondary:hover {{ background: var(--card-hover); color: var(--heading); }}
 
     #progressArea {{ display: none; }}
-    .progress-track {{ background: #090d16; border: 1px solid var(--border); border-radius: 10px; height: 16px; overflow: hidden; margin: 14px 0; }}
+    .progress-track {{ background: var(--progress-track); border: 1px solid var(--border); border-radius: 10px; height: 16px; overflow: hidden; margin: 14px 0; }}
     .progress-fill {{ background: linear-gradient(90deg, #3b82f6, #10b981); height: 100%; width: 0%; transition: width 0.3s ease; }}
-    .console {{ background: #090d16; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; height: 220px; overflow-y: auto; color: #94a3b8; }}
+    .console {{ background: var(--console-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; height: 220px; overflow-y: auto; color: var(--console-text); }}
 
     .download-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 16px; }}
-    .dl-btn {{ background: #162238; border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; color: #e2e8f0; font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }}
-    .dl-btn:hover {{ background: #233252; color: #fff; border-color: #3b82f6; }}
+    .dl-btn {{ background: var(--dl-btn-bg); border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; color: var(--dl-btn-text); font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }}
+    .dl-btn:hover {{ background: var(--card-hover); color: var(--heading); border-color: var(--accent); }}
     
     .auth-badge {{ font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 700; }}
-    .auth-badge.ok {{ background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }}
-    .auth-badge.err {{ background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }}
+    .auth-badge.ok {{ background: rgba(16, 185, 129, 0.2); color: #059669; border: 1px solid #10b981; }}
+    .auth-badge.err {{ background: rgba(239, 68, 68, 0.2); color: #dc2626; border: 1px solid #ef4444; }}
+    .theme-toggle-btn {{ background: var(--btn-secondary-bg); color: var(--btn-secondary-text); border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }}
+    .theme-toggle-btn:hover {{ background: var(--card-hover); color: var(--heading); }}
   </style>
 </head>
 <body>
@@ -238,11 +289,12 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       <div class="logo">
         <div class="shield">🛡️</div>
         <div>
-          <div style="font-size: 20px; font-weight: 800; color: #fff;">DKSec Platform</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--heading);">DKSec Platform</div>
           <div style="font-size: 12px; color: var(--muted);">Unified 9-Stage Product Security Lifecycle & DevSecOps Platform</div>
         </div>
       </div>
-      <div id="topActions">
+      <div id="topActions" style="display: flex; align-items: center; gap: 10px;">
+        <button id="themeToggleBtn" onclick="toggleTheme()" class="theme-toggle-btn">🌓 Theme: Auto</button>
         <a id="btnOpenReport" href="/report" target="_blank" class="btn btn-success" style="display: none;">📄 Open Interactive Report</a>
       </div>
     </header>
@@ -396,6 +448,9 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         <button class="btn-preset" onclick="applyPreset('pr', this)">🚀 Fast PR Gate (1, 3, 8)</button>
         <button class="btn-preset" onclick="applyPreset('api', this)">🌐 API & Web Pentest (4, 5, 6)</button>
         <button class="btn-preset" onclick="applyPreset('sbom', this)">📦 Supply Chain & SBOM (2, 3, 8)</button>
+        <button class="btn-preset" onclick="applyPreset('vapt', this)">🎯 VAPT Only (Stage 6)</button>
+        <button class="btn-preset" onclick="applyPreset('sast', this)">🔍 SAST Only (Stage 3)</button>
+        <button class="btn-preset" onclick="applyPreset('threat', this)">📐 Threat Model (Stage 1)</button>
       </div>
 
       <div class="stages-grid">
@@ -437,6 +492,28 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
   <script>
     let poll = null;
+
+    function setTheme(t) {{
+      document.documentElement.setAttribute('data-theme', t);
+      try {{ localStorage.setItem('dksec_theme', t); }} catch(e) {{}}
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {{
+        btn.innerHTML = (t === 'light') ? '☀️ Theme: Light' : '🌙 Theme: Dark';
+      }}
+    }}
+
+    function toggleTheme() {{
+      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      setTheme(cur === 'light' ? 'dark' : 'light');
+    }}
+
+    (function() {{
+      let saved = 'dark';
+      try {{
+        saved = localStorage.getItem('dksec_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      }} catch(e) {{}}
+      setTheme(saved);
+    }})();
 
     function onAuthTypeChange() {{
       const type = document.getElementById('authType').value;
@@ -582,6 +659,9 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       else if (preset === 'pr') targets = [1, 3, 8];
       else if (preset === 'api') targets = [4, 5, 6];
       else if (preset === 'sbom') targets = [2, 3, 8];
+      else if (preset === 'vapt') targets = [6];
+      else if (preset === 'sast') targets = [3];
+      else if (preset === 'threat') targets = [1];
 
       for (let i = 1; i <= 9; i++) {{
         const cb = document.getElementById('stage-' + i);
