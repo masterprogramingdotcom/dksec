@@ -1,3 +1,19 @@
+auth:
+  auth_type: none
+  bearer_token: null
+  cookies: null
+  custom_header: null
+  enabled: false
+  login_url: null
+  password: null
+  payload_type: json
+  secondary_password: null
+  secondary_username: null
+  timeout: 6
+  token_header_name: Authorization
+  token_header_prefix: 'Bearer '
+  token_json_path: null
+  username: null
 git_repo_url: null
 output_dir: ./reports
 project_name: Application Security Review

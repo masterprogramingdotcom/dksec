@@ -1,18 +1,21 @@
 """
 Stage 6: Penetration Test / VAPT (Advanced Enterprise Edition)
 Recommended Repos: OWASP WSTG + Nuclei + OWASP Amass
-What it covers: Pentest methodology, automated vulnerability templates, attack-surface discovery, and DNS security posture
+What it covers: Pentest methodology, automated vulnerability templates, attack-surface discovery,
+authenticated fuzzing, and DNS security posture.
 """
 
 import os
 import json
 import socket
 import urllib.parse
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import requests
+
 from dksec.stages.base import BaseStage
 from dksec.models import Finding, Severity, FindingStatus
 from dksec.config import DKSecConfig
+from dksec.auth import DKSecSessionManager
 
 
 class Stage6Vapt(BaseStage):
@@ -28,8 +31,14 @@ class Stage6Vapt(BaseStage):
         if target_url:
             self.log(f"Executing Advanced VAPT & Attack-Surface Reconnaissance against: {target_url}")
 
-            # 1. Nuclei Native Execution if installed
-            nuclei_findings = self._run_nuclei_if_installed(target_url)
+            # Get or initialize authenticated session
+            session_mgr: Optional[DKSecSessionManager] = context.get("session_manager")
+            if not session_mgr and (config.auth.enabled or config.auth.login_url or config.auth.bearer_token):
+                session_mgr = DKSecSessionManager(config.auth, base_url=target_url)
+                context["session_manager"] = session_mgr
+
+            # 1. Nuclei Native Execution if installed (with Auth headers)
+            nuclei_findings = self._run_nuclei_if_installed(target_url, session_mgr)
             findings.extend(nuclei_findings)
 
             # 2. Attack Surface Reconnaissance (Amass equivalent)
@@ -41,17 +50,23 @@ class Stage6Vapt(BaseStage):
             findings.extend(dns_findings)
             details["dns"] = dns_data
 
-            # 4. Nuclei-Style High-Value Sensitive Asset Fuzzing (50+ targets)
-            fuzz_findings, fuzz_data = self._fuzz_sensitive_endpoints(target_url)
+            # 4. Nuclei-Style High-Value Sensitive Asset Fuzzing
+            fuzz_findings, fuzz_data = self._fuzz_sensitive_endpoints(target_url, session_mgr)
             findings.extend(fuzz_findings)
             details["fuzzing"] = fuzz_data
 
-            # 5. RFC 9116 security.txt check
+            # 5. Active Pentest Injection & Authorization Probes
+            active_findings, active_data = self._probe_active_vulnerabilities(target_url, session_mgr)
+            findings.extend(active_findings)
+            details["active_vapt"] = active_data
+
+            # 6. RFC 9116 security.txt check
             sec_txt_findings = self._check_security_txt(target_url)
             findings.extend(sec_txt_findings)
 
             metrics = {
                 "vapt_target": target_url,
+                "authenticated_pentest": bool(session_mgr and session_mgr.is_authenticated),
                 "endpoints_fuzzed": fuzz_data.get("probed_count", 0),
                 "open_ports_detected": recon_data.get("open_ports", []),
                 "vapt_vulnerabilities": len(findings)
@@ -69,11 +84,20 @@ class Stage6Vapt(BaseStage):
 
         return findings, metrics, details
 
-    def _run_nuclei_if_installed(self, url: str) -> List[Finding]:
+    def _run_nuclei_if_installed(self, url: str, session_mgr: Optional[DKSecSessionManager] = None) -> List[Finding]:
         findings = []
         if self.is_tool_installed("nuclei"):
             self.log("Running native ProjectDiscovery Nuclei automated scanner...")
             cmd = ["nuclei", "-u", url, "-json", "-severity", "low,medium,high,critical", "-silent"]
+            
+            # If session is authenticated, inject Authorization or Cookie headers
+            if session_mgr and session_mgr.is_authenticated:
+                for h_key, h_val in session_mgr.session.headers.items():
+                    if h_key.lower() in ("authorization", "x-api-key"):
+                        cmd.extend(["-H", f"{h_key}: {h_val}"])
+                for c_key, c_val in session_mgr.session.cookies.items():
+                    cmd.extend(["-H", f"Cookie: {c_key}={c_val}"])
+
             code, stdout, stderr = self.execute_command(cmd, timeout=180)
             if stdout:
                 for line in stdout.splitlines():
@@ -130,14 +154,9 @@ class Stage6Vapt(BaseStage):
         if not host or host in ("localhost", "127.0.0.1"):
             return findings, data
 
-        # Check for email spoofing protection if host looks like a domain
-        if "." in host:
-            # We can check DNS or report best practice
-            pass
-
         return findings, data
 
-    def _fuzz_sensitive_endpoints(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+    def _fuzz_sensitive_endpoints(self, base_url: str, session_mgr: Optional[DKSecSessionManager] = None) -> Tuple[List[Finding], Dict[str, Any]]:
         findings = []
         paths = [
             ("/.git/config", Severity.CRITICAL, "CWE-538", "Exposed Git Configuration (Full Source Code Theft Risk)"),
@@ -187,6 +206,67 @@ class Stage6Vapt(BaseStage):
                 pass
 
         return findings, {"probed_count": probed}
+
+    def _probe_active_vulnerabilities(self, base_url: str, session_mgr: Optional[DKSecSessionManager] = None) -> Tuple[List[Finding], Dict[str, Any]]:
+        findings = []
+        probes_executed = 0
+
+        client = session_mgr.session if (session_mgr and session_mgr.is_authenticated) else requests
+
+        # 1. Path Traversal probe on common download/file parameters
+        traversal_targets = [
+            "/api/v1/download?file=../../../../etc/passwd",
+            "/download?path=../../../../etc/passwd",
+            "/api/file?name=../../../../etc/passwd"
+        ]
+        for t in traversal_targets:
+            probes_executed += 1
+            url = urllib.parse.urljoin(base_url, t)
+            try:
+                r = client.get(url, timeout=3, verify=False)
+                if "root:x:0:0:" in r.text or "[extensions]" in r.text:
+                    findings.append(self.create_finding(
+                        finding_id="VAPT-TRAVERSAL-EXPLOIT",
+                        title="Critical Directory Traversal / Arbitrary File Read (CWE-22)",
+                        severity=Severity.CRITICAL,
+                        description=f"Endpoint `{url}` returned contents of `/etc/passwd`. Arbitrary filesystem reading confirmed.",
+                        tool="Nuclei / VAPT Active Engine",
+                        target=url,
+                        cwe="CWE-22",
+                        owasp="OWASP A01:2021-Broken Access Control",
+                        remediation="Validate user-supplied paths strictly against an allowlist and use secure path resolution."
+                    ))
+            except Exception:
+                pass
+
+        # 2. Authorization Bypass via URL Normalization
+        bypass_paths = [
+            "/api/v1/admin/../admin/debug",
+            "/api/v1//admin/debug",
+            "/api/v1/admin/debug%20"
+        ]
+        for bp in bypass_paths:
+            probes_executed += 1
+            url = urllib.parse.urljoin(base_url, bp)
+            try:
+                r = requests.get(url, timeout=3, verify=False)
+                if r.status_code == 200 and ("env" in r.text or "db_pass" in r.text):
+                    findings.append(self.create_finding(
+                        finding_id="VAPT-AUTH-BYPASS-NORMALIZATION",
+                        title="Authentication Bypass via URL Path Normalization",
+                        severity=Severity.HIGH,
+                        description=f"Endpoint `{url}` bypassed access controls using unnormalized path syntax.",
+                        tool="Nuclei / VAPT Active Engine",
+                        target=url,
+                        cwe="CWE-285",
+                        owasp="OWASP A01:2021-Broken Access Control",
+                        remediation="Normalize URLs on reverse proxies before forwarding to backend microservices."
+                    ))
+                    break
+            except Exception:
+                pass
+
+        return findings, {"probes_executed": probes_executed}
 
     def _check_security_txt(self, base_url: str) -> List[Finding]:
         findings = []

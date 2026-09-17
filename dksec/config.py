@@ -7,6 +7,8 @@ import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 import yaml
+from dksec.auth import AuthConfig
+
 
 
 STAGE_METADATA = {
@@ -87,6 +89,7 @@ class DKSecConfig:
     project_name: str = "Application Security Review"
     target_path: str = "."
     target_url: Optional[str] = None
+    auth: AuthConfig = field(default_factory=AuthConfig)
     git_repo_url: Optional[str] = None
     output_dir: str = "./reports"
     report_formats: List[str] = field(default_factory=lambda: ["html", "json", "markdown"])
@@ -123,6 +126,8 @@ class DKSecConfig:
                     config.target_path = data["target_path"]
                 if "target_url" in data:
                     config.target_url = data["target_url"]
+                if "auth" in data:
+                    config.auth = AuthConfig.from_dict(data["auth"])
                 if "git_repo_url" in data:
                     config.git_repo_url = data["git_repo_url"]
                 if "output_dir" in data:
@@ -161,6 +166,7 @@ class DKSecConfig:
             "project_name": self.project_name,
             "target_path": self.target_path,
             "target_url": self.target_url,
+            "auth": self.auth.to_dict(),
             "git_repo_url": self.git_repo_url,
             "output_dir": self.output_dir,
             "report_formats": self.report_formats,
@@ -177,3 +183,4 @@ class DKSecConfig:
         os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
             yaml.dump(data, f, default_flow_style=False)
+

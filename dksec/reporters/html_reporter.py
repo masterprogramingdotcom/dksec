@@ -26,6 +26,18 @@ class HtmlReporter:
         if s1 and "mermaid_dfd" in s1.details:
             mermaid_dfd = s1.details["mermaid_dfd"]
 
+        auth_badge = ""
+        s4 = report.stage_results.get(4)
+        if s4 and s4.details.get("auth_status", {}).get("authenticated"):
+            m = s4.details["auth_status"].get("method", "session").upper()
+            auth_badge = f'<span style="background: rgba(16,185,129,0.2); color: #34d399; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px; border: 1px solid #10b981;">🔒 AUTHENTICATED ({m})</span>'
+        elif report.target_url:
+            auth_badge = '<span style="background: rgba(100,116,139,0.2); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">🌐 PUBLIC / UNAUTHENTICATED</span>'
+
+        target_display = f"Target: {report.target_path}"
+        if report.target_url:
+            target_display += f" | URL: {report.target_url}"
+
         html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -77,7 +89,7 @@ class HtmlReporter:
       box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
     }}
     h1 {{ font-size: 22px; font-weight: 700; color: #fff; }}
-    .subtitle {{ font-size: 13px; color: var(--text-muted); }}
+    .subtitle {{ font-size: 13px; color: var(--text-muted); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }}
     .header-actions {{ display: flex; gap: 10px; flex-wrap: wrap; }}
     .btn {{
       background: var(--bg-card);
@@ -97,6 +109,7 @@ class HtmlReporter:
     .btn:hover {{ background: var(--border); }}
     .btn-primary {{ background: #2563eb; border-color: #3b82f6; color: #fff; }}
     .btn-primary:hover {{ background: #1d4ed8; }}
+
 
     .container {{ max-width: 1440px; margin: 0 auto; padding: 28px 36px; }}
 
@@ -336,7 +349,8 @@ class HtmlReporter:
       <div class="logo-shield">🛡️</div>
       <div>
         <h1>DKSec Unified Product Security Platform</h1>
-        <div class="subtitle">{report.project_name} | Target: {report.target_path} | Completed in {report.duration_seconds:.2f}s</div>
+        <div class="subtitle"><strong>{report.project_name}</strong> &bull; {target_display} {auth_badge} &bull; ⏱️ {report.duration_seconds:.2f}s</div>
+
       </div>
     </div>
     <div class="header-actions">

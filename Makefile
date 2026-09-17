@@ -28,6 +28,13 @@ pr-check:
 ui:
 	./dksec-cli ui --port 8080
 
+live-scan:
+	$(PYTHON) samples/app/server.py & SERVER_PID=$$!; \
+	sleep 1; \
+	./dksec-cli scan -p "Live Authenticated Scan" -t samples/app -u http://127.0.0.1:5000 --login-url http://127.0.0.1:5000/api/v1/login --username admin --password AdminSecretPassword99! -o reports/live_scan; \
+	kill $$SERVER_PID
+
+
 test:
 	$(PYTHON) -m unittest discover tests
 

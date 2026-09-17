@@ -1,7 +1,7 @@
 """
 DKSec Web Dashboard Server (Enterprise Edition).
-Provides a modern, lightweight, zero-dependency browser interface with presets,
-live execution telemetry, and instant report & artifact downloads.
+Provides a modern, lightweight browser interface with workflow presets,
+live authenticated session testing, execution telemetry, and instant report downloads.
 """
 
 from typing import Any, Dict, List, Optional
@@ -11,6 +11,7 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 from dksec.config import DKSecConfig, STAGE_METADATA
+from dksec.auth import AuthConfig, DKSecSessionManager
 from dksec.runner import DKSecRunner
 from dksec.reporters import (
     HtmlReporter, JsonReporter, MarkdownReporter,
@@ -71,7 +72,32 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        if path == "/api/run":
+        if path == "/api/auth/test":
+            content_len = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_len).decode("utf-8")
+            try:
+                data = json.loads(body)
+            except Exception:
+                data = {}
+
+            target_url = data.get("target_url")
+            auth_dict = data.get("auth", {})
+            auth_cfg = AuthConfig.from_dict(auth_dict)
+            auth_cfg.enabled = True
+
+            session_mgr = DKSecSessionManager(auth_cfg, base_url=target_url)
+            status = session_mgr.test_connection(target_url)
+            status["is_authenticated"] = session_mgr.is_authenticated
+            status["auth_method"] = session_mgr.auth_method
+            status["token_found"] = bool(session_mgr.captured_token)
+            status["cookies_captured"] = list(session_mgr.captured_cookies.keys())
+            if session_mgr.login_error:
+                status["login_error"] = session_mgr.login_error
+
+            self._serve_json(status)
+            return
+
+        elif path == "/api/run":
             content_len = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_len).decode("utf-8")
             try:
@@ -155,7 +181,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }}
     .form-group {{ display: flex; flex-direction: column; gap: 6px; }}
     label {{ font-size: 13px; font-weight: 600; color: var(--muted); }}
-    input[type="text"] {{ background: #090d16; border: 1px solid var(--border); color: #fff; padding: 9px 12px; border-radius: 8px; font-size: 13px; }}
+    input[type="text"], input[type="password"], select {{ background: #090d16; border: 1px solid var(--border); color: #fff; padding: 9px 12px; border-radius: 8px; font-size: 13px; }}
 
     .stages-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
     .stage-card {{ background: #0d1424; border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; gap: 12px; cursor: pointer; transition: all 0.2s; }}
@@ -168,12 +194,13 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     .stage-desc {{ font-size: 12px; color: var(--muted); }}
 
     .action-row {{ display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }}
-    .btn {{ padding: 12px 24px; font-size: 14px; font-weight: 700; border-radius: 8px; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }}
+    .btn {{ padding: 10px 20px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }}
     .btn-primary {{ background: #2563eb; color: #fff; }}
     .btn-primary:hover {{ background: #1d4ed8; }}
     .btn-success {{ background: #10b981; color: #fff; }}
     .btn-success:hover {{ background: #059669; }}
     .btn-secondary {{ background: #1e293b; color: #cbd5e1; border: 1px solid var(--border); }}
+    .btn-secondary:hover {{ background: #2b3950; }}
 
     #progressArea {{ display: none; }}
     .progress-track {{ background: #090d16; border: 1px solid var(--border); border-radius: 10px; height: 16px; overflow: hidden; margin: 14px 0; }}
@@ -183,6 +210,10 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     .download-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 16px; }}
     .dl-btn {{ background: #162238; border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; color: #e2e8f0; font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }}
     .dl-btn:hover {{ background: #233252; color: #fff; border-color: #3b82f6; }}
+    
+    .auth-badge {{ font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 700; }}
+    .auth-badge.ok {{ background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }}
+    .auth-badge.err {{ background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }}
   </style>
 </head>
 <body>
@@ -201,7 +232,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     </header>
 
     <div class="panel">
-      <h2><span>⚙️</span> 1. Audit Target Configuration</h2>
+      <h2><span>⚙️</span> 1. Target Environment Configuration</h2>
       <div class="form-row">
         <div class="form-group">
           <label>Project Name</label>
@@ -214,14 +245,76 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Target URL / API (Optional for DAST & VAPT)</label>
-          <input type="text" id="targetUrl" placeholder="http://127.0.0.1:5000 or https://api.example.com" />
+          <label>Live Target URL / API Endpoint (Optional for DAST & VAPT)</label>
+          <input type="text" id="targetUrl" placeholder="http://127.0.0.1:5000 or https://api.example.com" value="http://127.0.0.1:5000" />
         </div>
         <div class="form-group">
           <label>Reports Destination Directory</label>
           <input type="text" id="outputDir" value="./reports/web_audit" />
         </div>
       </div>
+    </div>
+
+    <!-- Live Authentication Panel -->
+    <div class="panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <h2><span>🔐</span> 1b. Live Target Authentication & Session Configuration</h2>
+        <span id="authStatusBadge" class="auth-badge ok" style="display: none;"></span>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Authentication Mode</label>
+          <select id="authType" onchange="onAuthTypeChange()">
+            <option value="none">None (Public Unauthenticated Scan)</option>
+            <option value="login" selected>Automated Login URL (JSON / Form POST)</option>
+            <option value="bearer">Bearer Token / JWT</option>
+            <option value="cookie">Session Cookies</option>
+            <option value="header">Custom Authorization Header</option>
+          </select>
+        </div>
+        <div class="form-group" style="display: flex; flex-direction: row; align-items: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="testAuthentication()" style="height: 38px;">⚡ Test Session Connection</button>
+        </div>
+      </div>
+
+      <!-- Login fields -->
+      <div id="groupLogin" class="form-row">
+        <div class="form-group">
+          <label>Login Endpoint URL</label>
+          <input type="text" id="authLoginUrl" placeholder="http://127.0.0.1:5000/api/v1/login" value="http://127.0.0.1:5000/api/v1/login" />
+        </div>
+        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label>Username / Email</label>
+            <input type="text" id="authUsername" value="admin" />
+          </div>
+          <div>
+            <label>Password</label>
+            <input type="password" id="authPassword" value="AdminSecretPassword99!" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Bearer token field -->
+      <div id="groupBearer" class="form-group" style="display: none; margin-bottom: 12px;">
+        <label>Bearer Token / JWT</label>
+        <input type="text" id="authBearer" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+      </div>
+
+      <!-- Cookie field -->
+      <div id="groupCookie" class="form-group" style="display: none; margin-bottom: 12px;">
+        <label>Session Cookies (Key=Value; Key2=Value2)</label>
+        <input type="text" id="authCookie" placeholder="session=abc123xyz; role=admin" />
+      </div>
+
+      <!-- Custom Header field -->
+      <div id="groupHeader" class="form-group" style="display: none; margin-bottom: 12px;">
+        <label>Custom Header (Header-Name: Header-Value)</label>
+        <input type="text" id="authHeader" placeholder="X-API-Key: secret_production_token_123" />
+      </div>
+
+      <div id="authTestResult" style="display: none; margin-top: 10px; padding: 10px 14px; border-radius: 8px; font-size: 12px; font-family: monospace;"></div>
     </div>
 
     <div class="panel">
@@ -276,6 +369,63 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
   <script>
     let poll = null;
 
+    function onAuthTypeChange() {{
+      const type = document.getElementById('authType').value;
+      document.getElementById('groupLogin').style.display = (type === 'login') ? 'grid' : 'none';
+      document.getElementById('groupBearer').style.display = (type === 'bearer') ? 'block' : 'none';
+      document.getElementById('groupCookie').style.display = (type === 'cookie') ? 'block' : 'none';
+      document.getElementById('groupHeader').style.display = (type === 'header') ? 'block' : 'none';
+    }}
+
+    function getAuthConfig() {{
+      const type = document.getElementById('authType').value;
+      if (type === 'none') return {{ enabled: false, auth_type: 'none' }};
+      return {{
+        enabled: true,
+        auth_type: type,
+        login_url: document.getElementById('authLoginUrl').value || null,
+        username: document.getElementById('authUsername').value || null,
+        password: document.getElementById('authPassword').value || null,
+        bearer_token: document.getElementById('authBearer').value || null,
+        cookies: document.getElementById('authCookie').value || null,
+        custom_header: document.getElementById('authHeader').value || null
+      }};
+    }}
+
+    function testAuthentication() {{
+      const targetUrl = document.getElementById('targetUrl').value;
+      const auth = getAuthConfig();
+      const resBox = document.getElementById('authTestResult');
+      resBox.style.display = 'block';
+      resBox.style.background = '#090d16';
+      resBox.style.border = '1px solid var(--border)';
+      resBox.style.color = '#93c5fd';
+      resBox.innerHTML = 'Connecting to target and validating session...';
+
+      fetch('/api/auth/test', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json' }},
+        body: JSON.stringify({{ target_url: targetUrl, auth: auth }})
+      }}).then(r => r.json()).then(d => {{
+        if (d.success || d.is_authenticated) {{
+          resBox.style.border = '1px solid #10b981';
+          resBox.style.color = '#34d399';
+          let details = `✔ Success: Authenticated via ${{(d.auth_method||'session').toUpperCase()}} (HTTP ${{d.status_code||200}}).`;
+          if (d.token_found) details += ` Token captured.`;
+          if (d.cookies_captured && d.cookies_captured.length > 0) details += ` Cookies: ${{d.cookies_captured.join(', ')}}.`;
+          resBox.innerText = details;
+        }} else {{
+          resBox.style.border = '1px solid #ef4444';
+          resBox.style.color = '#f87171';
+          resBox.innerText = `✖ Authentication test failed: ${{d.message || d.login_error || 'Could not verify session'}}`;
+        }}
+      }}).catch(err => {{
+        resBox.style.border = '1px solid #ef4444';
+        resBox.style.color = '#f87171';
+        resBox.innerText = 'Connection error: ' + err;
+      }});
+    }}
+
     function toggleStage(sId) {{
       const cb = document.getElementById('stage-' + sId);
       cb.checked = !cb.checked;
@@ -328,6 +478,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         project_name: document.getElementById('projectName').value,
         target_path: document.getElementById('targetPath').value,
         target_url: document.getElementById('targetUrl').value || null,
+        auth: getAuthConfig(),
         output_dir: document.getElementById('outputDir').value,
         stages: selected
       }};
@@ -389,10 +540,14 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         CURRENT_RUN["report_dir"] = output_dir
 
         try:
+            auth_data = data.get("auth", {})
+            auth_cfg = AuthConfig.from_dict(auth_data)
+
             cfg = DKSecConfig(
                 project_name=data.get("project_name", "Enterprise Security Audit"),
                 target_path=data.get("target_path", "."),
                 target_url=data.get("target_url"),
+                auth=auth_cfg,
                 output_dir=output_dir
             )
 

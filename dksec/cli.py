@@ -1,15 +1,18 @@
 """
 DKSec - Unified 9-Stage Product Security Lifecycle Platform
-Supports automated CLI scans, preset workflows, interactive terminal wizard, CI/CD gating, and web dashboard.
+Supports automated CLI scans, preset workflows, interactive terminal wizard,
+authenticated live URL testing, CI/CD gating, and web dashboard.
 """
 
 import sys
 import os
 import argparse
 import time
+import urllib.parse
 from typing import List, Optional
 from dksec import __version__
 from dksec.config import DKSecConfig, STAGE_METADATA
+from dksec.auth import AuthConfig
 from dksec.runner import DKSecRunner
 from dksec.models import Severity
 from dksec.reporters import (
@@ -20,14 +23,14 @@ from dksec.web.server import start_server
 
 
 class Colors:
-    BLUE = "\033[94m"
-    CYAN = "\033[96m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    RED = "\033[91m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    RESET = "\033[0m"
+    BLUE = "[94m"
+    CYAN = "[96m"
+    GREEN = "[92m"
+    YELLOW = "[93m"
+    RED = "[91m"
+    BOLD = "[1m"
+    DIM = "[2m"
+    RESET = "[0m"
 
 
 BANNER = rf"""{Colors.CYAN}{Colors.BOLD}
@@ -103,7 +106,34 @@ def run_interactive_wizard():
     if not target_url:
         target_url = None
 
-    output_dir = input(f"{Colors.BOLD}Output Directory for Reports{Colors.RESET} [./reports]: ").strip()
+    auth_cfg = AuthConfig()
+    if target_url:
+        auth_needed = input(f"{Colors.BOLD}Does the target application require authentication?{Colors.RESET} (y/N): ").strip().lower()
+        if auth_needed in ("y", "yes"):
+            print(f"\n{Colors.BOLD}Select Authentication Method:{Colors.RESET}")
+            print(" [1] Automated Login URL (JSON or Form POST)")
+            print(" [2] Bearer Token / JWT (Authorization: Bearer <token>)")
+            print(" [3] Session Cookies (e.g. session=abc...; auth=123...)")
+            print(" [4] Custom Header (e.g. X-API-Key: secret123)")
+            auth_choice = input(f"\n{Colors.BOLD}Select method [1]: {Colors.RESET}").strip()
+
+            if auth_choice == "2":
+                tok = input(f"{Colors.BOLD}Enter Bearer Token / JWT: {Colors.RESET}").strip()
+                auth_cfg = AuthConfig(enabled=True, auth_type="bearer", bearer_token=tok)
+            elif auth_choice == "3":
+                ck = input(f"{Colors.BOLD}Enter Session Cookie String: {Colors.RESET}").strip()
+                auth_cfg = AuthConfig(enabled=True, auth_type="cookie", cookies=ck)
+            elif auth_choice == "4":
+                hdr = input(f"{Colors.BOLD}Enter Custom Header (Name: Value): {Colors.RESET}").strip()
+                auth_cfg = AuthConfig(enabled=True, auth_type="header", custom_header=hdr)
+            else:
+                default_login = urllib.parse.urljoin(target_url, "/api/v1/login")
+                l_url = input(f"{Colors.BOLD}Login URL{Colors.RESET} [{default_login}]: ").strip() or default_login
+                u_name = input(f"{Colors.BOLD}Username / Email: {Colors.RESET}").strip()
+                p_word = input(f"{Colors.BOLD}Password: {Colors.RESET}").strip()
+                auth_cfg = AuthConfig(enabled=True, auth_type="login", login_url=l_url, username=u_name, password=p_word)
+
+    output_dir = input(f"\n{Colors.BOLD}Output Directory for Reports{Colors.RESET} [./reports]: ").strip()
     if not output_dir:
         output_dir = "./reports"
 
@@ -114,6 +144,7 @@ def run_interactive_wizard():
         project_name=project_name,
         target_path=target_path,
         target_url=target_url,
+        auth=auth_cfg,
         output_dir=output_dir
     )
     execute_pipeline(cfg, selected_stages)
@@ -125,6 +156,12 @@ def execute_pipeline(config: DKSecConfig, stages_to_run: List[int], fail_on_gate
     print(f"   Target Code: {os.path.abspath(config.target_path)}")
     if config.target_url:
         print(f"   Target URL:  {config.target_url}")
+        if config.auth and config.auth.enabled:
+            print(f"   Session Auth:{Colors.GREEN} Enabled ({config.auth.auth_type.upper()}){Colors.RESET}")
+            if config.auth.login_url:
+                print(f"   Login Endpoint: {config.auth.login_url} (User: {config.auth.username})")
+            elif config.auth.bearer_token:
+                print(f"   Bearer Token: {config.auth.bearer_token[:20]}...")
     print(f"   Outputs:     {os.path.abspath(config.output_dir)}\n")
 
     def event_logger(evt: str, payload: dict):
@@ -236,6 +273,14 @@ def main():
         action="store_true",
         help="Exit with non-zero status code if release gate is BLOCKED (for CI/CD pipelines)"
     )
+    
+    # Authentication arguments
+    scan_parser.add_argument("--token", "--bearer", default=None, help="Bearer token or JWT for authenticated scanning")
+    scan_parser.add_argument("--login-url", default=None, help="Target login endpoint URL for automated session login")
+    scan_parser.add_argument("--username", default=None, help="Username for automated login")
+    scan_parser.add_argument("--password", default=None, help="Password for automated login")
+    scan_parser.add_argument("--cookie", default=None, help="Session cookies (e.g. 'session=xyz; token=123')")
+    scan_parser.add_argument("--header", default=None, help="Custom authorization header (e.g. 'X-API-Key: secret')")
 
     # Command: interactive / wizard
     subparsers.add_parser("wizard", help="Launch interactive terminal wizard with preset selection")
@@ -296,6 +341,29 @@ def main():
             cfg.target_url = args.url
         if args.output:
             cfg.output_dir = args.output
+
+        # Configure Authentication parameters if provided
+        if args.token:
+            cfg.auth.enabled = True
+            cfg.auth.auth_type = "bearer"
+            cfg.auth.bearer_token = args.token
+        if args.cookie:
+            cfg.auth.enabled = True
+            cfg.auth.auth_type = "cookie"
+            cfg.auth.cookies = args.cookie
+        if args.header:
+            cfg.auth.enabled = True
+            cfg.auth.auth_type = "header"
+            cfg.auth.custom_header = args.header
+        if args.login_url or (args.username and args.password):
+            cfg.auth.enabled = True
+            cfg.auth.auth_type = "login"
+            if args.login_url:
+                cfg.auth.login_url = args.login_url
+            if args.username:
+                cfg.auth.username = args.username
+            if args.password:
+                cfg.auth.password = args.password
 
         # Determine stages
         if args.preset == "full":
