@@ -4,7 +4,7 @@
 # ==============================================================================
 
 PYTHON ?= python3
-PIP    ?= pip3
+PIP    ?= $(PYTHON) -m pip
 PORT   ?= 8080
 TARGET ?= samples/app
 OUTPUT ?= reports/run
@@ -67,8 +67,8 @@ setup: install
 
 install:
 	@echo "$(BOLD)Installing DKSec dependencies...$(RESET)"
-	@$(PIP) install -r requirements.txt || $(PYTHON) -m pip install -r requirements.txt || true
-	@$(PIP) install -e . || $(PYTHON) -m pip install -e . || true
+	@$(PYTHON) -m pip install -r requirements.txt || $(PIP) install -r requirements.txt || pip3 install -r requirements.txt || true
+	@$(PYTHON) -m pip install -e . || $(PIP) install -e . || pip3 install -e . || true
 
 venv:
 	@echo "$(BOLD)Setting up Python virtual environment in .venv...$(RESET)"
@@ -84,14 +84,14 @@ venv:
 quickstart: demo
 
 demo:
-	@./dksec-cli demo
+	@$(PYTHON) ./dksec-cli demo
 
 wizard:
-	@./dksec-cli wizard
+	@$(PYTHON) ./dksec-cli wizard
 
 ui:
 	@echo "$(GREEN)$(BOLD)Starting DKSec Web Dashboard on port $(PORT)...$(RESET)"
-	@./dksec-cli ui --port $(PORT)
+	@$(PYTHON) ./dksec-cli ui --port $(PORT)
 
 dashboard: ui
 
@@ -100,7 +100,7 @@ live-scan:
 	@$(PYTHON) samples/app/server.py & SERVER_PID=$$!; \
 	sleep 1; \
 	echo "$(GREEN)✔ Service online. Launching authenticated DKSec audit...$(RESET)"; \
-	./dksec-cli scan \
+	$(PYTHON) ./dksec-cli scan \
 		-p "Live Authenticated Scan" \
 		-t samples/app \
 		-u http://127.0.0.1:5000 \
@@ -112,11 +112,11 @@ live-scan:
 	@echo "$(GREEN)$(BOLD)✔ Live authenticated audit complete! View: reports/live_scan/dksec-report.html$(RESET)"
 
 scan:
-	@./dksec-cli scan -p $(PROJECT) -t $(TARGET) --preset $(PRESET) -o $(OUTPUT)
+	@$(PYTHON) ./dksec-cli scan -p $(PROJECT) -t $(TARGET) --preset $(PRESET) -o $(OUTPUT)
 
 pr-check:
 	@echo "$(BOLD)Executing Fast Pull Request Security Gate (Stages 1, 3, 8)...$(RESET)"
-	@./dksec-cli scan -t $(TARGET) --preset pr --fail-on-gate -o reports/pr_gate
+	@$(PYTHON) ./dksec-cli scan -t $(TARGET) --preset pr --fail-on-gate -o reports/pr_gate
 
 # ------------------------------------------------------------------------------
 # 4. Testing & Quality Assurance

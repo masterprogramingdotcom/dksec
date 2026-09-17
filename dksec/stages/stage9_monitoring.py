@@ -8,7 +8,7 @@ import os
 import json
 from typing import List, Dict, Any, Tuple
 import requests
-import yaml
+from dksec import yaml_compat as yaml
 from dksec.stages.base import BaseStage
 from dksec.models import Finding, Severity, FindingStatus
 from dksec.config import DKSecConfig

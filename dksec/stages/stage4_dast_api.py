@@ -13,7 +13,7 @@ import ssl
 import urllib.parse
 from typing import List, Dict, Any, Tuple, Optional
 import requests
-import yaml
+from dksec import yaml_compat as yaml
 
 from dksec.stages.base import BaseStage
 from dksec.models import Finding, Severity, FindingStatus

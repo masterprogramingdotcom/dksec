@@ -6,7 +6,7 @@ Supports YAML file configuration, environment variables, and CLI arguments.
 import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
-import yaml
+from dksec import yaml_compat as yaml
 from dksec.auth import AuthConfig
 from dksec.llm import LLMConfig
 
