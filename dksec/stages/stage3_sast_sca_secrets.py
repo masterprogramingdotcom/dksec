@@ -65,6 +65,10 @@ class Stage3SastScaSecrets(BaseStage):
         findings.extend(sca_findings)
         tools_executed.append("Trivy" if self.is_tool_installed("trivy") else "Trivy / CycloneDX Engine")
 
+        # 4. Supply Chain Risk Analysis (typosquatting, dependency confusion)
+        supply_chain_findings = self._scan_for_supply_chain_risks(target)
+        findings.extend(supply_chain_findings)
+
         # Pass SBOM to context for reporter
         context["sbom_components"] = sbom_components
 
@@ -73,6 +77,7 @@ class Stage3SastScaSecrets(BaseStage):
             "secret_leaks_count": len(secret_findings),
             "sast_vulnerabilities_count": len(sast_findings),
             "sca_vulnerabilities_count": len(sca_findings),
+            "supply_chain_risks": len(supply_chain_findings),
             "total_dependencies_inventoried": len(sbom_components),
             "total_stage_findings": len(findings)
         }
@@ -81,6 +86,7 @@ class Stage3SastScaSecrets(BaseStage):
             "secrets": len(secret_findings),
             "sast": len(sast_findings),
             "sca": len(sca_findings),
+            "supply_chain": len(supply_chain_findings),
             "sbom_summary": f"Cataloged {len(sbom_components)} packages for CycloneDX SBOM",
             "components": [c.to_cyclonedx() for c in sbom_components]
         }
@@ -401,10 +407,53 @@ class Stage3SastScaSecrets(BaseStage):
     def _analyze_other_languages(self, fpath: str, rel_path: str) -> List[Finding]:
         findings = []
         rules = [
+            # === JavaScript / Node.js ===
             ("js-dom-xss", r"\.(?:innerHTML|outerHTML)\s*=\s*(?!['\"][^'\"]*['\"])", "DOM-based Cross-Site Scripting (XSS)", Severity.HIGH, "CWE-79", "Use textContent or DOMPurify.sanitize()."),
             ("js-child-process-exec", r"child_process\.exec\s*\(", "Command Execution via child_process.exec", Severity.HIGH, "CWE-78", "Use child_process.execFile with argument array."),
+            ("js-eval", r"\beval\s*\(", "Dangerous eval() Call (Code Injection)", Severity.HIGH, "CWE-95", "Avoid eval(); use JSON.parse() or safe alternatives."),
+            ("js-prototype-pollution", r"__proto__\s*[\[.]|constructor\.prototype\s*[\[.]|Object\.assign\s*\(\s*(?:req|user|data)", "JavaScript Prototype Pollution", Severity.HIGH, "CWE-1321", "Validate input objects; use Object.create(null); freeze prototypes."),
+            ("js-document-write", r"document\.write\s*\(", "Dangerous document.write() (XSS Risk)", Severity.MEDIUM, "CWE-79", "Replace document.write() with safe DOM manipulation APIs."),
+            ("js-nosql-injection", r"\$where\s*:|\$regex\s*:|find\(\{.*req\.(body|query|params)", "NoSQL/MongoDB Injection Risk", Severity.HIGH, "CWE-943", "Sanitize query operators; use mongoose schema validation; reject $where."),
+            ("js-hardcoded-secret", r"(?:password|secret|api_key|apikey|token)\s*=\s*['\"][A-Za-z0-9+/]{12,}['\"]", "Hardcoded Secret / Credential in JavaScript", Severity.HIGH, "CWE-798", "Remove hardcoded secrets; use environment variables or a secrets manager."),
+            # === Python additional ===
+            ("py-marshal", r"\bimport\s+marshal\b|marshal\.loads\s*\(", "Unsafe Python marshal Deserialization", Severity.HIGH, "CWE-502", "Avoid marshal.loads on untrusted data; use JSON instead."),
+            ("py-exec", r"\bexec\s*\(", "Python exec() — Arbitrary Code Execution Risk", Severity.HIGH, "CWE-94", "Replace exec() with explicit function calls; validate all inputs."),
+            ("py-xml-etree", r"xml\.etree\.ElementTree\.parse\s*\(|ET\.parse\s*\(|minidom\.parse\s*\(", "Python XML Parser XXE Risk", Severity.MEDIUM, "CWE-611", "Use defusedxml.ElementTree to prevent XXE and entity expansion attacks."),
+            ("py-ssti-render", r"render_template_string\s*\(|Environment\(.*loader\).*\.from_string\s*\(", "Server-Side Template Injection (SSTI) — Jinja2", Severity.CRITICAL, "CWE-1336", "Never pass user-controlled strings to render_template_string(); use static template files."),
+            ("py-popen-shell", r"os\.popen\s*\(", "Dangerous os.popen() — Command Injection Risk", Severity.HIGH, "CWE-78", "Use subprocess.run() with shell=False and argument list."),
+            ("py-assert-auth", r"\bassert\s+.*(?:is_admin|is_authenticated|has_permission)", "Authentication via Python assert (Bypassed in -O mode)", Severity.HIGH, "CWE-617", "Never use assert for security checks; use explicit if/raise AuthenticationError."),
+            # === Java ===
+            ("java-deserial", r"ObjectInputStream\s*\(|readObject\s*\(\s*\)", "Unsafe Java Deserialization (ObjectInputStream)", Severity.CRITICAL, "CWE-502", "Use serialization filters (JEP 290); prefer JSON/Protobuf for data exchange."),
+            ("java-xml-xxe", r"DocumentBuilderFactory\.newInstance\(\)|SAXParserFactory\.newInstance\(\)", "Java XML Parser XXE Risk", Severity.HIGH, "CWE-611", "Disable DOCTYPE: factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)."),
+            ("java-sql-concat", r"\"\\s*\\+\\s*(?:request\\.getParameter|req\\.getParam|params\\.get)", "SQL Injection via String Concatenation (Java)", Severity.CRITICAL, "CWE-89", "Use PreparedStatement with parameterized queries."),
+            ("java-ssrf", r"new\s+URL\s*\(.*(?:request\.getParameter|req\.getParam|params\.get)", "SSRF Risk — Java URL from User Input", Severity.HIGH, "CWE-918", "Validate and allowlist URL schemes/hosts before server-side HTTP requests."),
+            ("java-xpath-inject", r"\.evaluate\s*\(.*(?:request\.getParameter|req\.getParam)", "XPath Injection Risk (Java)", Severity.HIGH, "CWE-643", "Use parameterized XPath queries; never concatenate user input into XPath expressions."),
+            # === PHP ===
+            ("php-deserial", r"\bunserialize\s*\(", "PHP Unsafe Deserialization (unserialize)", Severity.CRITICAL, "CWE-502", "Replace unserialize() with json_decode(); sign data with HMAC if deserialization required."),
+            ("php-rce", r"\b(?:system|passthru|shell_exec|proc_open|popen)\s*\(", "PHP Remote Code Execution — Dangerous Function", Severity.CRITICAL, "CWE-78", "Remove shell execution functions; use native PHP APIs instead."),
+            ("php-include-rfi", r"\b(?:include|require)(?:_once)?\s*\(\s*\$_(GET|POST|REQUEST|COOKIE)", "PHP Remote/Local File Inclusion (RFI/LFI)", Severity.CRITICAL, "CWE-98", "Never pass user input to include/require; use a static file allowlist."),
+            ("php-eval", r"\beval\s*\(\s*\$", "PHP eval() with Variable — Code Injection", Severity.CRITICAL, "CWE-94", "Remove eval(); refactor to use safe equivalents."),
+            ("php-ssti", r"->render\s*\(.*\$_(GET|POST|REQUEST)|Twig.*createTemplate\s*\(.*\$_(GET|POST)", "SSTI Risk — Twig/PHP Template from User Input", Severity.CRITICAL, "CWE-1336", "Never pass user-controlled data as template strings; use static template files with safe variable rendering."),
+            # === .NET / C# ===
+            ("dotnet-deserial", r"BinaryFormatter\s*\(\s*\)|NetDataContractSerializer\s*\(\s*\)|SoapFormatter\s*\(\s*\)", "Unsafe .NET Deserialization (BinaryFormatter)", Severity.CRITICAL, "CWE-502", "Microsoft deprecated BinaryFormatter; migrate to System.Text.Json or Protobuf."),
+            ("dotnet-sql-concat", r"SqlCommand\s*\(\s*\"[^\"]*\"\s*\+", "SQL Injection via String Concatenation (.NET SqlCommand)", Severity.CRITICAL, "CWE-89", "Use SqlCommand.Parameters for parameterized queries."),
+            ("dotnet-ssti", r"RazorEngine|Engine\.Razor\.Run\s*\(.*(?:Request|ViewBag|ViewData)", "SSTI Risk — Razor Engine from User Input (.NET)", Severity.CRITICAL, "CWE-1336", "Sanitize all user input before passing to Razor templates; use static templates."),
+            # === Go ===
             ("go-sql-injection", r"db\.Query\s*\(\s*fmt\.Sprintf\(", "SQL Injection via fmt.Sprintf in Go", Severity.CRITICAL, "CWE-89", "Use parameterized placeholders ($1, $2) in db.Query."),
-            ("framework-debug-mode", r"app\.run\s*\(.*debug\s*=\s*True|DEBUG\s*=\s*True", "Production Debug Mode Enabled", Severity.MEDIUM, "CWE-489", "Disable debug mode in production.")
+            ("go-ssrf", r"http\.Get\s*\(\s*(?:r\.FormValue|r\.URL\.Query|vars\[)", "SSRF Risk — Go http.Get from User Input", Severity.HIGH, "CWE-918", "Validate URL scheme and host against an allowlist before outbound requests."),
+            ("go-ssti", r"template\.HTML\s*\(.*(?:r\.FormValue|r\.URL\.Query)|html/template.*Execute\s*\(.*r\.Form", "SSTI/XSS Risk — Go Template from User Input", Severity.HIGH, "CWE-1336", "Use html/template (not text/template); never pass raw user input as template content."),
+            # === Infrastructure as Code (IaC) ===
+            ("iac-tf-hardcoded-secret", r"(?:password|secret|private_key|access_key)\s*=\s*\"[A-Za-z0-9+/]{8,}\"", "Hardcoded Secret in Terraform/IaC Configuration", Severity.CRITICAL, "CWE-798", "Use Terraform variable references with sensitive=true; store secrets in Vault or AWS Secrets Manager."),
+            ("iac-k8s-privileged", r"privileged\s*:\s*true", "Kubernetes Pod Running as Privileged", Severity.CRITICAL, "CWE-250", "Set privileged: false; apply Pod Security Admission restricted profile."),
+            ("iac-k8s-host-network", r"hostNetwork\s*:\s*true|hostPID\s*:\s*true", "Kubernetes Host Namespace Sharing Enabled", Severity.HIGH, "CWE-269", "Disable hostNetwork and hostPID in pod spec to isolate workloads."),
+            ("iac-unencrypted-storage", r"StorageEncrypted\s*:\s*false|encrypted\s*=\s*false", "IaC Database/Storage Encryption Disabled", Severity.HIGH, "CWE-312", "Enable StorageEncrypted: true for all RDS/storage resources."),
+            ("iac-public-s3", r"BlockPublicAcls\s*:\s*false|acl\s*=\s*\"public-read\"", "S3 Bucket / Cloud Storage Public Access Enabled", Severity.HIGH, "CWE-732", "Set all S3 Block Public Access settings to true; audit bucket ACLs."),
+            # === XXE Markers (generic) ===
+            ("xxe-doctype", r"<!DOCTYPE[^>]*\[|<!ENTITY\s+\w+\s+SYSTEM", "XXE / External Entity Injection Marker in Source", Severity.CRITICAL, "CWE-611", "Disable DOCTYPE declarations and external entities in all XML parsers."),
+            # === Supply Chain ===
+            ("supply-chain-install-script", r"\"(?:preinstall|postinstall|install)\"\s*:\s*\"[^\"]+sh[^\"]*\"", "NPM Supply-Chain Risk: Shell Script in Install Hook", Severity.HIGH, "CWE-829", "Audit install scripts; use --ignore-scripts for untrusted packages."),
+            # === Framework Debug Mode ===
+            ("framework-debug-mode", r"app\.run\s*\(.*debug\s*=\s*True|DEBUG\s*=\s*True", "Production Debug Mode Enabled", Severity.MEDIUM, "CWE-489", "Disable debug mode in production."),
         ]
         try:
             with open(fpath, "r", errors="ignore") as fl:
@@ -428,6 +477,68 @@ class Stage3SastScaSecrets(BaseStage):
                         findings.append(f)
         except Exception:
             pass
+        return findings
+
+    def _scan_for_supply_chain_risks(self, target_path: str) -> List[Finding]:
+        """Detect dependency confusion, typosquatting, and malicious package indicators."""
+        findings = []
+        if not os.path.exists(target_path):
+            return findings
+
+        # Known typosquatting targets for common packages
+        typosquat_pairs = [
+            ("request", "requests"), ("urllib", "urllib3"), ("flask", "Flask"),
+            ("djangoo", "django"), ("numpyy", "numpy"), ("expres", "express"),
+            ("lodas", "lodash"), ("recat", "react"), ("axio", "axios"),
+            ("boto", "boto3"), ("pil", "Pillow"), ("cv2", "opencv-python"),
+        ]
+
+        req_file = os.path.join(target_path, "requirements.txt")
+        if os.path.exists(req_file):
+            try:
+                with open(req_file, "r", errors="ignore") as f:
+                    content = f.read().lower()
+                for suspect, legit in typosquat_pairs:
+                    if re.search(r"^" + suspect + r"\b", content, re.MULTILINE) and legit.lower() not in content:
+                        findings.append(self.create_finding(
+                            finding_id=f"SC-TYPOSQUAT-{suspect.upper()}",
+                            title=f"Potential Typosquatting Package: '{suspect}' (Intended: '{legit}')",
+                            severity=Severity.HIGH,
+                            description=f"Package name '{suspect}' resembles legitimate package '{legit}' — possible supply-chain typosquatting attack.",
+                            tool="Supply Chain Risk Analyzer",
+                            file_path="requirements.txt",
+                            cwe="CWE-829",
+                            owasp="OWASP A06:2021-Vulnerable and Outdated Components",
+                            remediation=f"Verify package name; install '{legit}' from official PyPI registry."
+                        ))
+            except Exception:
+                pass
+
+        # Check for dependency confusion: unpinned wildcard versions in package.json
+        pkg_file = os.path.join(target_path, "package.json")
+        if os.path.exists(pkg_file):
+            try:
+                with open(pkg_file, "r", errors="ignore") as f:
+                    data = json.load(f)
+                all_deps = {}
+                all_deps.update(data.get("dependencies", {}))
+                all_deps.update(data.get("devDependencies", {}))
+                for pkg_name, ver in all_deps.items():
+                    if ver in ("*", "latest", ""):
+                        findings.append(self.create_finding(
+                            finding_id=f"SC-DEPCONF-{pkg_name.upper()[:20]}",
+                            title=f"Dependency Confusion Risk: Unpinned Package '{pkg_name}' (version: {ver})",
+                            severity=Severity.MEDIUM,
+                            description=f"Package '{pkg_name}' uses version specifier '{ver}' which may resolve to a malicious public package if an internal registry is used without scope enforcement.",
+                            tool="Supply Chain Risk Analyzer",
+                            file_path="package.json",
+                            cwe="CWE-829",
+                            owasp="OWASP A06:2021-Vulnerable and Outdated Components",
+                            remediation="Pin exact versions (e.g. '1.2.3') and use npm --registry with private registry scope enforcement."
+                        ))
+            except Exception:
+                pass
+
         return findings
 
     # =========================================================================

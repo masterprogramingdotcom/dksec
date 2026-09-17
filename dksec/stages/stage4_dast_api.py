@@ -116,6 +116,56 @@ class Stage4DastApi(BaseStage):
             findings.extend(dyn_findings)
             details["live_routes_audit"] = dyn_data
 
+            # 10. GraphQL Security Audit
+            gql_findings, gql_data = self._audit_graphql(target_url)
+            findings.extend(gql_findings)
+            details["graphql"] = gql_data
+
+            # 11. SSRF Detection
+            ssrf_findings, ssrf_data = self._audit_ssrf(target_url)
+            findings.extend(ssrf_findings)
+            details["ssrf"] = ssrf_data
+
+            # 12. CSRF Testing
+            csrf_findings, csrf_data = self._audit_csrf(target_url)
+            findings.extend(csrf_findings)
+            details["csrf"] = csrf_data
+
+            # 13. Open Redirect Testing
+            redirect_findings, redirect_data = self._audit_open_redirect(target_url)
+            findings.extend(redirect_findings)
+            details["open_redirect"] = redirect_data
+
+            # 14. Host Header Injection
+            host_findings, host_data = self._audit_host_header(target_url)
+            findings.extend(host_findings)
+            details["host_header"] = host_data
+
+            # 15. HTTP Request Smuggling
+            smuggling_findings, smuggling_data = self._audit_request_smuggling(target_url)
+            findings.extend(smuggling_findings)
+            details["request_smuggling"] = smuggling_data
+
+            # 16. Cache Poisoning
+            cache_findings, cache_data = self._audit_cache_poisoning(target_url)
+            findings.extend(cache_findings)
+            details["cache_poisoning"] = cache_data
+
+            # 17. File Upload Security
+            upload_findings, upload_data = self._audit_file_upload(target_url)
+            findings.extend(upload_findings)
+            details["file_upload"] = upload_data
+
+            # 18. OAuth / OIDC Security
+            oauth_findings, oauth_data = self._audit_oauth(target_url)
+            findings.extend(oauth_findings)
+            details["oauth"] = oauth_data
+
+            # 19. WebSocket Security
+            ws_findings, ws_data = self._audit_websocket(target_url)
+            findings.extend(ws_findings)
+            details["websocket"] = ws_data
+
             metrics = {
                 "target_url": target_url,
                 "authenticated_scan": session_mgr.is_authenticated,
@@ -124,6 +174,8 @@ class Stage4DastApi(BaseStage):
                 "openapi_endpoints_audited": spec_data.get("endpoints_found", 0),
                 "live_routes_tested": len(all_target_routes),
                 "total_probes_sent": header_data.get("probes", 0) + api_data.get("probes", 0) + dyn_data.get("probes", 0),
+                "graphql_tested": gql_data.get("probed", False),
+                "ssrf_probes": ssrf_data.get("probes", 0),
                 "dast_findings_count": len(findings)
             }
         else:
@@ -542,3 +594,424 @@ class Stage4DastApi(BaseStage):
                     except Exception:
                         pass
         return findings, {"routes_found": routes_count, "routes_list": list(set(routes_list))}
+
+    def _audit_graphql(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Test GraphQL endpoint for introspection, injection, and batching DoS."""
+        findings = []
+        data: Dict[str, Any] = {"probed": False, "endpoint": None}
+        gql_endpoints = ["/graphql", "/api/graphql", "/v1/graphql", "/gql"]
+
+        for ep in gql_endpoints:
+            target = urllib.parse.urljoin(base_url, ep)
+            try:
+                introspection_query = {"query": "{__schema{types{name}}}"}
+                r = requests.post(target, json=introspection_query, timeout=5, verify=False)
+                if r.status_code == 200:
+                    data["probed"] = True
+                    data["endpoint"] = ep
+                    try:
+                        resp = r.json()
+                        if resp.get("data", {}).get("__schema"):
+                            findings.append(self.create_finding(
+                                finding_id="DAST-GQL-INTROSPECT",
+                                title="GraphQL Introspection Enabled in Production",
+                                severity=Severity.MEDIUM,
+                                description=f"GraphQL endpoint `{target}` has introspection enabled, exposing the full schema to unauthenticated callers.",
+                                tool="GraphQL Security Auditor",
+                                target=target,
+                                cwe="CWE-200",
+                                owasp="OWASP API7:2023-Security Misconfiguration",
+                                remediation="Disable GraphQL introspection in production (e.g. introspection=False in graphene/Apollo)."
+                            ))
+                    except Exception:
+                        pass
+
+                    # Batching DoS probe
+                    try:
+                        batch_query = [{"query": "{__typename}"} for _ in range(50)]
+                        r3 = requests.post(target, json=batch_query, timeout=6, verify=False)
+                        if r3.status_code == 200 and isinstance(r3.json(), list):
+                            findings.append(self.create_finding(
+                                finding_id="DAST-GQL-BATCH-DOS",
+                                title="GraphQL Batching Attack — Denial of Service Risk",
+                                severity=Severity.MEDIUM,
+                                description=f"GraphQL endpoint `{target}` accepted a batch of 50 queries in a single request, enabling DoS amplification.",
+                                tool="GraphQL Security Auditor",
+                                target=target,
+                                cwe="CWE-400",
+                                owasp="OWASP API4:2023-Unrestricted Resource Consumption",
+                                remediation="Enable query batching limits and complexity analysis (e.g., graphql-query-complexity)."
+                            ))
+                    except Exception:
+                        pass
+                    break
+            except Exception:
+                pass
+        return findings, data
+
+    def _audit_ssrf(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Test for Server-Side Request Forgery via common URL parameters."""
+        findings = []
+        probes_sent = 0
+        ssrf_params = ["url", "redirect", "uri", "path", "dest", "source", "target", "callback", "webhook"]
+        canary_payloads = [
+            "http://169.254.169.254/latest/meta-data/",
+            "http://127.0.0.1:22/",
+        ]
+
+        for param in ssrf_params[:4]:  # Limit probe scope
+            for payload in canary_payloads:
+                probes_sent += 1
+                probe_url = f"{base_url}?{param}={urllib.parse.quote(payload)}"
+                try:
+                    r = requests.get(probe_url, timeout=4, verify=False, allow_redirects=False)
+                    if any(ind in r.text for ind in ["ami-id", "instance-id", "iam/security-credentials", "meta-data"]):
+                        findings.append(self.create_finding(
+                            finding_id="DAST-SSRF-CONFIRMED",
+                            title="Critical SSRF Confirmed — Cloud Metadata Service Accessible",
+                            severity=Severity.CRITICAL,
+                            description=f"SSRF confirmed: parameter `{param}` with payload `{payload}` returned cloud instance metadata.",
+                            tool="SSRF Auditor",
+                            target=base_url,
+                            cwe="CWE-918",
+                            owasp="OWASP A10:2021-Server-Side Request Forgery (SSRF)",
+                            remediation="Implement SSRF allowlist; block 169.254.169.254 and RFC-1918 ranges at egress firewall; use IMDSv2."
+                        ))
+                        return findings, {"probes": probes_sent, "confirmed": True}
+                except Exception:
+                    pass
+
+        return findings, {"probes": probes_sent, "confirmed": False}
+
+    def _audit_csrf(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Test for CSRF vulnerabilities: missing SameSite cookie flags and unprotected state-changing endpoints."""
+        findings = []
+        data: Dict[str, Any] = {"checked": False}
+
+        try:
+            r = requests.get(base_url, timeout=5, verify=False)
+            data["checked"] = True
+            set_cookie = r.headers.get("Set-Cookie", "")
+            if set_cookie and "samesite" not in set_cookie.lower():
+                findings.append(self.create_finding(
+                    finding_id="DAST-CSRF-SAMESITE",
+                    title="Session Cookie Missing SameSite Attribute (CSRF Risk)",
+                    severity=Severity.MEDIUM,
+                    description="Server-set cookie does not specify SameSite=Strict or SameSite=Lax, leaving it vulnerable to cross-site request forgery.",
+                    tool="CSRF Auditor",
+                    target=base_url,
+                    cwe="CWE-352",
+                    owasp="OWASP A01:2021-Broken Access Control",
+                    remediation="Set SameSite=Strict (or Lax) on all session cookies; implement synchronizer CSRF tokens for state-changing requests."
+                ))
+        except Exception:
+            pass
+
+        # Try cross-origin POST without CSRF token
+        state_endpoints = ["/api/v1/user/update", "/api/v1/password/change", "/account/settings"]
+        for ep in state_endpoints:
+            target = urllib.parse.urljoin(base_url, ep)
+            try:
+                r = requests.post(
+                    target,
+                    headers={"Origin": "https://attacker.example.com", "Referer": "https://attacker.example.com"},
+                    data={"amount": "100"},
+                    timeout=4,
+                    verify=False
+                )
+                if r.status_code == 200:
+                    findings.append(self.create_finding(
+                        finding_id=f"DAST-CSRF-UNPROTECTED-{ep.replace('/', '-').upper()[:30]}",
+                        title=f"CSRF Unprotected State-Changing Endpoint: {ep}",
+                        severity=Severity.HIGH,
+                        description=f"Cross-origin POST to `{target}` (Origin: attacker.example.com) returned HTTP 200 without CSRF token validation.",
+                        tool="CSRF Auditor",
+                        target=target,
+                        cwe="CWE-352",
+                        owasp="OWASP A01:2021-Broken Access Control",
+                        remediation="Enforce CSRF tokens (Double Submit Cookie or Synchronizer Token Pattern); verify Origin/Referer headers."
+                    ))
+            except Exception:
+                pass
+
+        return findings, data
+
+    def _audit_open_redirect(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Fuzz common redirect parameters for open redirect vulnerabilities."""
+        findings = []
+        probes_sent = 0
+        redirect_params = ["redirect", "url", "next", "return", "goto", "continue", "redir", "target", "return_url", "redirect_uri"]
+        payloads = ["//attacker.example.com", "https://attacker.example.com"]
+
+        for param in redirect_params:
+            for payload in payloads:
+                probes_sent += 1
+                probe_url = f"{base_url}?{param}={urllib.parse.quote(payload)}"
+                try:
+                    r = requests.get(probe_url, timeout=4, verify=False, allow_redirects=False)
+                    if r.status_code in (301, 302, 303, 307, 308):
+                        loc = r.headers.get("Location", "")
+                        if "attacker.example.com" in loc:
+                            findings.append(self.create_finding(
+                                finding_id=f"DAST-OPEN-REDIRECT-{param.upper()}",
+                                title=f"Open Redirect Vulnerability: Parameter '{param}'",
+                                severity=Severity.MEDIUM,
+                                description=f"Parameter `{param}` with payload `{payload}` causes redirect to attacker-controlled domain: `{loc}`.",
+                                tool="Open Redirect Auditor",
+                                target=base_url,
+                                cwe="CWE-601",
+                                owasp="OWASP A01:2021-Broken Access Control",
+                                remediation="Validate redirect targets against a strict server-side allowlist of trusted domains; reject absolute URLs from user input."
+                            ))
+                            return findings, {"probes": probes_sent}
+                except Exception:
+                    pass
+
+        return findings, {"probes": probes_sent}
+
+    def _audit_host_header(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Test Host Header injection and X-Forwarded-Host manipulation."""
+        findings = []
+        data: Dict[str, Any] = {"tested": False}
+        evil_host = "attacker.example.com"
+        test_headers_sets = [
+            {"X-Forwarded-Host": evil_host},
+            {"X-Host": evil_host},
+            {"X-Original-Host": evil_host},
+        ]
+
+        for hdrs in test_headers_sets:
+            try:
+                r = requests.get(base_url, headers=hdrs, timeout=5, verify=False, allow_redirects=False)
+                data["tested"] = True
+                hdr_name = list(hdrs.keys())[0]
+                if evil_host in r.text or evil_host in r.headers.get("location", ""):
+                    findings.append(self.create_finding(
+                        finding_id=f"DAST-HOST-INJECT-{hdr_name.upper().replace('-', '_')}",
+                        title=f"Host Header Injection via {hdr_name}",
+                        severity=Severity.HIGH,
+                        description=f"Injected `{hdr_name}: {evil_host}` was reflected in response, enabling password-reset link hijacking and cache poisoning.",
+                        tool="Host Header Auditor",
+                        target=base_url,
+                        cwe="CWE-74",
+                        owasp="OWASP A07:2021-Identification and Authentication Failures",
+                        remediation="Validate Host header against an explicit allowlist; never construct URLs or email links using the user-supplied Host header."
+                    ))
+            except Exception:
+                pass
+
+        return findings, data
+
+    def _audit_request_smuggling(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Probe for HTTP Request Smuggling (CL.TE timing pattern)."""
+        findings = []
+        data: Dict[str, Any] = {"tested": False}
+        parsed = urllib.parse.urlparse(base_url)
+        host = parsed.hostname or ""
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+        smuggle_payload = (
+            "POST / HTTP/1.1\r\n"
+            f"Host: {host}\r\n"
+            "Content-Length: 6\r\n"
+            "Transfer-Encoding: chunked\r\n"
+            "\r\n"
+            "0\r\n"
+            "\r\n"
+            "X"
+        )
+        try:
+            import select as _select
+            import ssl as _ssl
+            s = socket.create_connection((host, port), timeout=5)
+            if parsed.scheme == "https":
+                ctx = _ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = _ssl.CERT_NONE
+                s = ctx.wrap_socket(s, server_hostname=host)
+            data["tested"] = True
+            s.sendall(smuggle_payload.encode())
+            ready = _select.select([s], [], [], 4)
+            if not ready[0]:
+                # Server hung — possible CL.TE smuggling indicator
+                findings.append(self.create_finding(
+                    finding_id="DAST-SMUGGLING-CL-TE",
+                    title="HTTP Request Smuggling (CL.TE) — Server Timeout Indicator",
+                    severity=Severity.HIGH,
+                    description=f"Host `{host}` timed out on an ambiguous CL.TE request, suggesting vulnerable HTTP/1.1 request handling. Manual verification recommended.",
+                    tool="Request Smuggling Auditor",
+                    target=base_url,
+                    cwe="CWE-444",
+                    owasp="OWASP A05:2021-Security Misconfiguration",
+                    remediation="Normalize HTTP requests at the reverse proxy; disable HTTP/1.0 keep-alive; use HTTP/2 end-to-end where possible."
+                ))
+            s.close()
+        except Exception:
+            pass
+
+        return findings, data
+
+    def _audit_cache_poisoning(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Test for web cache poisoning via unkeyed headers."""
+        findings = []
+        data: Dict[str, Any] = {"tested": False}
+        poison_tests = [
+            ("X-Forwarded-Host", "attacker.example.com"),
+            ("X-Original-URL", "/admin"),
+            ("X-Rewrite-URL", "/admin"),
+        ]
+
+        for hdr_name, hdr_val in poison_tests:
+            try:
+                r = requests.get(base_url, headers={hdr_name: hdr_val}, timeout=5, verify=False)
+                data["tested"] = True
+                if hdr_val in r.text or hdr_val in r.headers.get("location", ""):
+                    findings.append(self.create_finding(
+                        finding_id=f"DAST-CACHE-POISON-{hdr_name.upper().replace('-', '_')}",
+                        title=f"Web Cache Poisoning via Unkeyed Header: {hdr_name}",
+                        severity=Severity.HIGH,
+                        description=f"Header `{hdr_name}: {hdr_val}` was reflected in the response. If cached, this could be served to other users.",
+                        tool="Cache Poisoning Auditor",
+                        target=base_url,
+                        cwe="CWE-345",
+                        owasp="OWASP A05:2021-Security Misconfiguration",
+                        remediation="Include all response-influencing headers in the cache key; strip unexpected headers at the proxy layer."
+                    ))
+            except Exception:
+                pass
+
+        return findings, data
+
+    def _audit_file_upload(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Probe file upload endpoints for dangerous file type acceptance."""
+        findings = []
+        probes_sent = 0
+        upload_endpoints = ["/upload", "/api/upload", "/file", "/api/file", "/import", "/media/upload"]
+        data: Dict[str, Any] = {"endpoints_probed": [], "probes": 0}
+
+        dangerous_files = [
+            ("webshell.php", b"<?php echo phpinfo(); ?>", "application/x-php"),
+            ("test.svg", b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', "image/svg+xml"),
+        ]
+
+        for ep in upload_endpoints:
+            target = urllib.parse.urljoin(base_url, ep)
+            for filename, payload_bytes, content_type in dangerous_files:
+                probes_sent += 1
+                try:
+                    files = {"file": (filename, payload_bytes, content_type)}
+                    r = requests.post(target, files=files, timeout=5, verify=False)
+                    data["endpoints_probed"].append({"endpoint": ep, "filename": filename, "status": r.status_code})
+                    if r.status_code in (200, 201):
+                        findings.append(self.create_finding(
+                            finding_id=f"DAST-UPLOAD-{filename.upper().replace('.', '_').replace('-', '_')[:30]}",
+                            title=f"File Upload — Dangerous File Accepted: {filename}",
+                            severity=Severity.CRITICAL if filename.endswith(".php") else Severity.HIGH,
+                            description=f"Upload endpoint `{target}` accepted `{filename}` (Content-Type: {content_type}) with HTTP {r.status_code}. Risk of RCE or stored XSS.",
+                            tool="File Upload Security Auditor",
+                            target=target,
+                            cwe="CWE-434",
+                            owasp="OWASP A04:2021-Insecure Design",
+                            remediation="Validate file extensions via allowlist; verify MIME type server-side; store uploads outside webroot; apply AV scanning."
+                        ))
+                        break
+                except Exception:
+                    pass
+
+        data["probes"] = probes_sent
+        return findings, data
+
+    def _audit_oauth(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Check OAuth/OIDC endpoints for redirect_uri bypass and PKCE enforcement."""
+        findings = []
+        data: Dict[str, Any] = {"endpoints_found": [], "tested": False}
+        oauth_paths = ["/oauth/authorize", "/oauth2/authorize", "/.well-known/openid-configuration"]
+
+        for path in oauth_paths:
+            target = urllib.parse.urljoin(base_url, path)
+            try:
+                r = requests.get(target, timeout=5, verify=False, allow_redirects=False)
+                if r.status_code in (200, 302):
+                    data["endpoints_found"].append(path)
+                    data["tested"] = True
+
+                    # Test redirect_uri bypass
+                    evil_redirect = target + "?redirect_uri=https://attacker.example.com"
+                    try:
+                        r2 = requests.get(evil_redirect, timeout=5, verify=False, allow_redirects=False)
+                        loc = r2.headers.get("Location", "")
+                        if "attacker.example.com" in loc:
+                            findings.append(self.create_finding(
+                                finding_id="DAST-OAUTH-REDIRECT-BYPASS",
+                                title="OAuth redirect_uri Bypass — Open Redirect in Auth Flow",
+                                severity=Severity.CRITICAL,
+                                description=f"OAuth endpoint `{path}` reflected attacker-controlled redirect_uri, enabling OAuth authorization code theft.",
+                                tool="OAuth/OIDC Security Auditor",
+                                target=target,
+                                cwe="CWE-601",
+                                owasp="OWASP API2:2023-Broken Authentication",
+                                remediation="Register exact redirect_uri values server-side; reject any URI not in the allowlist; enforce PKCE for public clients."
+                            ))
+                    except Exception:
+                        pass
+
+                    # OIDC: check PKCE support advertised
+                    if "openid-configuration" in path:
+                        try:
+                            oidc_data = r.json()
+                            if not oidc_data.get("code_challenge_methods_supported"):
+                                findings.append(self.create_finding(
+                                    finding_id="DAST-OIDC-NO-PKCE",
+                                    title="OIDC Provider Does Not Advertise PKCE Support",
+                                    severity=Severity.MEDIUM,
+                                    description="OpenID Connect configuration does not list code_challenge_methods_supported — PKCE may not be enforced.",
+                                    tool="OAuth/OIDC Security Auditor",
+                                    target=target,
+                                    cwe="CWE-345",
+                                    owasp="OWASP API2:2023-Broken Authentication",
+                                    remediation="Enforce PKCE (S256 code challenge) for all public OAuth clients to prevent authorization code interception."
+                                ))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        return findings, data
+
+    def _audit_websocket(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        """Inspect WebSocket upgrade endpoints for auth and origin validation issues."""
+        findings = []
+        data: Dict[str, Any] = {"endpoints_probed": [], "tested": False}
+        ws_paths = ["/ws", "/websocket", "/socket.io", "/cable", "/api/ws", "/realtime"]
+
+        for path in ws_paths:
+            target = urllib.parse.urljoin(base_url, path)
+            try:
+                upgrade_headers = {
+                    "Upgrade": "websocket",
+                    "Connection": "Upgrade",
+                    "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+                    "Sec-WebSocket-Version": "13",
+                    "Origin": "https://attacker.example.com"
+                }
+                r = requests.get(target, headers=upgrade_headers, timeout=4, verify=False, allow_redirects=False)
+                data["endpoints_probed"].append({"path": path, "status": r.status_code})
+
+                if r.status_code in (101, 200):
+                    data["tested"] = True
+                    findings.append(self.create_finding(
+                        finding_id=f"DAST-WS-ORIGIN-{path.strip('/').upper().replace('/', '_')[:20]}",
+                        title=f"WebSocket Missing Origin Validation: {path}",
+                        severity=Severity.HIGH,
+                        description=f"WebSocket endpoint `{target}` accepted an upgrade from Origin `attacker.example.com` without validation — enables cross-site WebSocket hijacking (CSWSH).",
+                        tool="WebSocket Security Auditor",
+                        target=target,
+                        cwe="CWE-346",
+                        owasp="OWASP API7:2023-Security Misconfiguration",
+                        remediation="Validate Origin header against an explicit allowlist before accepting WebSocket upgrades; require auth tokens in the handshake."
+                    ))
+            except Exception:
+                pass
+
+        return findings, data
+
