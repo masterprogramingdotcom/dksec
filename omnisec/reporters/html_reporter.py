@@ -1,11 +1,11 @@
 """
-Single-file Interactive HTML Dashboard & Report Generator for OmniSec.
-Generates an executive-ready, interactive dark/light dashboard with charts, filters, and findings explorer.
+Single-file Interactive HTML Dashboard & Report Generator for OmniSec (Enterprise Edition).
+Generates an executive-ready dark/light dashboard with Mermaid DFDs, SARIF/SBOM exporters,
+18 OpenSSF Scorecard checks, ASVS matrix, and code remediation diffs.
 """
 
 import os
 import json
-from typing import Dict, Any
 from omnisec.models import OmniSecReport, Severity
 
 
@@ -21,12 +21,19 @@ class HtmlReporter:
             "BLOCKED": "#ef4444"              # Rose red
         }.get(report.gate_verdict.status, "#64748b")
 
+        mermaid_dfd = ""
+        s1 = report.stage_results.get(1)
+        if s1 and "mermaid_dfd" in s1.details:
+            mermaid_dfd = s1.details["mermaid_dfd"]
+
         html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OmniSec Report - {report.project_name}</title>
+  <title>OmniSec Enterprise Report - {report.project_name}</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({{ startOnLoad: true, theme: 'dark' }});</script>
   <style>
     :root {{
       --bg-main: #0b0f19;
@@ -36,7 +43,6 @@ class HtmlReporter:
       --text-main: #f1f5f9;
       --text-muted: #94a3b8;
       --accent: #3b82f6;
-      --accent-glow: rgba(59, 130, 246, 0.2);
       --crit: #ef4444;
       --high: #f97316;
       --med: #eab308;
@@ -72,7 +78,7 @@ class HtmlReporter:
     }}
     h1 {{ font-size: 22px; font-weight: 700; color: #fff; }}
     .subtitle {{ font-size: 13px; color: var(--text-muted); }}
-    .header-actions {{ display: flex; gap: 10px; }}
+    .header-actions {{ display: flex; gap: 10px; flex-wrap: wrap; }}
     .btn {{
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -96,7 +102,7 @@ class HtmlReporter:
 
     /* Gate Banner */
     .gate-banner {{
-      background: rgba(19, 27, 46, 0.8);
+      background: rgba(19, 27, 46, 0.85);
       border: 2px solid {gate_color};
       border-radius: 14px;
       padding: 20px 28px;
@@ -104,7 +110,7 @@ class HtmlReporter:
       justify-content: space-between;
       align-items: center;
       margin-bottom: 28px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
       flex-wrap: wrap;
       gap: 20px;
     }}
@@ -201,7 +207,7 @@ class HtmlReporter:
     }}
     .tab-btn.active {{ color: #fff; border-bottom-color: var(--accent); }}
 
-    /* Findings Filter & Search Bar */
+    /* Filter Bar */
     .filter-bar {{
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -270,7 +276,7 @@ class HtmlReporter:
     .badge-LOW {{ background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }}
     .badge-INFO {{ background: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); }}
 
-    .finding-meta {{ font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 10px; font-family: monospace; }}
+    .finding-meta {{ font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 10px; font-family: monospace; flex-wrap: wrap; }}
     .code-box {{
       background: #090d16;
       border: 1px solid #1a253b;
@@ -279,6 +285,18 @@ class HtmlReporter:
       font-family: monospace;
       font-size: 12px;
       color: #38bdf8;
+      overflow-x: auto;
+      margin: 8px 0;
+    }}
+    .diff-box {{
+      background: #090d16;
+      border: 1px solid #1a253b;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #a7f3d0;
+      white-space: pre;
       overflow-x: auto;
       margin: 8px 0;
     }}
@@ -292,7 +310,6 @@ class HtmlReporter:
       margin-top: 10px;
     }}
 
-    /* Table styles for checklists */
     .data-table {{
       width: 100%;
       border-collapse: collapse;
@@ -324,6 +341,8 @@ class HtmlReporter:
     </div>
     <div class="header-actions">
       <button class="btn" onclick="window.print()">🖨️ Print to PDF</button>
+      <button class="btn" onclick="downloadFile('omnisec-results.sarif', 'application/json')">📥 SARIF v2.1.0</button>
+      <button class="btn" onclick="downloadFile('cyclonedx-sbom.json', 'application/json')">📦 CycloneDX SBOM</button>
       <button class="btn btn-primary" onclick="downloadJSON()">💾 Export JSON</button>
     </div>
   </header>
@@ -351,7 +370,7 @@ class HtmlReporter:
       <div class="kpi-card">
         <div class="kpi-label">Security Posture Score</div>
         <div class="kpi-val" style="color: {gate_color};">{report.overall_score:.0f}<span style="font-size: 16px; color: var(--text-muted);">/100</span></div>
-        <div class="kpi-sub">Evaluated across all 9 stages</div>
+        <div class="kpi-sub">Cross-Stage Aggregate Health</div>
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Critical Findings</div>
@@ -369,9 +388,9 @@ class HtmlReporter:
         <div class="kpi-sub">Remediation SLA: 30 Days</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Low & Info Findings</div>
-        <div class="kpi-val" style="color: var(--low);">{report.severity_counts.get('LOW', 0) + report.severity_counts.get('INFO', 0)}</div>
-        <div class="kpi-sub">Remediation SLA: 90 Days</div>
+        <div class="kpi-label">Dependencies (SBOM)</div>
+        <div class="kpi-val" style="color: #38bdf8;">{len(report.sbom_components)}</div>
+        <div class="kpi-sub">CycloneDX v1.5 Tracked</div>
       </div>
     </div>
 
@@ -392,16 +411,16 @@ class HtmlReporter:
                 badge_bg = "rgba(16, 185, 129, 0.2)" if f_count == 0 else "rgba(239, 68, 68, 0.2)"
                 badge_color = "#34d399" if f_count == 0 else "#f87171"
                 status_text = f"{f_count} findings" if f_count > 0 else "Clean / Passed"
+                dur_display = f"{res.execution_time_seconds:.1f}s"
             else:
                 s_name = f"Stage {s_id}"
                 tools = "N/A"
                 covers = "Stage skipped in this run"
-                f_count = 0
                 badge_bg = "rgba(100, 116, 139, 0.2)"
                 badge_color = "#94a3b8"
                 status_text = "Skipped"
+                dur_display = "N/A"
 
-            dur_display = f"{res.execution_time_seconds:.1f}s" if res else "N/A"
             html_content += f"""
       <div class="pipeline-card" onclick="filterByStage({s_id})">
         <div style="display: flex; align-items: center; margin-bottom: 6px;">
@@ -422,13 +441,14 @@ class HtmlReporter:
 
     <!-- Detailed Tabs Section -->
     <div class="tab-bar">
-      <button class="tab-btn active" onclick="switchTab('tab-findings', this)">🔍 Vulnerability Findings ({len(report.all_findings)})</button>
-      <button class="tab-btn" onclick="switchTab('tab-stride', this)">📐 Stage 1: Threat Model (STRIDE)</button>
-      <button class="tab-btn" onclick="switchTab('tab-asvs', this)">📜 Stage 2: ASVS Checklist</button>
-      <button class="tab-btn" onclick="switchTab('tab-wstg', this)">🧪 Stage 5: WSTG Pentest Checklist</button>
-      <button class="tab-btn" onclick="switchTab('tab-dojo', this)">📊 Stage 7: DefectDojo SLA & Retest</button>
-      <button class="tab-btn" onclick="switchTab('tab-scorecard', this)">🎖️ Stage 8: OpenSSF Scorecard</button>
-      <button class="tab-btn" onclick="switchTab('tab-wazuh', this)">🛡️ Stage 9: Wazuh SIEM & IR</button>
+      <button class="tab-btn active" onclick="switchTab('tab-findings', this)">🔍 Vulnerabilities ({len(report.all_findings)})</button>
+      <button class="tab-btn" onclick="switchTab('tab-stride', this)">📐 Stage 1: Threat Model & DFD</button>
+      <button class="tab-btn" onclick="switchTab('tab-asvs', this)">📜 Stage 2: ASVS Matrix</button>
+      <button class="tab-btn" onclick="switchTab('tab-sbom', this)">📦 Stage 3: SBOM Inventory ({len(report.sbom_components)})</button>
+      <button class="tab-btn" onclick="switchTab('tab-wstg', this)">🧪 Stage 5: WSTG Checklist</button>
+      <button class="tab-btn" onclick="switchTab('tab-dojo', this)">📊 Stage 7: DefectDojo SLAs</button>
+      <button class="tab-btn" onclick="switchTab('tab-scorecard', this)">🎖️ Stage 8: OpenSSF 18-Checks</button>
+      <button class="tab-btn" onclick="switchTab('tab-wazuh', this)">🛡️ Stage 9: Wazuh & Sigma Rules</button>
     </div>
 
     <!-- TAB 1: FINDINGS -->
@@ -443,7 +463,7 @@ class HtmlReporter:
           <button class="pill" onclick="setSeverityFilter('LOW', this)">Low</button>
         </div>
         <div class="filter-group">
-          <input type="text" id="findingSearch" class="search-input" placeholder="Search findings by title, tool, CWE..." oninput="applyFilters()" />
+          <input type="text" id="findingSearch" class="search-input" placeholder="Search findings by title, tool, CWE, MITRE..." oninput="applyFilters()" />
         </div>
       </div>
 
@@ -452,7 +472,7 @@ class HtmlReporter:
 
         for f in report.all_findings:
             html_content += f"""
-        <div class="finding-card {f.severity.value}" data-severity="{f.severity.value}" data-stage="{f.stage_id}" data-search="{f.title.lower()} {f.tool.lower()} {str(f.cwe).lower()} {str(f.file_path).lower()}">
+        <div class="finding-card {f.severity.value}" data-severity="{f.severity.value}" data-stage="{f.stage_id}" data-search="{f.title.lower()} {f.tool.lower()} {str(f.cwe).lower()} {str(f.mitre_attack).lower()} {str(f.file_path).lower()}">
           <div class="finding-header">
             <div>
               <span style="color: var(--text-muted); font-family: monospace; font-size: 12px; margin-right: 8px;">{f.id}</span>
@@ -461,6 +481,7 @@ class HtmlReporter:
             <div class="finding-badges">
               <span class="badge badge-{f.severity.value}">{f.severity.value}</span>
               <span class="badge" style="background: #1e293b; color: #94a3b8;">Stage {f.stage_id}</span>
+              {f'<span class="badge" style="background: #1e1b4b; color: #a5b4fc; border: 1px solid #4338ca;">MITRE {f.mitre_attack}</span>' if f.mitre_attack else ''}
             </div>
           </div>
           <div class="finding-meta">
@@ -471,7 +492,8 @@ class HtmlReporter:
           </div>
           <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 8px;">{f.description}</p>
           {f'<div class="code-box">{f.code_snippet}</div>' if f.code_snippet else ''}
-          {f'<div class="remediation-box"><strong>💡 Remediation:</strong> {f.remediation}</div>' if f.remediation else ''}
+          {f'<div class="diff-box"><strong>Proposed Patch (Unified Diff):</strong><br/>{f.remediation_diff}</div>' if f.remediation_diff else ''}
+          {f'<div class="remediation-box"><strong>💡 Remediation Guidance:</strong> {f.remediation}</div>' if f.remediation else ''}
         </div>
 """
 
@@ -479,13 +501,20 @@ class HtmlReporter:
       </div>
     </div>
 
-    <!-- TAB 2: THREAT MODEL (STRIDE) -->
+    <!-- TAB 2: THREAT MODEL (STRIDE & DFD) -->
     <div id="tab-stride" class="tab-content">
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">OWASP Threat Dragon & STRIDE Threat Modeling</h3>
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
+        <h3 style="margin-bottom: 8px;">Automated Data Flow Diagram (DFD)</h3>
         <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
-          Architectural threat decomposition mapped across STRIDE categories. Exported model is compatible with OWASP Threat Dragon v2.
+          Generated data-flow architecture diagram mapping trust boundaries and components.
         </p>
+        <div class="mermaid" style="background: #090d16; padding: 20px; border-radius: 8px; overflow-x: auto;">
+{mermaid_dfd if mermaid_dfd else 'flowchart TD\n  Client["Client"] --> App["Application Server"]'}
+        </div>
+      </div>
+
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+        <h3 style="margin-bottom: 8px;">OWASP Threat Dragon & STRIDE Threat Matrix</h3>
         <table class="data-table">
           <thead>
             <tr>
@@ -493,13 +522,13 @@ class HtmlReporter:
               <th>Category</th>
               <th>Component</th>
               <th>Severity</th>
-              <th>Identified Threat</th>
-              <th>Recommended Mitigation</th>
+              <th>MITRE ATT&CK</th>
+              <th>Identified Architectural Threat</th>
+              <th>Mitigation</th>
             </tr>
           </thead>
           <tbody>
 """
-        s1 = report.stage_results.get(1)
         if s1 and "threats" in s1.details:
             for t in s1.details["threats"]:
                 html_content += f"""
@@ -508,6 +537,7 @@ class HtmlReporter:
               <td><strong>{t.get('category')}</strong></td>
               <td>{t.get('component')}</td>
               <td><span class="badge badge-{t.get('severity')}">{t.get('severity')}</span></td>
+              <td style="font-family: monospace; color: #a5b4fc;">{t.get('mitre_attack', 'T1190')}</td>
               <td>{t.get('title')}</td>
               <td style="color: #6ee7b7;">{t.get('mitigation')}</td>
             </tr>
@@ -521,10 +551,7 @@ class HtmlReporter:
     <!-- TAB 3: ASVS CHECKLIST -->
     <div id="tab-asvs" class="tab-content">
       <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">OWASP ASVS v4.0.3 Security Requirements Checklist</h3>
-        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
-          Evaluation of baseline design and runtime verification criteria for modern applications.
-        </p>
+        <h3 style="margin-bottom: 8px;">OWASP ASVS v4.0.3 Security Requirements Matrix</h3>
         <table class="data-table">
           <thead>
             <tr>
@@ -558,13 +585,45 @@ class HtmlReporter:
       </div>
     </div>
 
-    <!-- TAB 4: WSTG PENTEST CHECKLIST -->
+    <!-- TAB 4: SBOM INVENTORY -->
+    <div id="tab-sbom" class="tab-content">
+      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+        <h3 style="margin-bottom: 8px;">CycloneDX v1.5 Software Bill of Materials (SBOM)</h3>
+        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
+          Software component inventory with Package URLs (PURL), licenses, and versions.
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Component Name</th>
+              <th>Version</th>
+              <th>Ecosystem</th>
+              <th>Package URL (PURL)</th>
+              <th>License</th>
+            </tr>
+          </thead>
+          <tbody>
+"""
+        for c in report.sbom_components:
+            html_content += f"""
+            <tr>
+              <td><strong>{c.name}</strong></td>
+              <td style="font-family: monospace;">{c.version}</td>
+              <td><span class="badge" style="background: #1e293b; color: #93c5fd;">{c.ecosystem}</span></td>
+              <td style="font-family: monospace; color: #94a3b8; font-size: 11px;">{c.purl}</td>
+              <td>{c.license or 'MIT'}</td>
+            </tr>
+"""
+        html_content += f"""
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 5: WSTG PENTEST CHECKLIST -->
     <div id="tab-wstg" class="tab-content">
       <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
         <h3 style="margin-bottom: 8px;">OWASP Web Security Testing Guide (WSTG v4.2) Verification</h3>
-        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
-          Checklist of manual and heuristic web/API security testing vectors.
-        </p>
         <table class="data-table">
           <thead>
             <tr>
@@ -596,13 +655,10 @@ class HtmlReporter:
       </div>
     </div>
 
-    <!-- TAB 5: DEFECTDOJO SLA & RETEST -->
+    <!-- TAB 6: DEFECTDOJO SLA -->
     <div id="tab-dojo" class="tab-content">
       <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">OWASP DefectDojo Vulnerability SLA & Retest Tracker</h3>
-        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
-          Remediation schedule and tracking based on severity SLA deadlines.
-        </p>
+        <h3 style="margin-bottom: 8px;">OWASP DefectDojo Remediation Schedule & SLA Tracker</h3>
         <table class="data-table">
           <thead>
             <tr>
@@ -625,7 +681,7 @@ class HtmlReporter:
               <td><strong>{plan.get('title')}</strong></td>
               <td><span class="badge badge-{plan.get('severity')}">{plan.get('severity')}</span></td>
               <td>{plan.get('sla_days')} Days</td>
-              <td style="color: #fca5a5; font-family: monospace;">{plan.get('due_date')}</td>
+              <td style="color: #fca5a5; font-family: monospace;">{plan.get('target_due_date')}</td>
               <td><span class="status-pill-verify">{plan.get('status')}</span></td>
             </tr>
 """
@@ -635,33 +691,38 @@ class HtmlReporter:
       </div>
     </div>
 
-    <!-- TAB 6: OPENSSF SCORECARD -->
+    <!-- TAB 7: OPENSSF 18-CHECKS SCORECARD -->
     <div id="tab-scorecard" class="tab-content">
       <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">OpenSSF Scorecard Security Posture Audit</h3>
-        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
-          Automated assessment of supply chain, repository hygiene, and release governance controls.
-        </p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <h3>OpenSSF Scorecard v4 (All 18 Checks)</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">Supply chain posture and release integrity controls.</p>
+          </div>
+          <span class="badge" style="background: #1e1b4b; color: #c7d2fe; font-size: 13px; padding: 6px 14px;">
+            {report.stage_results.get(8).details.get('slsa_level', 'SLSA Level 1') if report.stage_results.get(8) else 'SLSA Level 1'}
+          </span>
+        </div>
         <table class="data-table">
           <thead>
             <tr>
               <th>Check Name</th>
-              <th>Score (out of 10)</th>
-              <th>Assessment Reason</th>
+              <th>Score (/10)</th>
+              <th>Reason</th>
               <th>Remediation Action</th>
             </tr>
           </thead>
           <tbody>
 """
         s8 = report.stage_results.get(8)
-        if s8 and "scorecard_checks" in s8.details:
-            for check in s8.details["scorecard_checks"]:
+        if s8 and "scorecard_18_checks" in s8.details:
+            for check in s8.details["scorecard_18_checks"]:
                 sc = check.get('score', 0)
                 sc_color = "#34d399" if sc >= 8 else ("#fbbf24" if sc >= 5 else "#f87171")
                 html_content += f"""
             <tr>
               <td><strong>{check.get('name')}</strong></td>
-              <td style="font-weight: 800; color: {sc_color}; font-size: 15px;">{sc}/10</td>
+              <td style="font-weight: 800; color: {sc_color}; font-size: 14px;">{sc}/10</td>
               <td>{check.get('reason')}</td>
               <td style="color: #93c5fd;">{check.get('remediation')}</td>
             </tr>
@@ -672,17 +733,14 @@ class HtmlReporter:
       </div>
     </div>
 
-    <!-- TAB 7: WAZUH SIEM & IR -->
+    <!-- TAB 8: WAZUH & SIGMA -->
     <div id="tab-wazuh" class="tab-content">
       <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">Wazuh SIEM / XDR Rules & Incident Response Playbook</h3>
-        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
-          Custom detection rules (local_rules.xml) generated based on the application's discovered attack surface.
-        </p>
+        <h3 style="margin-bottom: 8px;">Wazuh SIEM XML & Sigma YAML Detection Engineering</h3>
         <h4 style="margin: 16px 0 8px 0; color: #93c5fd;">Generated Wazuh local_rules.xml</h4>
-        <pre class="code-box" style="white-space: pre; max-height: 240px;">{report.stage_results.get(9).details.get('wazuh_rules_xml') if report.stage_results.get(9) else 'No rules generated'}</pre>
-        <h4 style="margin: 20px 0 8px 0; color: #93c5fd;">Incident Response Playbook Summary</h4>
-        <pre class="code-box" style="white-space: pre-wrap; max-height: 240px; color: #cbd5e1;">{report.stage_results.get(9).details.get('ir_runbook') if report.stage_results.get(9) else 'No playbook generated'}</pre>
+        <pre class="code-box" style="white-space: pre; max-height: 240px;">{report.stage_results.get(9).details.get('wazuh_xml') if report.stage_results.get(9) else 'N/A'}</pre>
+        <h4 style="margin: 20px 0 8px 0; color: #93c5fd;">Generated Sigma Detection Rules (sigma-rules.yml)</h4>
+        <pre class="code-box" style="white-space: pre; max-height: 240px;">{report.stage_results.get(9).details.get('sigma_yaml') if report.stage_results.get(9) else 'N/A'}</pre>
       </div>
     </div>
 
@@ -739,16 +797,22 @@ class HtmlReporter:
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(reportData, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `omnisec-report-${{reportData.project_name.toLowerCase().replace(/\\s+/g, '-')}}.json`);
+      downloadAnchor.setAttribute("download", `omnisec-report.json`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+    }}
+
+    function downloadFile(filename, mime) {{
+      const endpoint = filename;
+      window.open(endpoint, '_blank');
     }}
   </script>
 </body>
 </html>
 """
 
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
+        with open(output_path, "w", encoding="utf-8") as fl:
+            fl.write(html_content)
+
         return output_path

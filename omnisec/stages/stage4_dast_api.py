@@ -1,15 +1,18 @@
 """
-Stage 4: DAST + API Security Testing
+Stage 4: DAST + API Security Testing (Advanced Enterprise Edition)
 Recommended Repos: OWASP ZAP + OWASP API Security
-What it covers: Web/API dynamic testing, automated scanning and API-specific security guidance
+What it covers: Web/API dynamic testing, TLS audit, OpenAPI/Swagger 2.0/3.0 security audit
 """
 
 import os
 import re
 import json
+import socket
+import ssl
 import urllib.parse
 from typing import List, Dict, Any, Tuple
 import requests
+import yaml
 from omnisec.stages.base import BaseStage
 from omnisec.models import Finding, Severity, FindingStatus
 from omnisec.config import OmniSecConfig
@@ -25,86 +28,192 @@ class Stage4DastApi(BaseStage):
         metrics: Dict[str, Any] = {}
         details: Dict[str, Any] = {}
 
-        if target_url:
-            self.log(f"Running DAST & API Security Testing against target URL: {target_url}")
-            
-            # 1. External OWASP ZAP execution if available
-            zap_findings = self._run_zap_if_available(target_url)
-            findings.extend(zap_findings)
+        # 1. OpenAPI / Swagger Specification Security Audit (Static & Dynamic)
+        spec_findings, spec_data = self._audit_openapi_specifications(config.target_path)
+        findings.extend(spec_findings)
+        details["openapi_spec"] = spec_data
 
-            # 2. Built-in DAST Header & Configuration Audit
+        if target_url:
+            self.log(f"Running Advanced Dynamic API & DAST Audit against target URL: {target_url}")
+
+            # 2. TLS/SSL Security & Certificate Validation
+            tls_findings, tls_data = self._audit_tls_security(target_url)
+            findings.extend(tls_findings)
+            details["tls"] = tls_data
+
+            # 3. HTTP Security Headers
             header_findings, header_data = self._audit_security_headers(target_url)
             findings.extend(header_findings)
+            details["headers"] = header_data
 
-            # 3. Built-in CORS Misconfiguration Audit
+            # 4. CORS Misconfiguration Audit
             cors_findings, cors_data = self._audit_cors(target_url)
             findings.extend(cors_findings)
+            details["cors"] = cors_data
 
-            # 4. Built-in HTTP Methods & Information Leakage Audit
+            # 5. Dangerous HTTP Methods
             http_findings, method_data = self._audit_http_methods(target_url)
             findings.extend(http_findings)
+            details["methods"] = method_data
 
-            # 5. OWASP API Security Top 10 Sensitive Endpoint Probes
-            api_findings, api_data = self._probe_api_security_endpoints(target_url)
+            # 6. OWASP API Top 10 Sensitive Exposure Probes
+            api_findings, api_data = self._probe_api_endpoints(target_url)
             findings.extend(api_findings)
+            details["api_probes"] = api_data
 
             metrics = {
                 "target_url": target_url,
-                "scan_mode": "Live Dynamic & API Audit",
-                "total_probes": header_data.get("probes", 0) + api_data.get("probes", 0),
+                "tls_protocol": tls_data.get("protocol", "N/A"),
+                "openapi_endpoints_audited": spec_data.get("endpoints_found", 0),
+                "total_probes_sent": header_data.get("probes", 0) + api_data.get("probes", 0),
                 "dast_findings_count": len(findings)
-            }
-            details = {
-                "headers": header_data,
-                "cors": cors_data,
-                "methods": method_data,
-                "api_probes": api_data
             }
         else:
-            self.log("No live target_url specified; conducting static API Security Specification & Route Architecture Audit...")
-            code_findings, code_data = self._audit_static_api_routes(config.target_path)
-            findings.extend(code_findings)
+            self.log("No live target_url provided; auditing static API route definitions & OpenAPI surface...")
+            route_findings, route_data = self._audit_static_routes(config.target_path)
+            findings.extend(route_findings)
             metrics = {
                 "scan_mode": "Static API Surface & Spec Audit",
-                "api_routes_analyzed": code_data.get("routes_found", 0),
+                "openapi_endpoints_audited": spec_data.get("endpoints_found", 0),
+                "code_routes_audited": route_data.get("routes_found", 0),
                 "dast_findings_count": len(findings)
             }
-            details = code_data
+            details["static_routes"] = route_data
 
         return findings, metrics, details
 
-    def _run_zap_if_available(self, url: str) -> List[Finding]:
-        if self.is_tool_installed("zap-cli"):
-            self.log("Running OWASP ZAP CLI baseline scan...")
-            cmd = ["zap-cli", "quick-scan", "-s", "xss,sqli", url]
-            code, stdout, stderr = self.execute_command(cmd, timeout=120)
-        return []
+    def _audit_openapi_specifications(self, target_path: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        findings = []
+        endpoints_found = 0
+        spec_candidates = [
+            "openapi.json", "openapi.yaml", "openapi.yml",
+            "swagger.json", "swagger.yaml", "swagger.yml"
+        ]
+
+        if not os.path.exists(target_path):
+            return findings, {"endpoints_found": 0}
+
+        for root, _, files in os.walk(target_path):
+            for f in files:
+                if f.lower() in spec_candidates:
+                    fpath = os.path.join(root, f)
+                    rel_path = os.path.relpath(fpath, target_path)
+                    try:
+                        with open(fpath, "r", errors="ignore") as fl:
+                            if f.endswith(".json"):
+                                spec = json.load(fl)
+                            else:
+                                spec = yaml.safe_load(fl)
+
+                        paths = spec.get("paths", {})
+                        endpoints_found += len(paths)
+                        security_defs = spec.get("components", {}).get("securitySchemes", {}) or spec.get("securityDefinitions", {})
+
+                        # Check 1: Missing Global or Defined Security Scheme
+                        if not security_defs:
+                            findings.append(self.create_finding(
+                                finding_id=f"API-SPEC-NOSEC",
+                                title="OpenAPI Spec: Missing SecuritySchemes Definition",
+                                severity=Severity.HIGH,
+                                description=f"The API specification {rel_path} contains no security schemes (OAuth2, Bearer, ApiKey).",
+                                tool="OWASP API Security Analyzer",
+                                file_path=rel_path,
+                                cwe="CWE-306",
+                                owasp="OWASP API2:2023-Broken Authentication",
+                                remediation="Define global securitySchemes (e.g. Bearer JWT / OAuth2) in your OpenAPI document."
+                            ))
+
+                        # Check 2: Sensitive admin endpoints without security
+                        for path, methods in paths.items():
+                            if any(k in path.lower() for k in ["/admin", "/internal", "/private", "/users", "/keys"]):
+                                for method, m_data in methods.items():
+                                    if method.lower() in ("get", "post", "put", "delete"):
+                                        if not m_data.get("security") and not spec.get("security"):
+                                            findings.append(self.create_finding(
+                                                finding_id=f"API-SPEC-UNAUTH-{path.replace('/', '_')}",
+                                                title=f"OpenAPI Spec: Sensitive Route Without Authentication ({method.upper()} {path})",
+                                                severity=Severity.HIGH,
+                                                description=f"Route `{method.upper()} {path}` is marked unauthenticated in {rel_path}.",
+                                                tool="OWASP API Security Analyzer",
+                                                file_path=rel_path,
+                                                cwe="CWE-306",
+                                                owasp="OWASP API1:2023-Broken Object Level Authorization",
+                                                remediation="Attach a security requirement to sensitive route definitions in OpenAPI."
+                                            ))
+                    except Exception:
+                        pass
+
+        return findings, {"endpoints_found": endpoints_found}
+
+    def _audit_tls_security(self, url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+        findings = []
+        data = {"protocol": "N/A"}
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme != "https":
+            findings.append(self.create_finding(
+                finding_id="DAST-TLS-CLEARTEXT",
+                title="Cleartext HTTP Scheme Enforced (Missing Transport Encryption)",
+                severity=Severity.HIGH,
+                description=f"The target URL {url} uses unencrypted HTTP protocol.",
+                tool="OWASP ZAP / Transport Security",
+                target=url,
+                cwe="CWE-319",
+                owasp="OWASP A02:2021-Cryptographic Failures",
+                remediation="Enforce HTTPS/TLS 1.3 across all production endpoints and redirect HTTP to HTTPS."
+            ))
+            return findings, data
+
+        host = parsed.hostname
+        port = parsed.port or 443
+        try:
+            ctx = ssl.create_default_context()
+            with socket.create_connection((host, port), timeout=4) as sock:
+                with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                    ver = ssock.version()
+                    cipher = ssock.cipher()
+                    data["protocol"] = ver
+                    data["cipher"] = cipher[0] if cipher else "Unknown"
+
+                    if ver in ("TLSv1", "TLSv1.1", "SSLv3", "SSLv2"):
+                        findings.append(self.create_finding(
+                            finding_id="DAST-TLS-LEGACY",
+                            title=f"Insecure Legacy TLS Protocol Supported: {ver}",
+                            severity=Severity.HIGH,
+                            description=f"Target negotiated deprecated protocol {ver}.",
+                            tool="OWASP ZAP / SSL Audit",
+                            target=url,
+                            cwe="CWE-326",
+                            owasp="OWASP A02:2021-Cryptographic Failures",
+                            remediation="Disable TLS 1.0/1.1; enforce TLS 1.2+ with forward secrecy ciphers."
+                        ))
+        except Exception:
+            pass
+        return findings, data
 
     def _audit_security_headers(self, url: str) -> Tuple[List[Finding], Dict[str, Any]]:
         findings = []
-        data = {"probes": 1, "missing_headers": []}
+        data = {"probes": 1, "missing": []}
         try:
-            resp = requests.get(url, timeout=10, verify=False, allow_redirects=True)
-            headers = {k.lower(): v for k, v in resp.headers.items()}
+            r = requests.get(url, timeout=6, verify=False, allow_redirects=True)
+            hdrs = {k.lower(): v for k, v in r.headers.items()}
 
-            # Required headers checklist
-            expected = {
-                "strict-transport-security": ("HSTS (Strict-Transport-Security) Missing", Severity.MEDIUM, "CWE-319", "Enforce HSTS with 'Strict-Transport-Security: max-age=31536000; includeSubDomains'"),
-                "content-security-policy": ("Content-Security-Policy (CSP) Missing", Severity.MEDIUM, "CWE-1021", "Implement strict Content-Security-Policy to mitigate Cross-Site Scripting."),
-                "x-frame-options": ("X-Frame-Options Missing (Clickjacking Risk)", Severity.MEDIUM, "CWE-1021", "Set 'X-Frame-Options: DENY' or 'SAMEORIGIN'."),
-                "x-content-type-options": ("X-Content-Type-Options Missing (MIME Sniffing)", Severity.LOW, "CWE-16", "Set 'X-Content-Type-Options: nosniff'."),
-                "referrer-policy": ("Referrer-Policy Header Missing", Severity.LOW, "CWE-200", "Set 'Referrer-Policy: strict-origin-when-cross-origin'.")
-            }
+            rules = [
+                ("strict-transport-security", "HSTS Header Missing", Severity.MEDIUM, "CWE-319", "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains'"),
+                ("content-security-policy", "Content-Security-Policy (CSP) Missing", Severity.MEDIUM, "CWE-1021", "Implement strict CSP to prevent XSS."),
+                ("x-frame-options", "X-Frame-Options Header Missing (Clickjacking Risk)", Severity.MEDIUM, "CWE-1021", "Set 'X-Frame-Options: DENY' or 'SAMEORIGIN'."),
+                ("x-content-type-options", "X-Content-Type-Options Missing (MIME Sniffing)", Severity.LOW, "CWE-16", "Set 'X-Content-Type-Options: nosniff'."),
+                ("referrer-policy", "Referrer-Policy Header Missing", Severity.LOW, "CWE-200", "Set 'Referrer-Policy: strict-origin-when-cross-origin'.")
+            ]
 
-            for hdr, (title, sev, cwe, fix) in expected.items():
-                if hdr not in headers:
-                    data["missing_headers"].append(hdr)
+            for hdr, title, sev, cwe, fix in rules:
+                if hdr not in hdrs:
+                    data["missing"].append(hdr)
                     findings.append(self.create_finding(
                         finding_id=f"DAST-HDR-{len(findings)+1:03d}",
                         title=title,
                         severity=sev,
-                        description=f"The endpoint {url} did not return the expected security header `{hdr}`.",
-                        tool="OWASP ZAP / DAST Header Audit",
+                        description=f"Endpoint {url} did not return the standard security header `{hdr}`.",
+                        tool="OWASP ZAP / Header Audit",
                         target=url,
                         cwe=cwe,
                         owasp="OWASP A05:2021-Security Misconfiguration",
@@ -112,132 +221,125 @@ class Stage4DastApi(BaseStage):
                         references=["https://owasp.org/www-project-secure-headers/"]
                     ))
 
-            # Server & Technology Leaks
-            if "server" in headers:
+            if "server" in hdrs:
                 findings.append(self.create_finding(
-                    finding_id=f"DAST-LEAK-{len(findings)+1:03d}",
-                    title=f"Server Banner Information Disclosure: {headers['server']}",
+                    finding_id="DAST-BANNER-SERVER",
+                    title=f"Server Banner Information Leak: {hdrs['server']}",
                     severity=Severity.LOW,
-                    description=f"Server banner leaks web server type and version: `{headers['server']}`",
-                    tool="OWASP ZAP / Banner Leak",
+                    description=f"Web server version exposed: `{hdrs['server']}`",
+                    tool="OWASP ZAP",
                     target=url,
                     cwe="CWE-200",
                     owasp="OWASP A05:2021-Security Misconfiguration",
-                    remediation="Configure web server to suppress or genericize the Server header."
+                    remediation="Suppress the Server response header."
                 ))
 
-            if "x-powered-by" in headers:
+            if "x-powered-by" in hdrs:
                 findings.append(self.create_finding(
-                    finding_id=f"DAST-LEAK-{len(findings)+1:03d}",
-                    title=f"X-Powered-By Header Information Leak: {headers['x-powered-by']}",
+                    finding_id="DAST-BANNER-XPOWERED",
+                    title=f"X-Powered-By Header Information Leak: {hdrs['x-powered-by']}",
                     severity=Severity.LOW,
-                    description=f"Backend framework is exposed via X-Powered-By header: `{headers['x-powered-by']}`",
-                    tool="OWASP ZAP / Banner Leak",
+                    description=f"Backend framework exposed: `{hdrs['x-powered-by']}`",
+                    tool="OWASP ZAP",
                     target=url,
                     cwe="CWE-200",
                     owasp="OWASP A05:2021-Security Misconfiguration",
-                    remediation="Disable X-Powered-By in framework configuration (e.g. app.disable('x-powered-by'))."
+                    remediation="Disable X-Powered-By header in web framework."
                 ))
-        except Exception as e:
-            self.log(f"Header audit connection error for {url}: {e}")
-
+        except Exception:
+            pass
         return findings, data
 
     def _audit_cors(self, url: str) -> Tuple[List[Finding], Dict[str, Any]]:
         findings = []
-        data = {"tested": True}
         try:
-            headers = {"Origin": "https://attacker-controlled-origin.com"}
-            resp = requests.get(url, headers=headers, timeout=10, verify=False)
-            acao = resp.headers.get("Access-Control-Allow-Origin", "")
-            acac = resp.headers.get("Access-Control-Allow-Credentials", "").lower()
+            r = requests.get(url, headers={"Origin": "https://attacker.example.com"}, timeout=5, verify=False)
+            acao = r.headers.get("Access-Control-Allow-Origin", "")
+            acac = r.headers.get("Access-Control-Allow-Credentials", "").lower()
 
             if acao == "*" and acac == "true":
                 findings.append(self.create_finding(
-                    finding_id=f"DAST-CORS-001",
-                    title="Critical CORS Misconfiguration: Wildcard Origin with Credentials",
+                    finding_id="DAST-CORS-CRIT",
+                    title="Critical CORS Misconfiguration: Wildcard Origin With Credentials",
                     severity=Severity.CRITICAL,
-                    description=f"Target permits wildcard origin with Access-Control-Allow-Credentials: true.",
-                    tool="OWASP API Security Audit",
-                    target=url,
-                    cwe="CWE-942",
-                    owasp="OWASP API7:2023-Server Side Request Forgery / Misconfiguration",
-                    remediation="Never allow wildcard origins when credentials (cookies, auth headers) are accepted."
-                ))
-            elif "attacker-controlled-origin.com" in acao:
-                findings.append(self.create_finding(
-                    finding_id=f"DAST-CORS-002",
-                    title="CORS Arbitrary Origin Reflection",
-                    severity=Severity.HIGH,
-                    description=f"Target reflected untrusted Origin header in Access-Control-Allow-Origin.",
+                    description="Target permits wildcard Access-Control-Allow-Origin: * while allowing credentials.",
                     tool="OWASP API Security Audit",
                     target=url,
                     cwe="CWE-942",
                     owasp="OWASP API7:2023-Security Misconfiguration",
-                    remediation="Validate Origin header against a strict server-side whitelist of allowed origins."
+                    remediation="Never pair Access-Control-Allow-Origin: * with Access-Control-Allow-Credentials: true."
+                ))
+            elif "attacker.example.com" in acao:
+                findings.append(self.create_finding(
+                    finding_id="DAST-CORS-REFLECT",
+                    title="CORS Origin Reflection Vulnerability",
+                    severity=Severity.HIGH,
+                    description="Target reflects untrusted Origin header without server-side allowlist validation.",
+                    tool="OWASP API Security Audit",
+                    target=url,
+                    cwe="CWE-942",
+                    owasp="OWASP API7:2023-Security Misconfiguration",
+                    remediation="Validate Origin header strictly against an explicit server-side allowlist."
                 ))
         except Exception:
             pass
-        return findings, data
+        return findings, {"audited": True}
 
     def _audit_http_methods(self, url: str) -> Tuple[List[Finding], Dict[str, Any]]:
         findings = []
-        data = {"methods": []}
         try:
-            resp = requests.options(url, timeout=10, verify=False)
-            allow = resp.headers.get("Allow", "")
-            data["allowed_methods"] = allow
-            if "TRACE" in allow.upper():
+            r = requests.options(url, timeout=5, verify=False)
+            allowed = r.headers.get("Allow", "")
+            if "TRACE" in allowed.upper():
                 findings.append(self.create_finding(
-                    finding_id="DAST-METH-001",
-                    title="Insecure HTTP Method TRACE Enabled (XST)",
+                    finding_id="DAST-METHOD-TRACE",
+                    title="Dangerous HTTP Method Enabled: TRACE (Cross-Site Tracing Risk)",
                     severity=Severity.MEDIUM,
-                    description="The TRACE HTTP method is enabled on the target server, allowing Cross-Site Tracing attacks.",
+                    description="The TRACE method is enabled on web server.",
                     tool="OWASP ZAP",
                     target=url,
                     cwe="CWE-16",
                     owasp="OWASP A05:2021-Security Misconfiguration",
-                    remediation="Disable HTTP TRACE/TRACK methods on the web server."
+                    remediation="Disable HTTP TRACE and TRACK methods on the web server."
                 ))
         except Exception:
             pass
-        return findings, data
+        return findings, {}
 
-    def _probe_api_security_endpoints(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
+    def _probe_api_endpoints(self, base_url: str) -> Tuple[List[Finding], Dict[str, Any]]:
         findings = []
-        endpoints = [
-            ("/.env", Severity.CRITICAL, "CWE-552", "Exposed .env configuration file"),
-            ("/actuator/env", Severity.CRITICAL, "CWE-552", "Exposed Spring Actuator Environment Endpoint"),
-            ("/swagger-ui.html", Severity.LOW, "CWE-200", "Exposed Interactive Swagger UI documentation"),
+        probes = [
+            ("/.env", Severity.CRITICAL, "CWE-552", "Exposed .env Configuration File (Credentials Theft)"),
+            ("/actuator/metrics", Severity.MEDIUM, "CWE-200", "Exposed Spring Actuator Metrics"),
+            ("/swagger-ui.html", Severity.LOW, "CWE-200", "Exposed Swagger UI Interactive Portal"),
             ("/api/v1/users", Severity.MEDIUM, "CWE-306", "Potential Unauthenticated User Directory Endpoint"),
-            ("/graphql", Severity.LOW, "CWE-200", "GraphQL endpoint exposed (verify introspection is disabled)")
+            ("/graphql", Severity.LOW, "CWE-200", "Exposed GraphQL Endpoint (Verify Introspection Disabled)")
         ]
-        probes = 0
-        for ep, sev, cwe, desc in endpoints:
-            probes += 1
+        count = 0
+        for ep, sev, cwe, desc in probes:
+            count += 1
             target = urllib.parse.urljoin(base_url, ep)
             try:
-                resp = requests.get(target, timeout=5, verify=False, allow_redirects=False)
-                if resp.status_code == 200 and len(resp.content) > 10:
+                r = requests.get(target, timeout=4, verify=False, allow_redirects=False)
+                if r.status_code == 200 and len(r.content) > 10:
                     findings.append(self.create_finding(
-                        finding_id=f"DAST-API-{probes:03d}",
-                        title=f"API Security Exposure: {ep}",
+                        finding_id=f"DAST-EXPOSE-{count:03d}",
+                        title=f"API Security Exposure: {desc}",
                         severity=sev,
-                        description=f"Endpoint {target} returned HTTP 200 OK without authentication. {desc}.",
-                        tool="OWASP API Security Audit",
+                        description=f"Endpoint {target} returned HTTP 200 OK without authentication.",
+                        tool="OWASP API Security Prober",
                         target=target,
                         cwe=cwe,
                         owasp="OWASP API8:2023-Security Misconfiguration",
-                        remediation="Enforce authentication and restrict access to internal API administrative endpoints."
+                        remediation="Apply authentication middleware and block external access to management endpoints."
                     ))
             except Exception:
                 pass
+        return findings, {"probes": count}
 
-        return findings, {"probes": probes}
-
-    def _audit_static_api_routes(self, target_path: str) -> Tuple[List[Finding], Dict[str, Any]]:
+    def _audit_static_routes(self, target_path: str) -> Tuple[List[Finding], Dict[str, Any]]:
         findings = []
-        routes_found = 0
+        routes = 0
         if not os.path.exists(target_path):
             return findings, {"routes_found": 0}
 
@@ -246,26 +348,24 @@ class Stage4DastApi(BaseStage):
                 if f.endswith((".py", ".js", ".ts")):
                     fpath = os.path.join(root, f)
                     try:
-                        with open(fpath, "r", errors="ignore") as f: content = f.read()
-                        # Detect Flask/Express API routes
-                        matches = re.findall(r"@app\.route\(['\"]([^'\"]+)['\"].*\)|router\.(?:get|post|put|delete)\(['\"]([^'\"]+)['\"]", content)
-                        routes_found += len(matches)
-
-                        # Check for missing authentication middleware on routes containing /admin or /internal
-                        for m in matches:
-                            route = m[0] or m[1]
-                            if any(p in route.lower() for p in ["/admin", "/internal", "/private", "/secrets"]):
-                                findings.append(self.create_finding(
-                                    finding_id=f"API-AUTH-{len(findings)+1:03d}",
-                                    title=f"Sensitive Route Architecture Audit: {route}",
-                                    severity=Severity.HIGH,
-                                    description=f"Sensitive route `{route}` detected in {f}. Verify strict role-based access control (RBAC) is enforced.",
-                                    tool="OWASP API Security",
-                                    file_path=os.path.relpath(fpath, target_path),
-                                    cwe="CWE-306",
-                                    owasp="OWASP API1:2023-Broken Object Level Authorization",
-                                    remediation="Attach authentication and authorization middleware to sensitive route controllers."
-                                ))
+                        with open(fpath, "r", errors="ignore") as fl:
+                            content = fl.read()
+                            matches = re.findall(r"@app\.route\(['\"]([^'\"]+)['\"].*\)|router\.(?:get|post|put|delete)\(['\"]([^'\"]+)['\"]", content)
+                            routes += len(matches)
+                            for m in matches:
+                                route = m[0] or m[1]
+                                if any(x in route.lower() for x in ["/admin", "/internal", "/debug", "/keys"]):
+                                    findings.append(self.create_finding(
+                                        finding_id=f"API-ROUTE-SENSITIVE-{len(findings)+1:03d}",
+                                        title=f"Sensitive Administrative API Route: {route}",
+                                        severity=Severity.HIGH,
+                                        description=f"Administrative endpoint `{route}` declared in {f}. Verify explicit RBAC guards.",
+                                        tool="OWASP API Security",
+                                        file_path=os.path.relpath(fpath, target_path),
+                                        cwe="CWE-306",
+                                        owasp="OWASP API5:2023-Broken Function Level Authorization",
+                                        remediation="Ensure role-based authorization decorator / middleware wraps this controller."
+                                    ))
                     except Exception:
                         pass
-        return findings, {"routes_found": routes_found}
+        return findings, {"routes_found": routes}

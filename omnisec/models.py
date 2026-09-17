@@ -1,5 +1,6 @@
 """
-Data models for OmniSec Product Security Lifecycle Orchestrator.
+Enterprise-Grade Data models for OmniSec Product Security Lifecycle Orchestrator.
+Supports SARIF 2.1.0, CycloneDX 1.5 SBOM, OWASP ASVS 4.0, WSTG 4.2, STRIDE, OpenSSF Scorecard, and MITRE ATT&CK.
 """
 
 from dataclasses import dataclass, field, asdict
@@ -19,25 +20,29 @@ class Severity(str, Enum):
 
     @property
     def weight(self) -> int:
-        weights = {
-            "CRITICAL": 10,
-            "HIGH": 7,
-            "MEDIUM": 4,
-            "LOW": 1,
-            "INFO": 0,
-        }
+        weights = {"CRITICAL": 10, "HIGH": 7, "MEDIUM": 4, "LOW": 1, "INFO": 0}
         return weights.get(self.value, 0)
 
     @property
     def color(self) -> str:
         colors = {
-            "CRITICAL": "#dc2626", # Red
-            "HIGH": "#ea580c",     # Orange
-            "MEDIUM": "#eab308",   # Yellow
-            "LOW": "#3b82f6",      # Blue
-            "INFO": "#64748b",     # Slate
+            "CRITICAL": "#ef4444",
+            "HIGH": "#f97316",
+            "MEDIUM": "#eab308",
+            "LOW": "#3b82f6",
+            "INFO": "#64748b",
         }
         return colors.get(self.value, "#64748b")
+
+    @property
+    def sarif_level(self) -> str:
+        if self.value in ("CRITICAL", "HIGH"):
+            return "error"
+        elif self.value == "MEDIUM":
+            return "warning"
+        elif self.value == "LOW":
+            return "note"
+        return "none"
 
 
 class FindingStatus(str, Enum):
@@ -65,7 +70,9 @@ class Finding:
     cwe: Optional[str] = None
     owasp: Optional[str] = None
     cvss_score: Optional[float] = None
+    mitre_attack: Optional[str] = None  # e.g., T1190, T1078
     remediation: str = ""
+    remediation_diff: Optional[str] = None  # Unified diff patch suggestion
     status: FindingStatus = FindingStatus.OPEN
     sla_days: int = 30
     discovered_at: str = field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
@@ -79,16 +86,40 @@ class Finding:
 
 
 @dataclass
+class SBOMComponent:
+    name: str
+    version: str
+    purl: str
+    ecosystem: str  # pypi, npm, golang, maven
+    license: Optional[str] = None
+    direct: bool = True
+    vulnerabilities: List[Dict[str, Any]] = field(default_factory=list)
+
+    def to_cyclonedx(self) -> Dict[str, Any]:
+        comp = {
+            "type": "library",
+            "name": self.name,
+            "version": self.version,
+            "purl": self.purl,
+            "bom-ref": self.purl
+        }
+        if self.license:
+            comp["licenses"] = [{"license": {"id": self.license}}]
+        return comp
+
+
+@dataclass
 class ThreatItem:
     id: str
     title: str
-    category: str  # STRIDE: Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege
+    category: str  # STRIDE: Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege
     component: str
     severity: Severity
     description: str
     impact: str
     mitigation: str
-    status: str = "Identified"  # Identified, Mitigated, Accepted
+    mitre_attack: str = "T1190"
+    status: str = "Identified"
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -103,7 +134,7 @@ class ASVSRequirement:
     level: int  # 1, 2, 3
     description: str
     cwe: str
-    status: str  # PASS, FAIL, MANUAL_VERIFY, NA
+    status: str = "MANUAL_VERIFY"  # PASS, FAIL, MANUAL_VERIFY, NA
     evidence: str = ""
     remediation: str = ""
 
@@ -116,7 +147,7 @@ class WSTGChecklist:
     id: str
     category: str
     name: str
-    status: str = "UNTESTED"
+    status: str = "UNTESTED"  # PASS, FAIL, UNTESTED, NA
     tester_notes: str = ""
     evidence: str = ""
 
@@ -181,6 +212,7 @@ class OmniSecReport:
     severity_counts: Dict[str, int]
     overall_score: float
     gate_verdict: GateVerdict
+    sbom_components: List[SBOMComponent] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -196,4 +228,5 @@ class OmniSecReport:
             "stage_results": {k: v.to_dict() for k, v in self.stage_results.items()},
             "total_findings": len(self.all_findings),
             "findings": [f.to_dict() for f in self.all_findings],
+            "sbom_components": [asdict(c) for c in self.sbom_components]
         }

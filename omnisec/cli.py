@@ -1,6 +1,6 @@
 """
-Main Command Line Interface for OmniSec.
-Supports automated CLI scans, interactive terminal wizard, and web dashboard mode.
+Main Command Line Interface for OmniSec (Advanced Enterprise Edition).
+Supports automated CLI scans, interactive terminal wizard, CI/CD pipeline gating, and web dashboard.
 """
 
 import sys
@@ -12,11 +12,13 @@ from omnisec import __version__
 from omnisec.config import OmniSecConfig, STAGE_METADATA
 from omnisec.runner import OmniSecRunner
 from omnisec.models import Severity
-from omnisec.reporters import HtmlReporter, JsonReporter, MarkdownReporter
+from omnisec.reporters import (
+    HtmlReporter, JsonReporter, MarkdownReporter,
+    SarifReporter, CycloneDXReporter
+)
 from omnisec.web.server import start_server
 
 
-# ANSI Colors for terminal output
 class Colors:
     BLUE = "\033[94m"
     CYAN = "\033[96m"
@@ -35,9 +37,10 @@ BANNER = rf"""{Colors.CYAN}{Colors.BOLD}
  | |  | | '_ ` _ \| '_ \| || |\___ \ / _ \/ __| 
  | |__| | | | | | | | | | || |____) |  __/ (__  
   \____/|_| |_| |_|_| |_|_||_|_____/ \___|\___| 
-{Colors.BLUE}   Unified Product Security Lifecycle Engine (v{__version__})
-   1: Threat Model | 2: ASVS | 3: SAST/SCA/Secrets | 4: DAST/API
-   5: WSTG Manual  | 6: VAPT | 7: Fix & Retest     | 8: Signoff | 9: Wazuh
+{Colors.BLUE}   Enterprise Product Security Lifecycle Platform (v{__version__})
+   1: Threat Model (STRIDE)  | 2: ASVS Requirements  | 3: SAST/SCA/Secrets
+   4: DAST & API Security    | 5: WSTG Manual Tests   | 6: VAPT & Attack Surface
+   7: DefectDojo Fix/Retest  | 8: OpenSSF Signoff    | 9: Wazuh & Sigma SIEM
 {Colors.RESET}"""
 
 
@@ -46,7 +49,7 @@ def print_banner():
 
 
 def print_stage_catalog():
-    print(f"\n{Colors.BOLD}📋 Supported Product Security Stages:{Colors.RESET}")
+    print(f"\n{Colors.BOLD}📋 Supported Enterprise Product Security Stages:{Colors.RESET}")
     print(f"{'#':<3} {'Stage Name':<32} {'Recommended Tool(s)':<35} {'What it covers'}")
     print("-" * 110)
     for s_id, meta in sorted(STAGE_METADATA.items()):
@@ -58,15 +61,15 @@ def run_interactive_wizard():
     print_banner()
     print(f"{Colors.BOLD}🧙 OmniSec Interactive Setup & Execution Wizard{Colors.RESET}\n")
 
-    project_name = input(f"{Colors.BOLD}Enter Project Name{Colors.RESET} [My Application Security Audit]: ").strip()
+    project_name = input(f"{Colors.BOLD}Enter Project Name{Colors.RESET} [Enterprise Application Audit]: ").strip()
     if not project_name:
-        project_name = "My Application Security Audit"
+        project_name = "Enterprise Application Audit"
 
     target_path = input(f"{Colors.BOLD}Target Source Code Directory{Colors.RESET} [.]: ").strip()
     if not target_path:
         target_path = "."
 
-    target_url = input(f"{Colors.BOLD}Live Target URL / API (Optional for DAST & VAPT){Colors.RESET} [none]: ").strip()
+    target_url = input(f"{Colors.BOLD}Live Target URL / API Endpoint (Optional for DAST & VAPT){Colors.RESET} [none]: ").strip()
     if not target_url:
         target_url = None
 
@@ -75,7 +78,7 @@ def run_interactive_wizard():
         output_dir = "./reports"
 
     print(f"\n{Colors.BOLD}Select which stages you want to perform:{Colors.RESET}")
-    print(" [A] ALL 9 Stages (Complete End-to-End Product Security Lifecycle)")
+    print(" [A] ALL 9 Stages (Complete End-to-End Enterprise Lifecycle)")
     for s_id, meta in sorted(STAGE_METADATA.items()):
         print(f" [{s_id}] Stage {s_id}: {meta['name']} ({meta['recommended_repo']})")
 
@@ -104,9 +107,9 @@ def run_interactive_wizard():
     execute_pipeline(cfg, selected_stages)
 
 
-def execute_pipeline(config: OmniSecConfig, stages_to_run: List[int]):
-    print(f"{Colors.BOLD}🚀 Launching OmniSec Pipeline...{Colors.RESET}")
-    print(f"   Project: {config.project_name}")
+def execute_pipeline(config: OmniSecConfig, stages_to_run: List[int], fail_on_gate: bool = False):
+    print(f"{Colors.BOLD}🚀 Launching OmniSec Enterprise Pipeline...{Colors.RESET}")
+    print(f"   Project:     {config.project_name}")
     print(f"   Target Code: {os.path.abspath(config.target_path)}")
     if config.target_url:
         print(f"   Target URL:  {config.target_url}")
@@ -131,48 +134,61 @@ def execute_pipeline(config: OmniSecConfig, stages_to_run: List[int]):
     runner = OmniSecRunner(config, event_callback=event_logger)
     report = runner.run(selected_stages=stages_to_run)
 
-    # Generate Reports
+    # Generate All Industry Standard Reports
     os.makedirs(config.output_dir, exist_ok=True)
     html_file = os.path.join(config.output_dir, "omnisec-report.html")
     json_file = os.path.join(config.output_dir, "omnisec-report.json")
     md_file = os.path.join(config.output_dir, "omnisec-report.md")
+    sarif_file = os.path.join(config.output_dir, "omnisec-results.sarif")
+    sbom_file = os.path.join(config.output_dir, "cyclonedx-sbom.json")
 
     HtmlReporter.generate(report, html_file)
     JsonReporter.generate(report, json_file)
     MarkdownReporter.generate(report, md_file)
+    SarifReporter.generate(report, sarif_file)
+    CycloneDXReporter.generate(report, sbom_file)
 
     # Terminal Executive Summary
-    print(f"\n" + "=" * 70)
+    print(f"\n" + "=" * 76)
     verdict_color = Colors.GREEN if report.gate_verdict.status == "APPROVED" else (Colors.YELLOW if report.gate_verdict.status == "CONDITIONAL_APPROVAL" else Colors.RED)
     print(f"{Colors.BOLD}🛡️  SECURITY RELEASE GATE DECISION: {verdict_color}{report.gate_verdict.status}{Colors.RESET}")
     print(f"   Security Posture Score: {verdict_color}{report.overall_score:.1f} / 100{Colors.RESET}")
     print(f"   Findings Breakdown:     {Colors.RED}CRITICAL: {report.severity_counts.get('CRITICAL', 0)}{Colors.RESET} | {Colors.YELLOW}HIGH: {report.severity_counts.get('HIGH', 0)}{Colors.RESET} | MEDIUM: {report.severity_counts.get('MEDIUM', 0)} | LOW: {report.severity_counts.get('LOW', 0)}")
+    print(f"   SBOM Dependencies:      {Colors.CYAN}{len(report.sbom_components)} packages tracked{Colors.RESET}")
     print(f"   Audit Certificate Hash: {Colors.CYAN}{report.gate_verdict.signoff_hash[:32]}...{Colors.RESET}")
-    print("=" * 70)
-    print(f"\n{Colors.BOLD}📄 Generated Reports:{Colors.RESET}")
-    print(f"   🌐 Interactive HTML: {Colors.CYAN}{html_file}{Colors.RESET}")
-    print(f"   📝 Markdown Summary: {Colors.CYAN}{md_file}{Colors.RESET}")
-    print(f"   📊 Machine JSON:     {Colors.CYAN}{json_file}{Colors.RESET}")
+    print("=" * 76)
+    print(f"\n{Colors.BOLD}📄 Generated Industry-Standard Artifacts:{Colors.RESET}")
+    print(f"   🌐 Interactive HTML:   {Colors.CYAN}{html_file}{Colors.RESET}")
+    print(f"   📦 CycloneDX 1.5 SBOM: {Colors.CYAN}{sbom_file}{Colors.RESET}")
+    print(f"   📥 OASIS SARIF 2.1.0:  {Colors.CYAN}{sarif_file}{Colors.RESET}")
+    print(f"   📝 Markdown Summary:   {Colors.CYAN}{md_file}{Colors.RESET}")
+    print(f"   📊 Machine JSON:       {Colors.CYAN}{json_file}{Colors.RESET}")
     if os.path.exists(os.path.join(config.output_dir, "defectdojo-findings.json")):
-        print(f"   🎯 DefectDojo Sync:  {Colors.CYAN}{os.path.join(config.output_dir, 'defectdojo-findings.json')}{Colors.RESET}")
+        print(f"   🎯 DefectDojo Sync:    {Colors.CYAN}{os.path.join(config.output_dir, 'defectdojo-findings.json')}{Colors.RESET}")
     if os.path.exists(os.path.join(config.output_dir, "threat-dragon-model.json")):
-        print(f"   📐 Threat Dragon:    {Colors.CYAN}{os.path.join(config.output_dir, 'threat-dragon-model.json')}{Colors.RESET}")
+        print(f"   📐 Threat Dragon v2:   {Colors.CYAN}{os.path.join(config.output_dir, 'threat-dragon-model.json')}{Colors.RESET}")
     if os.path.exists(os.path.join(config.output_dir, "wazuh-local_rules.xml")):
-        print(f"   🛡️ Wazuh SIEM XML:   {Colors.CYAN}{os.path.join(config.output_dir, 'wazuh-local_rules.xml')}{Colors.RESET}\n")
+        print(f"   🛡️ Wazuh SIEM XML:     {Colors.CYAN}{os.path.join(config.output_dir, 'wazuh-local_rules.xml')}{Colors.RESET}")
+    if os.path.exists(os.path.join(config.output_dir, "sigma-rules.yml")):
+        print(f"   ⚡ Sigma YAML Rules:   {Colors.CYAN}{os.path.join(config.output_dir, 'sigma-rules.yml')}{Colors.RESET}\n")
+
+    if fail_on_gate and report.gate_verdict.status == "BLOCKED":
+        print(f"{Colors.RED}❌ CI Gate Failed: Release blocked by security gatekeeper policy.{Colors.RESET}")
+        sys.exit(1)
 
     return report
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="OmniSec - Unified 9-Stage Product Security Lifecycle Orchestrator",
+        description="OmniSec - Unified 9-Stage Product Security Lifecycle Platform",
         formatter_class=argparse.RawTextHelpFormatter
     )
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
 
     # Command: scan
     scan_parser = subparsers.add_parser("scan", help="Run security audit pipeline")
-    scan_parser.add_argument("-p", "--project", default="Product Security Audit", help="Project name")
+    scan_parser.add_argument("-p", "--project", default="Enterprise Security Audit", help="Project name")
     scan_parser.add_argument("-t", "--target", default=".", help="Target source code directory")
     scan_parser.add_argument("-u", "--url", default=None, help="Live target URL / API endpoint")
     scan_parser.add_argument("-o", "--output", default="./reports", help="Output directory for reports")
@@ -181,6 +197,11 @@ def main():
         "-s", "--stages",
         default="all",
         help="Comma-separated stage IDs (e.g. '1,2,3' or '3,4,6') or 'all' [default: all]"
+    )
+    scan_parser.add_argument(
+        "--fail-on-gate",
+        action="store_true",
+        help="Exit with non-zero status code if release gate is BLOCKED (for CI/CD gates)"
     )
 
     # Command: interactive
@@ -240,7 +261,7 @@ def main():
         if not stages:
             stages = list(range(1, 10))
 
-        execute_pipeline(cfg, stages)
+        execute_pipeline(cfg, stages, fail_on_gate=args.fail_on_gate)
         return
 
     parser.print_help()

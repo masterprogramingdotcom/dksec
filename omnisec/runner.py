@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional, Callable
 from omnisec.config import OmniSecConfig, STAGE_METADATA
 from omnisec.models import (
     StageResult, Finding, Severity, FindingStatus,
-    GateVerdict, OmniSecReport
+    GateVerdict, OmniSecReport, SBOMComponent
 )
 from omnisec.stages import get_stage_instance
 
@@ -22,7 +22,8 @@ class OmniSecRunner:
         self.context: Dict[str, Any] = {
             "stage_results": {},
             "all_findings": [],
-            "deduped_findings": []
+            "deduped_findings": [],
+            "sbom_components": []
         }
 
     def emit(self, event_type: str, **kwargs):
@@ -32,7 +33,6 @@ class OmniSecRunner:
     def run(self, selected_stages: Optional[List[int]] = None) -> OmniSecReport:
         start_time = time.time()
         
-        # Determine stages to run
         stages_to_run = selected_stages or [
             s_id for s_id in range(1, 10)
             if self.config.stages.get(s_id) and self.config.stages[s_id].enabled
@@ -53,7 +53,6 @@ class OmniSecRunner:
                 stage_results[stage_id] = res
                 self.context["stage_results"][stage_id] = res
 
-                # Collect findings
                 all_raw_findings.extend(res.findings)
                 self.context["all_findings"] = all_raw_findings
 
@@ -81,7 +80,6 @@ class OmniSecRunner:
                 stage_results[stage_id] = res
                 self.context["stage_results"][stage_id] = res
 
-        # Post-run aggregation & Gate Verdict calculation
         total_duration = time.time() - start_time
         deduped = self.context.get("deduped_findings") or all_raw_findings
 
@@ -92,13 +90,11 @@ class OmniSecRunner:
 
         overall_score = self.context.get("overall_score")
         if overall_score is None:
-            # Fallback score calculation if stage 8 was not run
             penalty = (counts["CRITICAL"] * 15) + (counts["HIGH"] * 5) + (counts["MEDIUM"] * 2)
             overall_score = max(0.0, min(100.0, 100.0 - penalty))
 
         verdict = self.context.get("gate_verdict")
         if verdict is None:
-            # Generate default verdict
             approved = counts["CRITICAL"] == 0 and counts["HIGH"] == 0
             verdict = GateVerdict(
                 approved=approved,
@@ -111,6 +107,8 @@ class OmniSecRunner:
                 timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat()
             )
 
+        sbom_components = self.context.get("sbom_components", [])
+
         report = OmniSecReport(
             project_name=self.config.project_name,
             target_path=self.config.target_path,
@@ -122,7 +120,8 @@ class OmniSecRunner:
             all_findings=deduped,
             severity_counts=counts,
             overall_score=round(overall_score, 1),
-            gate_verdict=verdict
+            gate_verdict=verdict,
+            sbom_components=sbom_components
         )
 
         self.emit("run_completed", total_findings=len(deduped), overall_score=report.overall_score)
