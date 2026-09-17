@@ -26,8 +26,10 @@ CURRENT_RUN = {
     "logs": [],
     "last_report": None,
     "report_dir": "./reports",
-    "report_html_path": None
+    "report_html_path": None,
+    "report_summary": None,
 }
+
 
 
 class DKSecWebHandler(BaseHTTPRequestHandler):
@@ -164,318 +166,680 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             """
 
         html = f"""<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
-  <title>DKSec - Enterprise Product Security Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DKSec - Enterprise Security Platform</title>
   <style>
     :root {{
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --card-inner: #f1f5f9;
+      --card-hover: #f8fafc;
+      --card-selected: #eff6ff;
+      --border: #e2e8f0;
+      --border-focus: #3b82f6;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --heading: #0f172a;
+      --text: #334155;
+      --muted: #64748b;
+      --input-bg: #ffffff;
+      --input-text: #0f172a;
+      --console-bg: #0f172a;
+      --console-text: #e2e8f0;
+      --tab-bg: #e2e8f0;
+      --tab-btn-bg: transparent;
+      --tab-btn-text: #475569;
+      --tab-btn-active-bg: #ffffff;
+      --tab-btn-active-text: #2563eb;
+      --tag-bg: #dbeafe;
+      --tag-text: #1d4ed8;
+      --shadow: 0 4px 14px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.04);
+      --guide-bg: #eff6ff;
+      --guide-border: #bfdbfe;
+    }}
+    [data-theme="dark"] {{
       --bg: #0b0f19;
       --card: #131b2e;
       --card-inner: #0d1424;
       --card-hover: #1c2742;
+      --card-selected: #14203a;
       --border: #233252;
+      --border-focus: #3b82f6;
       --accent: #3b82f6;
       --accent-hover: #1d4ed8;
-      --text: #f1f5f9;
       --heading: #ffffff;
+      --text: #cbd5e1;
       --muted: #94a3b8;
-      --green: #10b981;
       --input-bg: #090d16;
       --input-text: #ffffff;
-      --card-selected: #14203a;
-      --stage-badge-bg: #233252;
-      --stage-badge-text: #93c5fd;
-      --stage-tool-text: #60a5fa;
       --console-bg: #090d16;
       --console-text: #94a3b8;
-      --btn-preset-bg: #1a253e;
-      --btn-preset-text: #cbd5e1;
-      --btn-secondary-bg: #1e293b;
-      --btn-secondary-text: #cbd5e1;
-      --progress-track: #090d16;
-      --dl-btn-bg: #162238;
-      --dl-btn-text: #e2e8f0;
-      --shadow: 0 4px 12px rgba(0,0,0,0.4);
-    }}
-    [data-theme="light"] {{
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --card-inner: #ffffff;
-      --card-hover: #f1f5f9;
-      --border: #cbd5e1;
-      --accent: #2563eb;
-      --accent-hover: #1d4ed8;
-      --text: #1e293b;
-      --heading: #0f172a;
-      --muted: #64748b;
-      --green: #059669;
-      --input-bg: #ffffff;
-      --input-text: #0f172a;
-      --card-selected: #eff6ff;
-      --stage-badge-bg: #dbeafe;
-      --stage-badge-text: #1d4ed8;
-      --stage-tool-text: #2563eb;
-      --console-bg: #f8fafc;
-      --console-text: #334155;
-      --btn-preset-bg: #f1f5f9;
-      --btn-preset-text: #334155;
-      --btn-secondary-bg: #f1f5f9;
-      --btn-secondary-text: #334155;
-      --progress-track: #e2e8f0;
-      --dl-btn-bg: #f1f5f9;
-      --dl-btn-text: #1e293b;
-      --shadow: 0 4px 16px rgba(0,0,0,0.06);
+      --tab-bg: #090d16;
+      --tab-btn-bg: transparent;
+      --tab-btn-text: #94a3b8;
+      --tab-btn-active-bg: #1e293b;
+      --tab-btn-active-text: #60a5fa;
+      --tag-bg: #1e293b;
+      --tag-text: #93c5fd;
+      --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      --guide-bg: #101c36;
+      --guide-border: #1e3a8a;
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
-    body {{ background: var(--bg); color: var(--text); padding: 28px 20px; line-height: 1.5; transition: background 0.2s, color 0.2s; }}
-    .container {{ max-width: 1180px; margin: 0 auto; }}
-    header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 18px; flex-wrap: wrap; gap: 16px; }}
-    .logo {{ display: flex; align-items: center; gap: 14px; }}
-    .shield {{ background: linear-gradient(135deg, #2563eb, #1d4ed8); width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(37,99,235,0.4); }}
-    .panel {{ background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 22px; box-shadow: var(--shadow); transition: background 0.2s, border-color 0.2s; }}
-    h2 {{ font-size: 17px; margin-bottom: 14px; color: var(--heading); display: flex; align-items: center; gap: 8px; }}
+    body {{ background: var(--bg); color: var(--text); padding: 24px 16px; line-height: 1.5; transition: background 0.2s, color 0.2s; }}
+    .container {{ max-width: 1140px; margin: 0 auto; }}
+    
+    header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 16px; flex-wrap: wrap; gap: 14px; }}
+    .logo {{ display: flex; align-items: center; gap: 12px; }}
+    .shield {{ background: linear-gradient(135deg, #2563eb, #1d4ed8); width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 4px 12px rgba(37,99,235,0.3); color: #fff; }}
+    
+    /* Guide Banner */
+    .guide-banner {{ display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 12px; background: var(--guide-bg); border: 1px solid var(--guide-border); border-radius: 12px; padding: 14px 18px; margin-bottom: 22px; }}
+    .guide-step {{ display: flex; align-items: flex-start; gap: 10px; }}
+    .step-num {{ background: #2563eb; color: #fff; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }}
+    .step-content strong {{ display: block; font-size: 13px; color: var(--heading); margin-bottom: 2px; }}
+    .step-content span {{ font-size: 12px; color: var(--muted); }}
+    .guide-arrow {{ color: var(--muted); font-size: 16px; font-weight: bold; text-align: center; }}
+    @media (max-width: 768px) {{
+      .guide-banner {{ grid-template-columns: 1fr; gap: 10px; }}
+      .guide-arrow {{ display: none; }}
+    }}
 
-    .preset-bar {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }}
-    .btn-preset {{ background: var(--btn-preset-bg); border: 1px solid var(--border); color: var(--btn-preset-text); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }}
-    .btn-preset:hover {{ background: var(--card-hover); color: var(--heading); }}
-    .btn-preset.active {{ background: #2563eb; color: #fff; border-color: #3b82f6; }}
+    /* Tab Navigation */
+    .tabs-nav {{ display: flex; background: var(--tab-bg); padding: 4px; border-radius: 10px; gap: 4px; margin-bottom: 20px; overflow-x: auto; }}
+    .tab-btn {{ flex: 1; padding: 10px 16px; border: none; background: var(--tab-btn-bg); color: var(--tab-btn-text); font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 8px; }}
+    .tab-btn:hover {{ color: var(--heading); }}
+    .tab-btn.active {{ background: var(--tab-btn-active-bg); color: var(--tab-btn-active-text); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }}
 
-    .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }}
+    /* Tab Panels */
+    .tab-pane {{ display: none; }}
+    .tab-pane.active {{ display: block; }}
+    
+    .panel {{ background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 22px; box-shadow: var(--shadow); }}
+    .section-title {{ margin-bottom: 18px; }}
+    .section-title h3 {{ font-size: 18px; color: var(--heading); display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }}
+    .section-desc {{ font-size: 13px; color: var(--muted); }}
+
+    /* Cards & Option Grids */
+    .field-card {{ background: var(--card-inner); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }}
+    .field-label {{ display: block; font-size: 13px; font-weight: 700; color: var(--heading); margin-bottom: 6px; }}
+    .field-hint {{ font-size: 12px; color: var(--muted); margin-top: 4px; display: block; }}
+    .required {{ color: #ef4444; }}
+    
+    .text-input {{ width: 100%; background: var(--input-bg); border: 1px solid var(--border); color: var(--input-text); padding: 10px 14px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }}
+    .text-input:focus {{ outline: none; border-color: var(--border-focus); }}
+    
+    .option-cards-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 8px; }}
+    .option-card {{ background: var(--card); border: 2px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; transition: all 0.2s; display: flex; gap: 12px; align-items: flex-start; }}
+    .option-card:hover {{ border-color: var(--accent); }}
+    .option-card.selected {{ border-color: #2563eb; background: var(--card-selected); }}
+    .opt-radio {{ margin-top: 2px; }}
+    .opt-body strong {{ display: block; font-size: 13px; color: var(--heading); margin-bottom: 4px; }}
+    .opt-body p {{ font-size: 12px; color: var(--muted); line-height: 1.4; margin-bottom: 6px; }}
+    .opt-tag {{ display: inline-block; background: var(--tag-bg); color: var(--tag-text); font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }}
+
+    /* Preset Grid */
+    .preset-cards-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }}
+    .preset-card {{ background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s; }}
+    .preset-card:hover {{ border-color: var(--accent); transform: translateY(-2px); }}
+    .preset-badge {{ display: inline-block; align-self: flex-start; background: var(--tag-bg); color: var(--tag-text); font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 6px; margin-bottom: 10px; text-transform: uppercase; }}
+    .preset-card h4 {{ font-size: 15px; color: var(--heading); margin-bottom: 6px; }}
+    .preset-card p {{ font-size: 12px; color: var(--muted); line-height: 1.4; margin-bottom: 12px; flex-grow: 1; }}
+    .preset-meta {{ font-size: 11px; color: var(--muted); margin-bottom: 14px; font-family: monospace; }}
+
+    /* Accordions */
+    .accordion {{ background: var(--card-inner); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }}
+    .accordion-summary {{ padding: 14px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; color: var(--heading); list-style: none; user-select: none; }}
+    .accordion-summary::-webkit-details-marker {{ display: none; }}
+    .accordion-subtext {{ font-size: 12px; font-weight: normal; color: var(--muted); }}
+    .accordion-content {{ padding: 16px; border-top: 1px solid var(--border); background: var(--card); }}
+
+    /* Forms */
+    .form-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }}
     .form-group {{ display: flex; flex-direction: column; gap: 6px; }}
-    label {{ font-size: 13px; font-weight: 600; color: var(--muted); }}
-    input[type="text"], input[type="password"], select {{ background: var(--input-bg); border: 1px solid var(--border); color: var(--input-text); padding: 9px 12px; border-radius: 8px; font-size: 13px; transition: border-color 0.2s; }}
-    input[type="text"]:focus, input[type="password"]:focus, select:focus {{ outline: none; border-color: var(--accent); }}
+    .form-group label {{ font-size: 12px; font-weight: 600; color: var(--muted); }}
+    select {{ background: var(--input-bg); border: 1px solid var(--border); color: var(--input-text); padding: 9px 12px; border-radius: 8px; font-size: 13px; }}
 
-    .stages-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
-    .stage-card {{ background: var(--card-inner); border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: flex; gap: 12px; cursor: pointer; transition: all 0.2s; }}
-    .stage-card:hover {{ border-color: var(--accent); background: var(--card-hover); }}
-    .stage-card.selected {{ border-color: #3b82f6; background: var(--card-selected); }}
-    .stage-cb input {{ width: 18px; height: 18px; cursor: pointer; margin-top: 2px; }}
-    .stage-hdr {{ display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }}
-    .stage-hdr strong {{ color: var(--heading); }}
-    .stage-badge {{ background: var(--stage-badge-bg); color: var(--stage-badge-text); font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; }}
-    .stage-tool {{ font-size: 12px; color: var(--stage-tool-text); font-family: monospace; margin-bottom: 4px; }}
-    .stage-desc {{ font-size: 12px; color: var(--muted); }}
-
-    .action-row {{ display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }}
-    .btn {{ padding: 10px 20px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }}
+    /* Buttons */
+    .btn {{ padding: 10px 18px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }}
     .btn-primary {{ background: #2563eb; color: #fff; }}
     .btn-primary:hover {{ background: #1d4ed8; }}
+    .btn-secondary {{ background: var(--card-inner); color: var(--heading); border: 1px solid var(--border); }}
+    .btn-secondary:hover {{ background: var(--card-hover); }}
     .btn-success {{ background: #10b981; color: #fff; }}
     .btn-success:hover {{ background: #059669; }}
-    .btn-secondary {{ background: var(--btn-secondary-bg); color: var(--btn-secondary-text); border: 1px solid var(--border); }}
-    .btn-secondary:hover {{ background: var(--card-hover); color: var(--heading); }}
-
-    #progressArea {{ display: none; }}
-    .progress-track {{ background: var(--progress-track); border: 1px solid var(--border); border-radius: 10px; height: 16px; overflow: hidden; margin: 14px 0; }}
-    .progress-fill {{ background: linear-gradient(90deg, #3b82f6, #10b981); height: 100%; width: 0%; transition: width 0.3s ease; }}
-    .console {{ background: var(--console-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; height: 220px; overflow-y: auto; color: var(--console-text); }}
-
-    .download-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 16px; }}
-    .dl-btn {{ background: var(--dl-btn-bg); border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; color: var(--dl-btn-text); font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }}
-    .dl-btn:hover {{ background: var(--card-hover); color: var(--heading); border-color: var(--accent); }}
+    .btn-lg {{ padding: 12px 24px; font-size: 14px; }}
+    .btn-block {{ width: 100%; }}
     
-    .auth-badge {{ font-size: 11px; padding: 3px 8px; border-radius: 6px; font-weight: 700; }}
-    .auth-badge.ok {{ background: rgba(16, 185, 129, 0.2); color: #059669; border: 1px solid #10b981; }}
-    .auth-badge.err {{ background: rgba(239, 68, 68, 0.2); color: #dc2626; border: 1px solid #ef4444; }}
-    .theme-toggle-btn {{ background: var(--btn-secondary-bg); color: var(--btn-secondary-text); border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }}
-    .theme-toggle-btn:hover {{ background: var(--card-hover); color: var(--heading); }}
+    .launch-card {{ display: flex; justify-content: space-between; align-items: center; background: var(--card-selected); border: 1px solid #bfdbfe; border-radius: 10px; padding: 16px 20px; margin-top: 14px; flex-wrap: wrap; gap: 12px; }}
+    
+    /* Stages 9 Grid for Advanced */
+    .stages-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; margin-bottom: 16px; }}
+    .stage-card {{ background: var(--card-inner); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; gap: 10px; cursor: pointer; transition: all 0.2s; }}
+    .stage-card:hover {{ border-color: var(--accent); }}
+    .stage-card.selected {{ border-color: #3b82f6; background: var(--card-selected); }}
+    .stage-cb input {{ width: 16px; height: 16px; cursor: pointer; margin-top: 2px; }}
+    .stage-hdr {{ display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }}
+    .stage-hdr strong {{ font-size: 13px; color: var(--heading); }}
+    .stage-badge {{ background: var(--tag-bg); color: var(--tag-text); font-size: 10px; font-weight: 800; padding: 2px 5px; border-radius: 4px; }}
+    .stage-tool {{ font-size: 11px; color: #2563eb; font-family: monospace; }}
+    .stage-desc {{ font-size: 11px; color: var(--muted); }}
+
+    /* Execution & Verdict Section */
+    #executionSection {{ display: none; }}
+    .progress-track {{ background: var(--border); border-radius: 8px; height: 14px; overflow: hidden; margin: 12px 0; }}
+    .progress-fill {{ background: linear-gradient(90deg, #3b82f6, #10b981); height: 100%; width: 0%; transition: width 0.3s ease; }}
+    .console {{ background: var(--console-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; height: 200px; overflow-y: auto; color: var(--console-text); line-height: 1.4; }}
+    
+    /* Post Scan Summary Banner */
+    .verdict-banner {{ border-radius: 12px; padding: 20px; margin-bottom: 18px; border: 2px solid; }}
+    .verdict-banner.approved {{ background: #ecfdf5; border-color: #10b981; color: #065f46; }}
+    .verdict-banner.blocked {{ background: #fef2f2; border-color: #ef4444; color: #991b1b; }}
+    .verdict-header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }}
+    .verdict-title {{ font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 8px; }}
+    .verdict-score {{ font-size: 18px; font-weight: 800; }}
+    .pills-grid {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }}
+    .pill {{ padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }}
+    .pill-critical {{ background: #fee2e2; color: #b91c1c; border: 1px solid #f87171; }}
+    .pill-high {{ background: #ffedd5; color: #c2410c; border: 1px solid #fb923c; }}
+    .pill-medium {{ background: #fef9c3; color: #a16207; border: 1px solid #facc15; }}
+    .pill-low {{ background: #e0f2fe; color: #0369a1; border: 1px solid #38bdf8; }}
+    .pill-info {{ background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }}
+    
+    .download-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }}
+    .dl-btn {{ background: var(--card-inner); border: 1px solid var(--border); padding: 10px 12px; border-radius: 8px; color: var(--heading); font-size: 12px; font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }}
+    .dl-btn:hover {{ background: var(--card-hover); border-color: var(--accent); }}
+    
+    .test-result-box {{ margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-family: monospace; }}
   </style>
 </head>
 <body>
   <div class="container">
+    <!-- Header -->
     <header>
       <div class="logo">
         <div class="shield">🛡️</div>
         <div>
-          <div style="font-size: 20px; font-weight: 800; color: var(--heading);">DKSec Platform</div>
-          <div style="font-size: 12px; color: var(--muted);">Unified 9-Stage Product Security Lifecycle & DevSecOps Platform</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--heading);">DKSec Security Platform</div>
+          <div style="font-size: 12px; color: var(--muted);">Complete DevSecOps, SAST, DAST, Pentest & Compliance Suite</div>
         </div>
       </div>
-      <div id="topActions" style="display: flex; align-items: center; gap: 10px;">
-        <button id="themeToggleBtn" onclick="toggleTheme()" class="theme-toggle-btn">🌓 Theme: Auto</button>
-        <a id="btnOpenReport" href="/report" target="_blank" class="btn btn-success" style="display: none;">📄 Open Interactive Report</a>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button id="themeToggleBtn" onclick="toggleTheme()" class="btn btn-secondary">☀️ Theme: Light</button>
+        <a id="btnOpenReportTop" href="/report" target="_blank" class="btn btn-success" style="display: none;">📄 Open Interactive Report</a>
       </div>
     </header>
 
-    <div class="panel">
-      <h2><span>⚙️</span> 1. Target Environment Configuration</h2>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Project Name</label>
-          <input type="text" id="projectName" value="Enterprise Security Audit" />
-        </div>
-        <div class="form-group">
-          <label>Source Code Directory Path</label>
-          <input type="text" id="targetPath" value="samples/app" />
+    <!-- 3-Step Guide -->
+    <div class="guide-banner">
+      <div class="guide-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <strong>Choose What to Scan</strong>
+          <span>Live Website, Local Code, or 1-Click Preset</span>
         </div>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Live Target URL / API Endpoint (Optional for DAST & VAPT)</label>
-          <input type="text" id="targetUrl" placeholder="http://127.0.0.1:5000 or https://api.example.com" value="http://127.0.0.1:5000" />
+      <div class="guide-arrow">➔</div>
+      <div class="guide-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <strong>Enter Target</strong>
+          <span>URL (e.g. localhost:5000) or repo directory</span>
         </div>
-        <div class="form-group">
-          <label>Reports Destination Directory</label>
-          <input type="text" id="outputDir" value="./reports/web_audit" />
+      </div>
+      <div class="guide-arrow">➔</div>
+      <div class="guide-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <strong>Get Instant Verdict</strong>
+          <span>Pass/Fail gate, score, and complete HTML report</span>
         </div>
       </div>
     </div>
 
-    <!-- Live Authentication Panel -->
-    <div class="panel">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-        <h2><span>🔐</span> 1b. Live Target Authentication & Session Configuration</h2>
-        <span id="authStatusBadge" class="auth-badge ok" style="display: none;"></span>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label>Authentication Mode</label>
-          <select id="authType" onchange="onAuthTypeChange()">
-            <option value="none">None (Public Unauthenticated Scan)</option>
-            <option value="login" selected>Automated Login URL (JSON / Form POST)</option>
-            <option value="bearer">Bearer Token / JWT</option>
-            <option value="cookie">Session Cookies</option>
-            <option value="header">Custom Authorization Header</option>
-          </select>
-        </div>
-        <div class="form-group" style="display: flex; flex-direction: row; align-items: flex-end; gap: 10px;">
-          <button type="button" class="btn btn-secondary" onclick="testAuthentication()" style="height: 38px;">⚡ Test Session Connection</button>
-        </div>
-      </div>
-
-      <!-- Login fields -->
-      <div id="groupLogin" class="form-row">
-        <div class="form-group">
-          <label>Login Endpoint URL</label>
-          <input type="text" id="authLoginUrl" placeholder="http://127.0.0.1:5000/api/v1/login" value="http://127.0.0.1:5000/api/v1/login" />
-        </div>
-        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-          <div>
-            <label>Username / Email</label>
-            <input type="text" id="authUsername" value="admin" />
-          </div>
-          <div>
-            <label>Password</label>
-            <input type="password" id="authPassword" value="AdminSecretPassword99!" />
-          </div>
-        </div>
-      </div>
-
-      <!-- Bearer token field -->
-      <div id="groupBearer" class="form-group" style="display: none; margin-bottom: 12px;">
-        <label>Bearer Token / JWT</label>
-        <input type="text" id="authBearer" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
-      </div>
-
-      <!-- Cookie field -->
-      <div id="groupCookie" class="form-group" style="display: none; margin-bottom: 12px;">
-        <label>Session Cookies (Key=Value; Key2=Value2)</label>
-        <input type="text" id="authCookie" placeholder="session=abc123xyz; role=admin" />
-      </div>
-
-      <!-- Custom Header field -->
-      <div id="groupHeader" class="form-group" style="display: none; margin-bottom: 12px;">
-        <label>Custom Header (Header-Name: Header-Value)</label>
-        <input type="text" id="authHeader" placeholder="X-API-Key: secret_production_token_123" />
-      </div>
-
-      <div id="authTestResult" style="display: none; margin-top: 10px; padding: 10px 14px; border-radius: 8px; font-size: 12px; font-family: monospace;"></div>
+    <!-- Tab Navigation -->
+    <div class="tabs-nav">
+      <button class="tab-btn active" id="tabNavUrl" onclick="switchTab('url')">
+        🌐 Live Website / API Pentest
+      </button>
+      <button class="tab-btn" id="tabNavCode" onclick="switchTab('code')">
+        📂 Source Code & Secret Scan
+      </button>
+      <button class="tab-btn" id="tabNavPresets" onclick="switchTab('presets')">
+        ⚡ 1-Click Quick Presets
+      </button>
+      <button class="tab-btn" id="tabNavCustom" onclick="switchTab('custom')">
+        ⚙️ Custom Pipeline & AI (Advanced)
+      </button>
     </div>
 
-    <!-- Dynamic AI / LLM Intelligence Panel -->
-    <div class="panel">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-        <h2><span>🤖</span> 1c. Dynamic AI / LLM Security Assistant (Optional)</h2>
-        <span id="llmStatusBadge" class="auth-badge ok" style="display: none;"></span>
-      </div>
-      <p style="font-size: 13px; color: var(--muted); margin-bottom: 14px;">
-        Empower audits with autonomous AI triaging, false-positive elimination, contextual remediation diffs, and board-ready CISO executive summaries.
-      </p>
+    <!-- TAB 1: Live Website / API Pentest -->
+    <div class="tab-pane active" id="tabContentUrl">
+      <div class="panel">
+        <div class="section-title">
+          <h3>🌐 Test a Live Web Application or REST API</h3>
+          <p class="section-desc">Run black-box/gray-box security scans against a running web application, microservice, or REST API without needing source code.</p>
+        </div>
 
-      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
-        <input type="checkbox" id="llmEnabled" onchange="onLLMEnabledChange()" style="width: 18px; height: 18px; cursor: pointer;" />
-        <label for="llmEnabled" style="font-weight: 700; color: #fff; cursor: pointer;">Enable Smart LLM Engine</label>
-      </div>
+        <!-- Target URL Field -->
+        <div class="field-card">
+          <label class="field-label" for="urlTargetUrl">1. Target URL or API Base URL <span class="required">*</span></label>
+          <input type="text" id="urlTargetUrl" class="text-input" placeholder="http://127.0.0.1:5000 or https://example.com" value="http://127.0.0.1:5000" />
+          <span class="field-hint">Supports localhost dev servers (e.g. http://127.0.0.1:5000), test staging environments, and production APIs.</span>
+        </div>
 
-      <div id="llmConfigFields" style="display: none;">
+        <!-- Scope Selection -->
+        <div class="field-card">
+          <label class="field-label">2. Select Live Testing Scope</label>
+          <div class="option-cards-grid">
+            <div class="option-card selected" id="optUrlFull" onclick="selectUrlMode('full')">
+              <div class="opt-radio"><input type="radio" name="urlScanMode" value="full" checked /></div>
+              <div class="opt-body">
+                <strong>🎯 Full Pentest & VAPT (Recommended)</strong>
+                <p>Runs Stages 4, 5 & 6: REST API Fuzzing, OWASP Top 10 DAST Crawler, and Deep Exploit Simulation.</p>
+                <span class="opt-tag">Stages 4, 5, 6</span>
+              </div>
+            </div>
+
+            <div class="option-card" id="optUrlDast" onclick="selectUrlMode('dast')">
+              <div class="opt-radio"><input type="radio" name="urlScanMode" value="dast" /></div>
+              <div class="opt-body">
+                <strong>⚡ Quick Web DAST Scan</strong>
+                <p>Active web crawler searching for XSS, SQL injection, SSRF, header flaws, and cookie issues.</p>
+                <span class="opt-tag">Stage 5 Only</span>
+              </div>
+            </div>
+
+            <div class="option-card" id="optUrlVapt" onclick="selectUrlMode('vapt')">
+              <div class="opt-radio"><input type="radio" name="urlScanMode" value="vapt" /></div>
+              <div class="opt-body">
+                <strong>🛡️ Deep VAPT Exploit Probing</strong>
+                <p>OWASP ASVS 4.0.3 & WSTG verification, access control tests, and simulated payload exploitation.</p>
+                <span class="opt-tag">Stage 6 Only</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Authentication Accordion (Optional) -->
+        <details class="accordion">
+          <summary class="accordion-summary">
+            <span>🔐 Does this target require login / authentication? (Optional)</span>
+            <span class="accordion-subtext">Configure login form, JWT token, or session cookie ▾</span>
+          </summary>
+          <div class="accordion-content">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Authentication Mode</label>
+                <select id="authType" onchange="onAuthTypeChange()">
+                  <option value="none">None (Public Unauthenticated Scan)</option>
+                  <option value="login" selected>Automated Login URL (JSON / Form POST)</option>
+                  <option value="bearer">Bearer Token / JWT</option>
+                  <option value="cookie">Session Cookies</option>
+                  <option value="header">Custom Authorization Header</option>
+                </select>
+              </div>
+              <div class="form-group" style="display: flex; flex-direction: row; align-items: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="testAuthentication()">⚡ Test Login Connection</button>
+              </div>
+            </div>
+
+            <div id="groupLogin" class="form-row">
+              <div class="form-group">
+                <label>Login Endpoint URL</label>
+                <input type="text" id="authLoginUrl" class="text-input" placeholder="http://127.0.0.1:5000/api/v1/login" value="http://127.0.0.1:5000/api/v1/login" />
+              </div>
+              <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                  <label>Username / Email</label>
+                  <input type="text" id="authUsername" class="text-input" value="admin" />
+                </div>
+                <div>
+                  <label>Password</label>
+                  <input type="password" id="authPassword" class="text-input" value="AdminSecretPassword99!" />
+                </div>
+              </div>
+            </div>
+
+            <div id="groupBearer" class="form-group" style="display: none; margin-bottom: 12px;">
+              <label>Bearer Token / JWT</label>
+              <input type="text" id="authBearer" class="text-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+            </div>
+
+            <div id="groupCookie" class="form-group" style="display: none; margin-bottom: 12px;">
+              <label>Session Cookies (Key=Value; Key2=Value2)</label>
+              <input type="text" id="authCookie" class="text-input" placeholder="session=abc123xyz; role=admin" />
+            </div>
+
+            <div id="groupHeader" class="form-group" style="display: none; margin-bottom: 12px;">
+              <label>Custom Header (Header-Name: Header-Value)</label>
+              <input type="text" id="authHeader" class="text-input" placeholder="X-API-Key: secret_production_token_123" />
+            </div>
+
+            <div id="authTestResult" style="display: none;" class="test-result-box"></div>
+          </div>
+        </details>
+
+        <!-- Dynamic AI Accordion (Optional) -->
+        <details class="accordion">
+          <summary class="accordion-summary">
+            <span>🤖 Dynamic AI Smart Triage (Optional)</span>
+            <span class="accordion-subtext">Enable LLM false-positive filtering & CISO summary ▾</span>
+          </summary>
+          <div class="accordion-content">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+              <input type="checkbox" id="llmEnabledUrl" onchange="syncLLM('url')" style="width: 18px; height: 18px; cursor: pointer;" />
+              <label for="llmEnabledUrl" style="font-weight: 700; cursor: pointer; color: var(--heading);">Enable AI Smart Triage & CISO Executive Summary</label>
+            </div>
+            <div id="llmFieldsUrl" style="display: none;">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Provider</label>
+                  <select id="llmProviderUrl" onchange="onLLMProviderChange('url')">
+                    <option value="openai" selected>OpenAI (GPT-4o / GPT-4o-mini)</option>
+                    <option value="gemini">Google Gemini (Gemini 1.5 Pro / Flash)</option>
+                    <option value="anthropic">Anthropic Claude (Claude 3.5 Sonnet)</option>
+                    <option value="ollama">Ollama Local (Zero Telemetry)</option>
+                    <option value="custom">Custom OpenAI-Compatible</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Model Name</label>
+                  <input type="text" id="llmModelUrl" class="text-input" value="gpt-4o" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>API Key <span class="field-hint">(Optional if set in environment)</span></label>
+                  <input type="password" id="llmApiKeyUrl" class="text-input" placeholder="sk-..." />
+                </div>
+                <div class="form-group">
+                  <label>Custom Base URL <span class="field-hint">(For Ollama or local gateway)</span></label>
+                  <input type="text" id="llmBaseUrlUrl" class="text-input" placeholder="http://localhost:11434/v1" />
+                </div>
+              </div>
+              <button type="button" class="btn btn-secondary" onclick="testLLMConnection('url')">⚡ Test AI Connection</button>
+              <div id="llmTestResultUrl" style="display: none;" class="test-result-box"></div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Launch Card -->
+        <div class="launch-card">
+          <div>
+            <div style="font-size: 15px; font-weight: 700; color: var(--heading);">Ready to launch live pentest?</div>
+            <div style="font-size: 12px; color: var(--muted);">Clicking start will actively crawl, fuzz, and simulate exploit payloads against your live target.</div>
+          </div>
+          <button id="btnRunUrl" class="btn btn-primary btn-lg" onclick="runUrlScan()">🚀 Launch Live Pentest</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Source Code & Secret Scan -->
+    <div class="tab-pane" id="tabContentCode">
+      <div class="panel">
+        <div class="section-title">
+          <h3>📂 Scan Local Source Code & Open Source Dependencies</h3>
+          <p class="section-desc">Audit source code for hardcoded passwords, tokens, code injection vulnerabilities, and vulnerable third-party dependencies.</p>
+        </div>
+
+        <!-- Target Code Path -->
+        <div class="field-card">
+          <label class="field-label" for="codeTargetPath">1. Source Code Repository Directory <span class="required">*</span></label>
+          <input type="text" id="codeTargetPath" class="text-input" placeholder=". or samples/app or /path/to/project" value="." />
+          <span class="field-hint">Specify relative (e.g. `.` or `samples/app`) or absolute path to your repository.</span>
+        </div>
+
+        <!-- Code Scope Selection -->
+        <div class="field-card">
+          <label class="field-label">2. Select Code Audit Scope</label>
+          <div class="option-cards-grid">
+            <div class="option-card selected" id="optCodeSast" onclick="selectCodeMode('sast')">
+              <div class="opt-radio"><input type="radio" name="codeScanMode" value="sast" checked /></div>
+              <div class="opt-body">
+                <strong>🔍 SAST & Hardcoded Secrets (Recommended)</strong>
+                <p>Stages 2 & 3: High-speed secret detection, Bandit/Semgrep rule patterns, and SQLi/RCE detection.</p>
+                <span class="opt-tag">Stages 2, 3</span>
+              </div>
+            </div>
+
+            <div class="option-card" id="optCodePr" onclick="selectCodeMode('pr')">
+              <div class="opt-radio"><input type="radio" name="codeScanMode" value="pr" /></div>
+              <div class="opt-body">
+                <strong>🚀 Fast CI/CD PR Gate</strong>
+                <p>Stages 1, 3 & 8: Fast gate for commits. STRIDE threat model, SAST security checks, and gate policy.</p>
+                <span class="opt-tag">Stages 1, 3, 8</span>
+              </div>
+            </div>
+
+            <div class="option-card" id="optCodeSbom" onclick="selectCodeMode('sbom')">
+              <div class="opt-radio"><input type="radio" name="codeScanMode" value="sbom" /></div>
+              <div class="opt-body">
+                <strong>📦 Supply Chain & CycloneDX SBOM</strong>
+                <p>Stages 2, 3 & 8: Dependency vulnerability analysis, license risks, and CycloneDX 1.5 SBOM generation.</p>
+                <span class="opt-tag">Stages 2, 3, 8</span>
+              </div>
+            </div>
+
+            <div class="option-card" id="optCodeThreat" onclick="selectCodeMode('threat')">
+              <div class="opt-radio"><input type="radio" name="codeScanMode" value="threat" /></div>
+              <div class="opt-body">
+                <strong>📐 STRIDE Threat Modeling Only</strong>
+                <p>Stage 1: Automated architectural threat modeling and MITRE ATT&CK enterprise mapping.</p>
+                <span class="opt-tag">Stage 1 Only</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Launch Card -->
+        <div class="launch-card">
+          <div>
+            <div style="font-size: 15px; font-weight: 700; color: var(--heading);">Ready to audit source code?</div>
+            <div style="font-size: 12px; color: var(--muted);">Scans your files locally and privately without uploading your code anywhere.</div>
+          </div>
+          <button id="btnRunCode" class="btn btn-primary btn-lg" onclick="runCodeScan()">🔍 Scan Source Code Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: 1-Click Quick Presets -->
+    <div class="tab-pane" id="tabContentPresets">
+      <div class="panel">
+        <div class="section-title">
+          <h3>⚡ 1-Click Ready Presets</h3>
+          <p class="section-desc">Click any card below to immediately run a targeted security workflow with optimal defaults.</p>
+        </div>
+
+        <div class="preset-cards-grid">
+          <!-- Preset 1 -->
+          <div class="preset-card">
+            <div class="preset-badge">All 9 Stages</div>
+            <h4>🛡️ Full 9-Stage Enterprise Audit</h4>
+            <p>End-to-end security lifecycle: Threat model, Secrets, SAST, API security, DAST crawler, VAPT exploits, SIEM alerts, Compliance, and DefectDojo export.</p>
+            <div class="preset-meta">Covers: STRIDE, OWASP Top 10, ASVS 4.0.3, WSTG, CycloneDX, Sigma, Wazuh</div>
+            <button class="btn btn-primary btn-block" onclick="runPreset('all')">🚀 Run Full Audit</button>
+          </div>
+
+          <!-- Preset 2 -->
+          <div class="preset-card">
+            <div class="preset-badge">Fast Gate</div>
+            <h4>🚀 Fast CI/CD Pull Request Gate</h4>
+            <p>Lightweight check built for Git pull requests. Runs threat model check, SAST code review, and ASVS gate policy in seconds.</p>
+            <div class="preset-meta">Stages 1, 3, 8 | Evaluates Pass/Fail Gate</div>
+            <button class="btn btn-primary btn-block" onclick="runPreset('pr')">⚡ Run PR Gate</button>
+          </div>
+
+          <!-- Preset 3 -->
+          <div class="preset-card">
+            <div class="preset-badge">Live Pentest</div>
+            <h4>🌐 Web & API Security Pentest</h4>
+            <p>Probes live web servers and REST endpoints with active fuzzing, OWASP Top 10 web crawler, and automated exploit tests.</p>
+            <div class="preset-meta">Stages 4, 5, 6 | Target: http://127.0.0.1:5000</div>
+            <button class="btn btn-primary btn-block" onclick="runPreset('api')">🌐 Run Web Pentest</button>
+          </div>
+
+          <!-- Preset 4 -->
+          <div class="preset-card">
+            <div class="preset-badge">Software Supply Chain</div>
+            <h4>📦 Supply Chain & SBOM Security</h4>
+            <p>Identifies vulnerable 3rd-party dependencies, license compliance risks, and produces full CycloneDX 1.5 SBOM.</p>
+            <div class="preset-meta">Stages 2, 3, 8 | CycloneDX & OSV/NVD</div>
+            <button class="btn btn-primary btn-block" onclick="runPreset('sbom')">📦 Run SBOM Scan</button>
+          </div>
+
+          <!-- Preset 5 -->
+          <div class="preset-card">
+            <div class="preset-badge">ASVS & WSTG</div>
+            <h4>🎯 Deep VAPT Exploit Probing</h4>
+            <p>Simulates real-world cyberattacks against running applications with payload injections, authorization bypass, and WSTG tests.</p>
+            <div class="preset-meta">Stage 6 Only | Active Attack Simulation</div>
+            <button class="btn btn-primary btn-block" onclick="runPreset('vapt')">🎯 Run VAPT Scan</button>
+          </div>
+
+          <!-- Preset 6 -->
+          <div class="preset-card">
+            <div class="preset-badge">Architecture</div>
+            <h4>📐 STRIDE Threat Modeling</h4>
+            <p>Generates OWASP Threat Dragon v2 architecture diagram and identifies spoofing, tampering, and information disclosure threats.</p>
+            <div class="preset-meta">Stage 1 Only | MITRE ATT&CK Mapping</div>
+            <button class="btn btn-primary btn-block" onclick="runPreset('threat')">📐 Run Threat Model</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Custom Pipeline & AI (Advanced) -->
+    <div class="tab-pane" id="tabContentCustom">
+      <div class="panel">
+        <div class="section-title">
+          <h3>⚙️ Custom Pipeline & Advanced Configuration</h3>
+          <p class="section-desc">Granular control over target parameters, individual stages 1-9, LLM intelligence provider, and artifact output.</p>
+        </div>
+
         <div class="form-row">
           <div class="form-group">
-            <label>LLM Provider</label>
-            <select id="llmProvider" onchange="onLLMProviderChange()">
-              <option value="openai" selected>OpenAI (GPT-4o / GPT-4o-mini)</option>
-              <option value="gemini">Google Gemini (Gemini 1.5 Pro / Flash)</option>
-              <option value="anthropic">Anthropic Claude (Claude 3.5 Sonnet)</option>
-              <option value="ollama">Ollama Local / Private (Zero Telemetry)</option>
-              <option value="custom">Custom OpenAI-Compatible Endpoint</option>
-            </select>
+            <label>Project Name</label>
+            <input type="text" id="projectName" class="text-input" value="Enterprise Security Audit" />
           </div>
           <div class="form-group">
-            <label>Model Name</label>
-            <input type="text" id="llmModel" value="gpt-4o" placeholder="gpt-4o, gemini-1.5-pro, claude-3-5-sonnet, llama3..." />
+            <label>Source Code Directory Path</label>
+            <input type="text" id="targetPath" class="text-input" value="samples/app" />
           </div>
         </div>
-
         <div class="form-row">
           <div class="form-group">
-            <label>API Key <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(Optional if ENV var set: OPENAI_API_KEY, GEMINI_API_KEY, etc.)</span></label>
-            <input type="password" id="llmApiKey" placeholder="sk-... (Leave empty to use environment variable)" />
+            <label>Live Target URL / API Endpoint</label>
+            <input type="text" id="targetUrl" class="text-input" value="http://127.0.0.1:5000" />
           </div>
           <div class="form-group">
-            <label>Custom Base URL <span style="font-size: 11px; color: var(--muted); font-weight: normal;">(For Ollama or private LLM gateway)</span></label>
-            <input type="text" id="llmBaseUrl" placeholder="http://localhost:11434/v1" />
+            <label>Reports Destination Directory</label>
+            <input type="text" id="outputDir" class="text-input" value="./reports/web_audit" />
           </div>
         </div>
 
-        <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
-          <button type="button" class="btn btn-secondary" onclick="testLLMConnection()" style="height: 38px;">⚡ Test AI Connection</button>
-          <span style="font-size: 12px; color: var(--muted);">Tests live LLM model connectivity and verifies credentials</span>
+        <!-- Stage Selectors -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+          <label style="font-weight: 700; color: var(--heading);">Select Individual Stages to Execute:</label>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="selectAllStages(true)">Select All</button>
+            <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="selectAllStages(false)">Deselect All</button>
+          </div>
         </div>
 
-        <div id="llmTestResult" style="display: none; margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 12px; font-family: monospace;"></div>
+        <div class="stages-grid">
+          {stages_html}
+        </div>
+
+        <!-- Advanced AI Options -->
+        <div class="field-card" style="margin-top: 14px;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <input type="checkbox" id="llmEnabledAdv" onchange="syncLLM('adv')" style="width: 18px; height: 18px; cursor: pointer;" />
+            <label for="llmEnabledAdv" style="font-weight: 700; cursor: pointer; color: var(--heading);">Enable Smart LLM Engine</label>
+          </div>
+
+          <div id="llmFieldsAdv" style="display: none;">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Provider</label>
+                <select id="llmProviderAdv" onchange="onLLMProviderChange('adv')">
+                  <option value="openai" selected>OpenAI (GPT-4o / GPT-4o-mini)</option>
+                  <option value="gemini">Google Gemini (Gemini 1.5 Pro / Flash)</option>
+                  <option value="anthropic">Anthropic Claude (Claude 3.5 Sonnet)</option>
+                  <option value="ollama">Ollama Local (Zero Telemetry)</option>
+                  <option value="custom">Custom OpenAI-Compatible</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Model Name</label>
+                <input type="text" id="llmModelAdv" class="text-input" value="gpt-4o" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>API Key <span class="field-hint">(Optional if ENV variable set)</span></label>
+                <input type="password" id="llmApiKeyAdv" class="text-input" placeholder="sk-..." />
+              </div>
+              <div class="form-group">
+                <label>Custom Base URL <span class="field-hint">(For Ollama or local gateway)</span></label>
+                <input type="text" id="llmBaseUrlAdv" class="text-input" placeholder="http://localhost:11434/v1" />
+              </div>
+            </div>
+            <button type="button" class="btn btn-secondary" onclick="testLLMConnection('adv')">⚡ Test AI Connection</button>
+            <div id="llmTestResultAdv" style="display: none;" class="test-result-box"></div>
+          </div>
+        </div>
+
+        <div class="launch-card">
+          <span id="selectedCounter" style="color: var(--muted); font-size: 13px;">9 of 9 stages selected</span>
+          <button id="btnRunAdv" class="btn btn-primary btn-lg" onclick="runCustomPipeline()">🚀 Run Custom Pipeline</button>
+        </div>
       </div>
     </div>
 
-    <div class="panel">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h2><span>🎯</span> 2. Select Workflow Preset or Custom Stages</h2>
+    <!-- LIVE PIPELINE EXECUTION & VERDICT SECTION -->
+    <div id="executionSection" class="panel">
+      <!-- Post-Scan Verdict Card -->
+      <div id="verdictBanner" class="verdict-banner approved" style="display: none;">
+        <div class="verdict-header">
+          <div class="verdict-title" id="verdictTitle">✅ SECURITY GATE: APPROVED</div>
+          <div class="verdict-score" id="verdictScore">Score: 100/100 (Grade A)</div>
+        </div>
+        <div id="verdictSubtitle" style="font-size: 13px; margin-bottom: 12px;">All security thresholds satisfied. Safe to release to production.</div>
+        
+        <div class="pills-grid">
+          <span class="pill pill-critical" id="pillCrit">Critical: 0</span>
+          <span class="pill pill-high" id="pillHigh">High: 0</span>
+          <span class="pill pill-medium" id="pillMed">Medium: 0</span>
+          <span class="pill pill-low" id="pillLow">Low: 0</span>
+          <span class="pill pill-info" id="pillInfo">Info: 0</span>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <a id="btnOpenReportCard" href="/report" target="_blank" class="btn btn-success" style="font-size: 14px; padding: 10px 20px;">📄 Open Full Interactive HTML Report ➔</a>
+        </div>
       </div>
 
-      <div class="preset-bar">
-        <button class="btn-preset active" onclick="applyPreset('all', this)">⚡ Full 9-Stage Audit</button>
-        <button class="btn-preset" onclick="applyPreset('pr', this)">🚀 Fast PR Gate (1, 3, 8)</button>
-        <button class="btn-preset" onclick="applyPreset('api', this)">🌐 API & Web Pentest (4, 5, 6)</button>
-        <button class="btn-preset" onclick="applyPreset('sbom', this)">📦 Supply Chain & SBOM (2, 3, 8)</button>
-        <button class="btn-preset" onclick="applyPreset('vapt', this)">🎯 VAPT Only (Stage 6)</button>
-        <button class="btn-preset" onclick="applyPreset('sast', this)">🔍 SAST Only (Stage 3)</button>
-        <button class="btn-preset" onclick="applyPreset('threat', this)">📐 Threat Model (Stage 1)</button>
-      </div>
-
-      <div class="stages-grid">
-        {stages_html}
-      </div>
-
-      <div class="action-row">
-        <span id="selectedCounter" style="color: var(--muted); font-size: 13px;">9 of 9 stages selected</span>
-        <button id="btnRun" class="btn btn-primary" onclick="launchAudit()">🚀 Run Selected Security Audit</button>
-      </div>
-    </div>
-
-    <div id="progressArea" class="panel">
+      <!-- Live Execution Progress -->
       <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h2><span>📡</span> Live Pipeline Execution</h2>
+        <h3 style="font-size: 16px; color: var(--heading); display: flex; align-items: center; gap: 8px;">
+          <span>📡</span> Pipeline Execution Telemetry
+        </h3>
         <span id="statusBadge" style="background: #2563eb; color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: 700;">RUNNING</span>
       </div>
+
       <div class="progress-track">
         <div id="progressFill" class="progress-fill"></div>
       </div>
-      <div id="statusMessage" style="font-size: 13px; color: #93c5fd; margin-bottom: 10px;">Initializing DKSec engines...</div>
+      <div id="statusMessage" style="font-size: 13px; color: #2563eb; font-weight: 600; margin-bottom: 10px;">Initializing DKSec engines...</div>
       <div id="consoleLog" class="console"></div>
 
-      <div id="downloadSection" style="display: none; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 18px;">
-        <h3 style="font-size: 15px; margin-bottom: 8px;">📦 Download Generated Industry Artifacts:</h3>
+      <!-- Industry Artifacts Downloads -->
+      <div id="downloadSection" style="display: none; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px;">
+        <h4 style="font-size: 14px; color: var(--heading); margin-bottom: 10px;">📦 Download Industry-Standard Artifacts:</h4>
         <div class="download-grid">
           <a class="dl-btn" href="/download/dksec-report.html" target="_blank">🌐 Interactive HTML</a>
           <a class="dl-btn" href="/download/cyclonedx-sbom.json" target="_blank">📦 CycloneDX 1.5 SBOM</a>
@@ -503,18 +867,62 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     }}
 
     function toggleTheme() {{
-      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      const cur = document.documentElement.getAttribute('data-theme') || 'light';
       setTheme(cur === 'light' ? 'dark' : 'light');
     }}
 
     (function() {{
-      let saved = 'dark';
+      let saved = 'light';
       try {{
-        saved = localStorage.getItem('dksec_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        saved = localStorage.getItem('dksec_theme') || 'light';
       }} catch(e) {{}}
       setTheme(saved);
     }})();
 
+    /* Tab Switcher */
+    function switchTab(tabId) {{
+      const tabs = ['url', 'code', 'presets', 'custom'];
+      tabs.forEach(t => {{
+        const btn = document.getElementById('tabNav' + t.charAt(0).toUpperCase() + t.slice(1));
+        const pane = document.getElementById('tabContent' + t.charAt(0).toUpperCase() + t.slice(1));
+        if (btn) btn.classList.remove('active');
+        if (pane) pane.classList.remove('active');
+      }});
+
+      const curBtn = document.getElementById('tabNav' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
+      const curPane = document.getElementById('tabContent' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
+      if (curBtn) curBtn.classList.add('active');
+      if (curPane) curPane.classList.add('active');
+    }}
+
+    /* Radio Mode Selectors */
+    function selectUrlMode(mode) {{
+      ['full', 'dast', 'vapt'].forEach(m => {{
+        const card = document.getElementById('optUrl' + m.charAt(0).toUpperCase() + m.slice(1));
+        if (card) card.classList.remove('selected');
+      }});
+      const cur = document.getElementById('optUrl' + mode.charAt(0).toUpperCase() + mode.slice(1));
+      if (cur) {{
+        cur.classList.add('selected');
+        const r = cur.querySelector('input[type="radio"]');
+        if (r) r.checked = true;
+      }}
+    }}
+
+    function selectCodeMode(mode) {{
+      ['sast', 'pr', 'sbom', 'threat'].forEach(m => {{
+        const card = document.getElementById('optCode' + m.charAt(0).toUpperCase() + m.slice(1));
+        if (card) card.classList.remove('selected');
+      }});
+      const cur = document.getElementById('optCode' + mode.charAt(0).toUpperCase() + mode.slice(1));
+      if (cur) {{
+        cur.classList.add('selected');
+        const r = cur.querySelector('input[type="radio"]');
+        if (r) r.checked = true;
+      }}
+    }}
+
+    /* Auth Handlers */
     function onAuthTypeChange() {{
       const type = document.getElementById('authType').value;
       document.getElementById('groupLogin').style.display = (type === 'login') ? 'grid' : 'none';
@@ -539,14 +947,14 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     }}
 
     function testAuthentication() {{
-      const targetUrl = document.getElementById('targetUrl').value;
+      const targetUrl = document.getElementById('urlTargetUrl').value;
       const auth = getAuthConfig();
       const resBox = document.getElementById('authTestResult');
       resBox.style.display = 'block';
-      resBox.style.background = '#090d16';
+      resBox.style.background = 'var(--card-inner)';
       resBox.style.border = '1px solid var(--border)';
-      resBox.style.color = '#93c5fd';
-      resBox.innerHTML = 'Connecting to target and validating session...';
+      resBox.style.color = '#2563eb';
+      resBox.innerHTML = 'Connecting to target and validating session credentials...';
 
       fetch('/api/auth/test', {{
         method: 'POST',
@@ -555,30 +963,34 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       }}).then(r => r.json()).then(d => {{
         if (d.success || d.is_authenticated) {{
           resBox.style.border = '1px solid #10b981';
-          resBox.style.color = '#34d399';
+          resBox.style.color = '#059669';
           let details = `✔ Success: Authenticated via ${{(d.auth_method||'session').toUpperCase()}} (HTTP ${{d.status_code||200}}).`;
           if (d.token_found) details += ` Token captured.`;
           if (d.cookies_captured && d.cookies_captured.length > 0) details += ` Cookies: ${{d.cookies_captured.join(', ')}}.`;
           resBox.innerText = details;
         }} else {{
           resBox.style.border = '1px solid #ef4444';
-          resBox.style.color = '#f87171';
-          resBox.innerText = `✖ Authentication test failed: ${{d.message || d.login_error || 'Could not verify session'}}`;
+          resBox.style.color = '#dc2626';
+          resBox.innerText = `✖ Authentication failed: ${{d.message || d.login_error || 'Could not verify session'}}`;
         }}
       }}).catch(err => {{
         resBox.style.border = '1px solid #ef4444';
-        resBox.style.color = '#f87171';
+        resBox.style.color = '#dc2626';
         resBox.innerText = 'Connection error: ' + err;
       }});
     }}
 
-    function onLLMEnabledChange() {{
-      const en = document.getElementById('llmEnabled').checked;
-      document.getElementById('llmConfigFields').style.display = en ? 'block' : 'none';
+    /* AI / LLM Handlers */
+    function syncLLM(source) {{
+      const en = (source === 'url') ? document.getElementById('llmEnabledUrl').checked : document.getElementById('llmEnabledAdv').checked;
+      document.getElementById('llmFieldsUrl').style.display = en ? 'block' : 'none';
+      document.getElementById('llmFieldsAdv').style.display = en ? 'block' : 'none';
+      document.getElementById('llmEnabledUrl').checked = en;
+      document.getElementById('llmEnabledAdv').checked = en;
     }}
 
-    function onLLMProviderChange() {{
-      const prov = document.getElementById('llmProvider').value;
+    function onLLMProviderChange(source) {{
+      const prov = (source === 'url') ? document.getElementById('llmProviderUrl').value : document.getElementById('llmProviderAdv').value;
       const modelMap = {{
         'openai': 'gpt-4o',
         'gemini': 'gemini-1.5-pro',
@@ -586,31 +998,40 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         'ollama': 'llama3',
         'custom': 'default'
       }};
-      document.getElementById('llmModel').value = modelMap[prov] || 'gpt-4o';
+      const model = modelMap[prov] || 'gpt-4o';
+      document.getElementById('llmModelUrl').value = model;
+      document.getElementById('llmModelAdv').value = model;
+      document.getElementById('llmProviderUrl').value = prov;
+      document.getElementById('llmProviderAdv').value = prov;
       if (prov === 'ollama') {{
-        document.getElementById('llmBaseUrl').value = 'http://localhost:11434/v1';
+        document.getElementById('llmBaseUrlUrl').value = 'http://localhost:11434/v1';
+        document.getElementById('llmBaseUrlAdv').value = 'http://localhost:11434/v1';
       }}
     }}
 
     function getLLMConfig() {{
-      const enabled = document.getElementById('llmEnabled').checked;
+      const enabled = document.getElementById('llmEnabledUrl').checked || document.getElementById('llmEnabledAdv').checked;
+      const prov = document.getElementById('llmProviderUrl').value;
+      const model = document.getElementById('llmModelUrl').value;
+      const key = document.getElementById('llmApiKeyUrl').value || document.getElementById('llmApiKeyAdv').value || null;
+      const base = document.getElementById('llmBaseUrlUrl').value || document.getElementById('llmBaseUrlAdv').value || null;
       return {{
         enabled: enabled,
-        provider: document.getElementById('llmProvider').value,
-        model: document.getElementById('llmModel').value,
-        api_key: document.getElementById('llmApiKey').value || null,
-        api_base_url: document.getElementById('llmBaseUrl').value || null
+        provider: prov,
+        model: model,
+        api_key: key,
+        api_base_url: base
       }};
     }}
 
-    function testLLMConnection() {{
+    function testLLMConnection(source) {{
       const cfg = getLLMConfig();
-      const resBox = document.getElementById('llmTestResult');
+      const resBox = (source === 'url') ? document.getElementById('llmTestResultUrl') : document.getElementById('llmTestResultAdv');
       resBox.style.display = 'block';
-      resBox.style.background = '#090d16';
+      resBox.style.background = 'var(--card-inner)';
       resBox.style.border = '1px solid var(--border)';
-      resBox.style.color = '#93c5fd';
-      resBox.innerHTML = 'Testing connection to ' + cfg.provider.toUpperCase() + ' (' + cfg.model + ')...';
+      resBox.style.color = '#2563eb';
+      resBox.innerHTML = `Testing connection to ${{cfg.provider.toUpperCase()}} (${{cfg.model}})...`;
 
       fetch('/api/llm/test', {{
         method: 'POST',
@@ -619,20 +1040,21 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       }}).then(r => r.json()).then(d => {{
         if (d.success) {{
           resBox.style.border = '1px solid #10b981';
-          resBox.style.color = '#34d399';
+          resBox.style.color = '#059669';
           resBox.innerText = `✔ Success: ${{d.message}}`;
         }} else {{
           resBox.style.border = '1px solid #ef4444';
-          resBox.style.color = '#f87171';
+          resBox.style.color = '#dc2626';
           resBox.innerText = `✖ Connection failed: ${{d.message}}`;
         }}
       }}).catch(err => {{
         resBox.style.border = '1px solid #ef4444';
-        resBox.style.color = '#f87171';
+        resBox.style.color = '#dc2626';
         resBox.innerText = 'Connection error: ' + err;
       }});
     }}
 
+    /* Stage Selection Helpers (Tab 4) */
     function toggleStage(sId) {{
       const cb = document.getElementById('stage-' + sId);
       cb.checked = !cb.checked;
@@ -650,41 +1072,108 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       updateCounter();
     }}
 
-    function applyPreset(preset, btn) {{
-      document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
-      if (btn) btn.classList.add('active');
-
-      let targets = [];
-      if (preset === 'all') targets = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-      else if (preset === 'pr') targets = [1, 3, 8];
-      else if (preset === 'api') targets = [4, 5, 6];
-      else if (preset === 'sbom') targets = [2, 3, 8];
-      else if (preset === 'vapt') targets = [6];
-      else if (preset === 'sast') targets = [3];
-      else if (preset === 'threat') targets = [1];
-
+    function selectAllStages(val) {{
       for (let i = 1; i <= 9; i++) {{
         const cb = document.getElementById('stage-' + i);
         if (cb) {{
-          cb.checked = targets.includes(i);
+          cb.checked = val;
           syncCard(i);
         }}
       }}
     }}
 
     function updateCounter() {{
-      const count = document.querySelectorAll('input[type="checkbox"]:checked').length;
-      document.getElementById('selectedCounter').innerText = `${{count}} of 9 stages selected`;
+      const count = document.querySelectorAll('.stage-cb input[type="checkbox"]:checked').length;
+      const el = document.getElementById('selectedCounter');
+      if (el) el.innerText = `${{count}} of 9 stages selected`;
     }}
 
-    function launchAudit() {{
-      const selected = Array.from(document.querySelectorAll('input[type="checkbox"]:checked')).map(c => parseInt(c.value));
+    /* Execution Triggers */
+    function runUrlScan() {{
+      const url = document.getElementById('urlTargetUrl').value.trim();
+      if (!url) {{
+        alert('Please specify a target URL (e.g. http://127.0.0.1:5000)');
+        return;
+      }}
+      const checkedRadio = document.querySelector('input[name="urlScanMode"]:checked');
+      const mode = checkedRadio ? checkedRadio.value : 'full';
+      let stages = [4, 5, 6];
+      if (mode === 'dast') stages = [5];
+      else if (mode === 'vapt') stages = [6];
+
+      executePipeline({{
+        project_name: 'Live Web Pentest: ' + url,
+        target_path: '.',
+        target_url: url,
+        auth: getAuthConfig(),
+        llm: getLLMConfig(),
+        output_dir: './reports/web_pentest',
+        stages: stages
+      }});
+    }}
+
+    function runCodeScan() {{
+      const path = document.getElementById('codeTargetPath').value.trim() || '.';
+      const checkedRadio = document.querySelector('input[name="codeScanMode"]:checked');
+      const mode = checkedRadio ? checkedRadio.value : 'sast';
+      let stages = [2, 3];
+      if (mode === 'pr') stages = [1, 3, 8];
+      else if (mode === 'sbom') stages = [2, 3, 8];
+      else if (mode === 'threat') stages = [1];
+
+      executePipeline({{
+        project_name: 'Code Repository Security Audit',
+        target_path: path,
+        target_url: null,
+        auth: {{ enabled: false, auth_type: 'none' }},
+        llm: getLLMConfig(),
+        output_dir: './reports/code_audit',
+        stages: stages
+      }});
+    }}
+
+    function runPreset(presetKey) {{
+      let stages = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+      let name = 'Enterprise 9-Stage Audit';
+      let url = document.getElementById('urlTargetUrl').value.trim() || 'http://127.0.0.1:5000';
+      let path = document.getElementById('codeTargetPath').value.trim() || '.';
+
+      if (presetKey === 'pr') {{
+        stages = [1, 3, 8];
+        name = 'Fast CI/CD Pull Request Gate';
+      }} else if (presetKey === 'api') {{
+        stages = [4, 5, 6];
+        name = 'Web & API Security Pentest';
+      }} else if (presetKey === 'sbom') {{
+        stages = [2, 3, 8];
+        name = 'Supply Chain & SBOM Security';
+      }} else if (presetKey === 'vapt') {{
+        stages = [6];
+        name = 'Deep VAPT Exploit Probing';
+      }} else if (presetKey === 'threat') {{
+        stages = [1];
+        name = 'STRIDE Threat Model';
+      }}
+
+      executePipeline({{
+        project_name: name,
+        target_path: path,
+        target_url: url,
+        auth: getAuthConfig(),
+        llm: getLLMConfig(),
+        output_dir: './reports/' + presetKey + '_audit',
+        stages: stages
+      }});
+    }}
+
+    function runCustomPipeline() {{
+      const selected = Array.from(document.querySelectorAll('.stage-cb input[type="checkbox"]:checked')).map(c => parseInt(c.value));
       if (selected.length === 0) {{
-        alert('Please select at least one stage.');
+        alert('Please select at least one stage in the grid.');
         return;
       }}
 
-      const payload = {{
+      executePipeline({{
         project_name: document.getElementById('projectName').value,
         target_path: document.getElementById('targetPath').value,
         target_url: document.getElementById('targetUrl').value || null,
@@ -692,12 +1181,20 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         llm: getLLMConfig(),
         output_dir: document.getElementById('outputDir').value,
         stages: selected
-      }};
+      }});
+    }}
 
-      document.getElementById('btnRun').disabled = true;
-      document.getElementById('btnRun').innerText = '⏳ Executing Security Audit...';
-      document.getElementById('progressArea').style.display = 'block';
+    function executePipeline(payload) {{
+      const execSec = document.getElementById('executionSection');
+      execSec.style.display = 'block';
+      execSec.scrollIntoView({{ behavior: 'smooth' }});
+
+      document.getElementById('statusBadge').innerText = 'RUNNING';
+      document.getElementById('statusBadge').style.background = '#2563eb';
+      document.getElementById('verdictBanner').style.display = 'none';
       document.getElementById('downloadSection').style.display = 'none';
+      document.getElementById('progressFill').style.width = '5%';
+      document.getElementById('statusMessage').innerText = 'Initializing scan engines...';
       document.getElementById('consoleLog').innerHTML = '';
 
       fetch('/api/run', {{
@@ -705,10 +1202,10 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         headers: {{ 'Content-Type': 'application/json' }},
         body: JSON.stringify(payload)
       }}).then(res => res.json()).then(data => {{
+        if (poll) clearInterval(poll);
         poll = setInterval(checkProgress, 800);
       }}).catch(err => {{
-        alert('Failed to start audit: ' + err);
-        document.getElementById('btnRun').disabled = false;
+        alert('Failed to start security pipeline: ' + err);
       }});
     }}
 
@@ -727,11 +1224,34 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
           clearInterval(poll);
           document.getElementById('statusBadge').innerText = 'COMPLETED';
           document.getElementById('statusBadge').style.background = '#10b981';
-          document.getElementById('statusMessage').innerText = '🎉 Audit successfully completed! Artifacts ready below.';
-          document.getElementById('btnOpenReport').style.display = 'inline-flex';
+          document.getElementById('statusMessage').innerText = '🎉 Pipeline completed! Full artifacts available below.';
+          document.getElementById('btnOpenReportTop').style.display = 'inline-flex';
           document.getElementById('downloadSection').style.display = 'block';
-          document.getElementById('btnRun').disabled = false;
-          document.getElementById('btnRun').innerText = '🚀 Run Another Audit';
+
+          if (d.report_summary) {{
+            const rep = d.report_summary;
+            const vBanner = document.getElementById('verdictBanner');
+            vBanner.style.display = 'block';
+            
+            const isApproved = (rep.verdict === 'APPROVED');
+            vBanner.className = 'verdict-banner ' + (isApproved ? 'approved' : 'blocked');
+            
+            document.getElementById('verdictTitle').innerText = isApproved ? '✅ SECURITY GATE: APPROVED' : '❌ SECURITY GATE: BLOCKED';
+            document.getElementById('verdictScore').innerText = `Score: ${{rep.score}}/100 (Grade ${{rep.grade}})`;
+            
+            if (isApproved) {{
+              document.getElementById('verdictSubtitle').innerText = 'All security gate thresholds satisfied. Build is safe to deploy.';
+            }} else {{
+              const reasons = (rep.reasons && rep.reasons.length > 0) ? rep.reasons.join(', ') : 'Critical vulnerabilities must be remediated.';
+              document.getElementById('verdictSubtitle').innerText = 'Deployment Blocked: ' + reasons;
+            }}
+
+            document.getElementById('pillCrit').innerText = `Critical: ${{rep.critical || 0}}`;
+            document.getElementById('pillHigh').innerText = `High: ${{rep.high || 0}}`;
+            document.getElementById('pillMed').innerText = `Medium: ${{rep.medium || 0}}`;
+            document.getElementById('pillLow').innerText = `Low: ${{rep.low || 0}}`;
+            document.getElementById('pillInfo').innerText = `Info: ${{rep.info || 0}}`;
+          }}
         }}
       }});
     }}
@@ -747,6 +1267,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         CURRENT_RUN["progress"] = 5
         CURRENT_RUN["logs"] = ["Initializing DKSec Platform..."]
         CURRENT_RUN["current_stage"] = "Configuring environment"
+        CURRENT_RUN["report_summary"] = None
         output_dir = data.get("output_dir", "./reports/web_audit")
         CURRENT_RUN["report_dir"] = output_dir
 
@@ -817,7 +1338,32 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             CURRENT_RUN["last_report"] = report.to_dict()
             CURRENT_RUN["progress"] = 100
             CURRENT_RUN["current_stage"] = "Completed"
-            CURRENT_RUN["logs"].append(f"[DONE] Security Score: {report.overall_score}/100 | Gate: {report.gate_verdict.status}")
+
+            sev = report.severity_counts or {}
+            crit = sev.get("CRITICAL", 0) + sev.get("critical", 0)
+            high = sev.get("HIGH", 0) + sev.get("high", 0)
+            med = sev.get("MEDIUM", 0) + sev.get("medium", 0)
+            low = sev.get("LOW", 0) + sev.get("low", 0)
+            info = sev.get("INFO", 0) + sev.get("info", 0)
+
+            score = round(report.overall_score, 1)
+            grade = "A" if score >= 85 else ("B" if score >= 70 else ("C" if score >= 50 else "F"))
+            verdict_str = report.gate_verdict.status if report.gate_verdict else "APPROVED"
+
+            CURRENT_RUN["report_summary"] = {
+                "verdict": verdict_str,
+                "score": score,
+                "grade": grade,
+                "total_findings": len(report.all_findings),
+                "critical": crit,
+                "high": high,
+                "medium": med,
+                "low": low,
+                "info": info,
+                "reasons": report.gate_verdict.reasons if report.gate_verdict else [],
+            }
+
+            CURRENT_RUN["logs"].append(f"[DONE] Security Score: {score}/100 | Gate: {verdict_str}")
             CURRENT_RUN["logs"].append(f"[DONE] Generated HTML, SARIF 2.1.0, CycloneDX 1.5 SBOM, DefectDojo, and Sigma rules.")
 
         except Exception as e:
