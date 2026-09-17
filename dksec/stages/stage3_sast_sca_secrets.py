@@ -104,7 +104,8 @@ class Stage3SastScaSecrets(BaseStage):
             ("GitHub Personal Access Token", r"(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,255}|github_pat_[a-zA-Z0-9_]{82}", Severity.CRITICAL, "CWE-798", "T1552"),
             ("Private Cryptographic Key", r"-----BEGIN (?:RSA|OPENSSH|DSA|EC|PGP) PRIVATE KEY-----", Severity.CRITICAL, "CWE-321", "T1552"),
             ("Slack API Token", r"xox[baprs]-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*", Severity.HIGH, "CWE-798", "T1552"),
-            ("Stripe Secret API Key", r"(?:sk|rk)_live_[0-9a-zA-Z]{24,34}", Severity.CRITICAL, "CWE-798", "T1552"),
+            ("Stripe Secret API Key", r"(?:sk|rk)_(?:live|test)_[0-9a-zA-Z]{24,34}", Severity.CRITICAL, "CWE-798", "T1552"),
+
             ("Database URI with Plaintext Password", r"(?:postgres|mysql|mongodb|redis):\/\/[a-zA-Z0-9_\-]+:[^@\s]+@[a-zA-Z0-9_\-\.]+", Severity.CRITICAL, "CWE-256", "T1552"),
             ("Generic API Secret Assignment", r"""(?:api_secret|client_secret|db_pass|auth_secret)\s*[:=]\s*['"][a-zA-Z0-9!@#$%^&*()_+=-]{12,64}['"]""", Severity.HIGH, "CWE-798", "T1552"),
         ]
