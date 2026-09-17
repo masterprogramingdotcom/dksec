@@ -30,19 +30,29 @@ CURRENT_RUN = {
     "report_summary": None,
 }
 
-# Auto-discover any existing report from previous CLI runs at startup
+# Auto-discover any existing report from previous runs at startup (picks newest)
 def _auto_discover_report():
     candidates = [
         "./reports/dksec-report.html",
         "./reports/web_audit/dksec-report.html",
         "./reports/web_pentest/dksec-report.html",
         "./reports/code_audit/dksec-report.html",
+        "./reports/url_only/dksec-report.html",
     ]
+    newest = None
+    newest_mtime = 0
     for c in candidates:
         if os.path.exists(c):
-            CURRENT_RUN["report_html_path"] = os.path.abspath(c)
-            CURRENT_RUN["report_dir"] = os.path.dirname(os.path.abspath(c))
-            break
+            try:
+                mt = os.path.getmtime(c)
+                if mt > newest_mtime:
+                    newest_mtime = mt
+                    newest = c
+            except Exception:
+                pass
+    if newest:
+        CURRENT_RUN["report_html_path"] = os.path.abspath(newest)
+        CURRENT_RUN["report_dir"] = os.path.dirname(os.path.abspath(newest))
 
 _auto_discover_report()
 
@@ -89,21 +99,30 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
                 self.send_error(404, f"File '{fname}' not found. Run a scan first to generate it.")
         elif path == "/report":
             # Try from last scan first, then fall back to known report paths
-            html_path = CURRENT_RUN.get("report_html_path")
-            if not html_path or not os.path.exists(str(html_path)):
-                # Auto-discover: check common report dirs for dksec-report.html
-                candidates = [
-                    os.path.join(CURRENT_RUN["report_dir"], "dksec-report.html"),
-                    "./reports/dksec-report.html",
-                    "./reports/web_audit/dksec-report.html",
-                    "./reports/web_pentest/dksec-report.html",
-                    "./reports/code_audit/dksec-report.html",
-                ]
-                for c in candidates:
-                    if os.path.exists(c):
-                        html_path = c
-                        CURRENT_RUN["report_html_path"] = os.path.abspath(c)
-                        break
+            # Always pick the most recently generated report
+            candidates = [
+                CURRENT_RUN.get("report_html_path"),
+                os.path.join(CURRENT_RUN["report_dir"], "dksec-report.html"),
+                "./reports/dksec-report.html",
+                "./reports/web_pentest/dksec-report.html",
+                "./reports/web_audit/dksec-report.html",
+                "./reports/code_audit/dksec-report.html",
+                "./reports/url_only/dksec-report.html",
+            ]
+            newest = None
+            newest_mtime = 0
+            for c in candidates:
+                if c and os.path.exists(str(c)):
+                    try:
+                        mt = os.path.getmtime(c)
+                        if mt > newest_mtime:
+                            newest_mtime = mt
+                            newest = c
+                    except Exception:
+                        pass
+            html_path = newest
+            if html_path:
+                CURRENT_RUN["report_html_path"] = os.path.abspath(html_path)
             if html_path and os.path.exists(html_path):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")

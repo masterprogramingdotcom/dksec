@@ -11,6 +11,7 @@ import os
 import json
 import re
 from dksec.models import DKSecReport, Severity
+from dksec.config import STAGE_METADATA
 
 
 class HtmlReporter:
@@ -427,6 +428,144 @@ class HtmlReporter:
                 """
 
         # -------------------------------------------------------------
+        # BUILD TAB 0: ALL STAGES COMPLETE AUDIT & MATRIX (1-9)
+        # -------------------------------------------------------------
+        stage_tab_map = {
+            1: "tab-stride",
+            2: "tab-asvs",
+            3: "tab-sbom",
+            4: "tab-dast",
+            5: "tab-wstg",
+            6: "tab-vapt",
+            7: "tab-dojo",
+            8: "tab-scorecard",
+            9: "tab-wazuh"
+        }
+
+        all_stages_cards_html = ""
+        stages_matrix_rows_html = ""
+
+        for s_id in range(1, 10):
+            meta = STAGE_METADATA.get(s_id, {})
+            sr = report.stage_results.get(s_id)
+            s_name = sr.stage_name if sr else meta.get("name", f"Stage {s_id}")
+            tools = sr.recommended_tools if sr else meta.get("recommended_repo", "N/A")
+            covers = sr.what_it_covers if sr else meta.get("what_it_covers", "")
+            target_tab = stage_tab_map.get(s_id, "tab-findings")
+
+            if sr:
+                dur = f"{sr.execution_time_seconds:.2f}s"
+                f_count = len(sr.findings)
+                if f_count == 0:
+                    status_badge = '<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid #10b981;">✔ Clean / Passed (0 findings)</span>'
+                    status_short = '<span style="color: #059669; font-weight: 700;">✔ PASSED</span>'
+                else:
+                    crit_count = sum(1 for f in sr.findings if f.severity == Severity.CRITICAL)
+                    high_count = sum(1 for f in sr.findings if f.severity == Severity.HIGH)
+                    status_badge = f'<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #dc2626; border: 1px solid #ef4444;">⚠️ {f_count} Finding(s) ({crit_count} Crit, {high_count} High)</span>'
+                    status_short = f'<span style="color: #dc2626; font-weight: 700;">⚠️ {f_count} Findings</span>'
+
+                telemetry_items = []
+                if s_id == 1:
+                    c_count = sr.metrics.get('components_discovered', len(sr.details.get('components', [])))
+                    b_count = sr.metrics.get('trust_boundaries_count', len(sr.details.get('boundaries', [])))
+                    telemetry_items.append(f"{c_count} Architectural Elements")
+                    telemetry_items.append(f"{b_count} Trust Boundaries")
+                elif s_id == 2:
+                    r_count = sr.metrics.get('requirements_verified_count', 14)
+                    telemetry_items.append(f"{r_count} ASVS Requirements Audited")
+                elif s_id == 3:
+                    telemetry_items.append(f"{len(report.sbom_components)} Dependencies Tracked")
+                    telemetry_items.append(f"{sr.metrics.get('secret_leaks_count', 0)} Secret Leaks")
+                    telemetry_items.append(f"{sr.metrics.get('sast_vulnerabilities_count', 0)} SAST Flaws")
+                elif s_id == 4:
+                    telemetry_items.append(f"TLS: {tls_version}")
+                    telemetry_items.append(f"Server: {server_banner}")
+                    telemetry_items.append(f"{sr.metrics.get('live_routes_tested', 0)} API Endpoints Probed")
+                elif s_id == 5:
+                    telemetry_items.append(f"{sr.metrics.get('checklist_items_evaluated', 10)} WSTG Test Cases")
+                elif s_id == 6:
+                    telemetry_items.append(f"Ports: {open_ports_str}")
+                    telemetry_items.append(f"{len(dns_data.get('checks', []))} DNS DoH Records")
+                    telemetry_items.append(f"{len(fuzzing_data.get('results', []))} Fuzzing Endpoints")
+                elif s_id == 7:
+                    telemetry_items.append("OWASP DefectDojo SLA Remediation Matrix")
+                elif s_id == 8:
+                    telemetry_items.append("OpenSSF Scorecard 18 Verification Checks")
+                elif s_id == 9:
+                    telemetry_items.append("Wazuh XML Rules & Sigma Threat Detections")
+
+                telemetry_str = " &bull; ".join(telemetry_items) if telemetry_items else "Executed successfully."
+
+                findings_preview_html = ""
+                if sr.findings:
+                    findings_preview_html = '<div style="margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px;"><strong style="font-size: 12px; color: var(--text-heading);">Stage Findings:</strong><div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">'
+                    for f in sr.findings[:5]:
+                        findings_preview_html += f"""
+                        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; background: var(--bg-card-inner); padding: 6px 10px; border-radius: 6px;">
+                          <div>
+                            <span class="badge badge-{f.severity.value}" style="font-size: 10px; padding: 2px 6px;">{f.severity.value}</span>
+                            <span style="font-weight: 700; color: var(--text-heading); margin-left: 6px;">{f.id}</span>
+                            <span style="color: var(--text-main); margin-left: 6px;">{f.title}</span>
+                          </div>
+                          <span style="color: var(--text-muted); font-size: 11px;">{f.tool}</span>
+                        </div>"""
+                    if len(sr.findings) > 5:
+                        rem_count = len(sr.findings) - 5
+                        findings_preview_html += f'<div style="font-size: 11px; color: var(--text-muted); text-align: right;">+ {rem_count} more findings (see Findings tab)</div>'
+                    findings_preview_html += '</div></div>'
+                else:
+                    findings_preview_html = '<div style="margin-top: 10px; font-size: 12px; color: #059669; font-weight: 600;">✔ No security vulnerabilities identified in this stage.</div>'
+
+            else:
+                dur = "N/A"
+                status_badge = '<span class="badge" style="background: var(--border); color: var(--text-muted);">⏭️ Skipped in this scan</span>'
+                status_short = '<span style="color: var(--text-muted);">Skipped</span>'
+                telemetry_str = "Stage was not included in this scan profile. Use preset 'all' to run all 9 stages."
+                findings_preview_html = '<div style="margin-top: 10px; font-size: 12px; color: var(--text-muted);">Stage execution skipped.</div>'
+
+            f_total = len(sr.findings) if sr else 0
+            stages_matrix_rows_html += f"""
+            <tr>
+              <td style="font-weight: 800; text-align: center;"><span class="stage-num" style="display:inline-block; width:22px; height:22px; line-height:22px; border-radius:50%; margin:0;">{s_id}</span></td>
+              <td><strong>{s_name}</strong><div style="font-size: 11px; color: var(--text-muted);">{covers}</div></td>
+              <td style="font-family: monospace; font-size: 12px; color: var(--accent);">{tools}</td>
+              <td>{status_short}</td>
+              <td style="font-family: monospace; font-size: 12px;">{dur}</td>
+              <td><span class="badge" style="background: var(--bg-card-inner); color: var(--text-heading); font-size: 11px;">{f_total} findings</span></td>
+              <td>
+                <div style="display: flex; gap: 6px;">
+                  <button class="btn" style="padding: 3px 8px; font-size: 11px;" onclick="filterByStage({s_id})">🔍 Findings</button>
+                  <button class="btn btn-primary" style="padding: 3px 8px; font-size: 11px;" onclick="switchTab('{target_tab}')">📖 Deep-Dive</button>
+                </div>
+              </td>
+            </tr>"""
+
+            border_col = '#10b981' if (sr and len(sr.findings) == 0) else ('#ef4444' if (sr and len(sr.findings) > 0) else 'var(--border)')
+            all_stages_cards_html += f"""
+            <div class="panel-box" style="margin-bottom: 18px; border-left: 4px solid {border_col};">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span class="stage-num" style="width: 28px; height: 28px; line-height: 28px; font-size: 13px;">{s_id}</span>
+                  <div>
+                    <h3 style="margin: 0; font-size: 16px;">{s_name}</h3>
+                    <div style="font-size: 12px; color: var(--accent); font-family: monospace;">Tooling: {tools}</div>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                  {status_badge}
+                  <span style="font-size: 12px; color: var(--text-muted); font-family: monospace;">⏱️ {dur}</span>
+                  <button class="btn btn-primary" style="padding: 4px 10px; font-size: 12px;" onclick="switchTab('{target_tab}')">📖 View Stage Details ➔</button>
+                </div>
+              </div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">{covers}</div>
+              <div style="font-size: 12px; background: var(--bg-card-inner); padding: 8px 12px; border-radius: 6px; color: var(--text-main);">
+                <strong>Telemetry &amp; Audit Scope:</strong> {telemetry_str}
+              </div>
+              {findings_preview_html}
+            </div>"""
+
+        # -------------------------------------------------------------
         # FULL HTML TEMPLATE
         # -------------------------------------------------------------
         html_content = f"""<!DOCTYPE html>
@@ -575,23 +714,23 @@ class HtmlReporter:
       border: 2px solid;
     }}
     .gate-banner.approved {{
-      background: #ecfdf5;
-      border-color: #10b981;
-      color: #065f46;
+      background: #ecfdf5 !important;
+      border-color: #10b981 !important;
+      color: #065f46 !important;
     }}
     .gate-banner.blocked {{
-      background: #fef2f2;
-      border-color: #ef4444;
-      color: #991b1b;
+      background: #fef2f2 !important;
+      border-color: #ef4444 !important;
+      color: #991b1b !important;
     }}
     .gate-banner.conditional {{
-      background: #fffbeb;
-      border-color: #f59e0b;
-      color: #92400e;
+      background: #fffbeb !important;
+      border-color: #f59e0b !important;
+      color: #92400e !important;
     }}
-    [data-theme="dark"] .gate-banner.approved {{ background: rgba(16, 185, 129, 0.12); color: #6ee7b7; }}
-    [data-theme="dark"] .gate-banner.blocked {{ background: rgba(239, 68, 68, 0.12); color: #fca5a5; }}
-    [data-theme="dark"] .gate-banner.conditional {{ background: rgba(245, 158, 11, 0.12); color: #fde68a; }}
+    [data-theme="dark"] .gate-banner.approved {{ background: rgba(16, 185, 129, 0.15) !important; border-color: #10b981 !important; color: #6ee7b7 !important; }}
+    [data-theme="dark"] .gate-banner.blocked {{ background: rgba(239, 68, 68, 0.18) !important; border-color: #ef4444 !important; color: #fca5a5 !important; }}
+    [data-theme="dark"] .gate-banner.conditional {{ background: rgba(245, 158, 11, 0.18) !important; border-color: #f59e0b !important; color: #fde68a !important; }}
 
     .gate-status-badge {{
       display: inline-block;
@@ -692,26 +831,38 @@ class HtmlReporter:
     /* Tab Bar */
     .tab-bar {{
       display: flex;
-      gap: 4px;
-      border-bottom: 1px solid var(--tab-border);
-      margin-bottom: 20px;
-      overflow-x: auto;
-      padding-bottom: 2px;
+      flex-wrap: wrap;
+      gap: 6px;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 22px;
+      padding-bottom: 10px;
     }}
     .tab-btn {{
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      padding: 10px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 9px 15px;
       font-size: 13px;
       font-weight: 700;
       cursor: pointer;
-      border-bottom: 2px solid transparent;
+      border-radius: 8px;
       white-space: nowrap;
-      transition: all 0.2s;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }}
-    .tab-btn:hover {{ color: var(--text-heading); }}
-    .tab-btn.active {{ color: var(--tab-active-color); border-bottom-color: var(--tab-active-color); }}
+    .tab-btn:hover {{
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
+      color: var(--text-heading);
+    }}
+    .tab-btn.active {{
+      background: var(--accent) !important;
+      color: #ffffff !important;
+      border-color: var(--accent) !important;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    }}
 
     .tab-content {{ display: none; }}
     .tab-content.active {{ display: block; }}
@@ -1011,22 +1162,52 @@ class HtmlReporter:
 
     <!-- Detailed Tabs Section -->
     <div class="tab-bar">
-      <button class="tab-btn active" id="btn-tab-findings" onclick="switchTab('tab-findings', this)">🔍 Vulnerabilities ({len(report.all_findings)})</button>
-      <button class="tab-btn" id="btn-tab-stride" onclick="switchTab('tab-stride', this)">📐 Stage 1: Threat Model &amp; DFD</button>
+      <button class="tab-btn active" id="btn-tab-all-stages" onclick="switchTab('tab-all-stages', this)">📋 All Stages Overview (1-9)</button>
+      <button class="tab-btn" id="btn-tab-findings" onclick="switchTab('tab-findings', this)">🔍 Vulnerabilities ({len(report.all_findings)})</button>
+      <button class="tab-btn" id="btn-tab-stride" onclick="switchTab('tab-stride', this)">📐 Stage 1: Threat Model</button>
       <button class="tab-btn" id="btn-tab-asvs" onclick="switchTab('tab-asvs', this)">📜 Stage 2: ASVS Matrix</button>
-      <button class="tab-btn" id="btn-tab-sbom" onclick="switchTab('tab-sbom', this)">📦 Stage 3: SBOM Inventory ({len(report.sbom_components)})</button>
-      <button class="tab-btn" id="btn-tab-dast" onclick="switchTab('tab-dast', this)">🌐 Stage 4: DAST &amp; Live API</button>
+      <button class="tab-btn" id="btn-tab-sbom" onclick="switchTab('tab-sbom', this)">📦 Stage 3: SBOM ({len(report.sbom_components)})</button>
+      <button class="tab-btn" id="btn-tab-dast" onclick="switchTab('tab-dast', this)">🌐 Stage 4: DAST &amp; API</button>
       <button class="tab-btn" id="btn-tab-wstg" onclick="switchTab('tab-wstg', this)">🧪 Stage 5: WSTG Checklist</button>
-      <button class="tab-btn" id="btn-tab-vapt" onclick="switchTab('tab-vapt', this)">🎯 Stage 6: Penetration Test &amp; Recon</button>
+      <button class="tab-btn" id="btn-tab-vapt" onclick="switchTab('tab-vapt', this)">🎯 Stage 6: VAPT &amp; Recon</button>
       <button class="tab-btn" id="btn-tab-dojo" onclick="switchTab('tab-dojo', this)">📊 Stage 7: DefectDojo SLAs</button>
-      <button class="tab-btn" id="btn-tab-scorecard" onclick="switchTab('tab-scorecard', this)">🎖️ Stage 8: OpenSSF 18-Checks</button>
-      <button class="tab-btn" id="btn-tab-wazuh" onclick="switchTab('tab-wazuh', this)">🛡️ Stage 9: Wazuh &amp; Sigma Rules</button>
+      <button class="tab-btn" id="btn-tab-scorecard" onclick="switchTab('tab-scorecard', this)">🎖️ Stage 8: OpenSSF Signoff</button>
+      <button class="tab-btn" id="btn-tab-wazuh" onclick="switchTab('tab-wazuh', this)">🛡️ Stage 9: Wazuh &amp; SIEM</button>
+    </div>
+
+    <!-- TAB 0: ALL STAGES COMPLETE AUDIT & MATRIX -->
+    <div id="tab-all-stages" class="tab-content active">
+      <div class="panel-box">
+        <h3>📋 9-Stage Product Security Lifecycle Matrix</h3>
+        <p>Comprehensive audit status, tooling, duration, and findings across all 9 DevSecOps lifecycle stages.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 50px; text-align: center;">Stage</th>
+              <th>Stage Name &amp; Coverage</th>
+              <th>Primary Tooling</th>
+              <th>Status</th>
+              <th>Duration</th>
+              <th>Findings</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stages_matrix_rows_html}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="font-size: 16px; font-weight: 700; color: var(--text-heading); margin: 24px 0 14px 0; display: flex; align-items: center; gap: 8px;">
+        <span>🔍</span> Detailed Stage-by-Stage Telemetry &amp; Vulnerabilities
+      </div>
+      {all_stages_cards_html}
     </div>
 
     <!-- TAB 1: FINDINGS -->
-    <div id="tab-findings" class="tab-content active">
+    <div id="tab-findings" class="tab-content">
       <div class="filter-bar">
-        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; width: 100%;">
           <span style="font-size: 12px; color: var(--text-muted); font-weight: 700;">SEVERITY:</span>
           <button class="pill active" onclick="setSeverityFilter('ALL', this)">All</button>
           <button class="pill" onclick="setSeverityFilter('CRITICAL', this)">Critical</button>
@@ -1034,8 +1215,21 @@ class HtmlReporter:
           <button class="pill" onclick="setSeverityFilter('MEDIUM', this)">Medium</button>
           <button class="pill" onclick="setSeverityFilter('LOW', this)">Low</button>
         </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <input type="text" id="findingSearch" class="search-input" placeholder="Search findings by title, tool, CWE, MITRE, OWASP..." oninput="applyFilters()" />
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; width: 100%;">
+          <span style="font-size: 12px; color: var(--text-muted); font-weight: 700;">FILTER BY STAGE:</span>
+          <button class="pill stage-pill active" id="pill-stage-ALL" onclick="setStageFilter('ALL', this)">All Stages</button>
+          <button class="pill stage-pill" id="pill-stage-1" onclick="setStageFilter(1, this)">Stage 1: Threat Model</button>
+          <button class="pill stage-pill" id="pill-stage-2" onclick="setStageFilter(2, this)">Stage 2: ASVS</button>
+          <button class="pill stage-pill" id="pill-stage-3" onclick="setStageFilter(3, this)">Stage 3: SAST/SCA</button>
+          <button class="pill stage-pill" id="pill-stage-4" onclick="setStageFilter(4, this)">Stage 4: DAST</button>
+          <button class="pill stage-pill" id="pill-stage-5" onclick="setStageFilter(5, this)">Stage 5: WSTG</button>
+          <button class="pill stage-pill" id="pill-stage-6" onclick="setStageFilter(6, this)">Stage 6: VAPT</button>
+          <button class="pill stage-pill" id="pill-stage-7" onclick="setStageFilter(7, this)">Stage 7: DefectDojo</button>
+          <button class="pill stage-pill" id="pill-stage-8" onclick="setStageFilter(8, this)">Stage 8: Signoff</button>
+          <button class="pill stage-pill" id="pill-stage-9" onclick="setStageFilter(9, this)">Stage 9: Wazuh</button>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; width: 100%;">
+          <input type="text" id="findingSearch" class="search-input" style="width: 100%;" placeholder="Search findings by title, tool, CWE, MITRE, OWASP..." oninput="applyFilters()" />
         </div>
       </div>
 
@@ -1448,9 +1642,24 @@ class HtmlReporter:
       applyFilters();
     }}
 
+    function setStageFilter(stageId, btn) {{
+      currentStage = stageId;
+      document.querySelectorAll('.stage-pill').forEach(p => p.classList.remove('active'));
+      if (btn) {{
+        btn.classList.add('active');
+      }} else {{
+        const targetBtn = document.getElementById('pill-stage-' + stageId);
+        if (targetBtn) targetBtn.classList.add('active');
+      }}
+      applyFilters();
+    }}
+
     function filterByStage(stageId) {{
       currentStage = stageId;
       switchTab('tab-findings', document.getElementById('btn-tab-findings'));
+      document.querySelectorAll('.stage-pill').forEach(p => p.classList.remove('active'));
+      const targetBtn = document.getElementById('pill-stage-' + stageId);
+      if (targetBtn) targetBtn.classList.add('active');
       applyFilters();
     }}
 
@@ -1463,7 +1672,7 @@ class HtmlReporter:
         const searchTxt = card.getAttribute('data-search');
 
         const matchSev = (currentSeverity === 'ALL' || sev === currentSeverity);
-        const matchStage = (currentStage === 'ALL' || stage === currentStage);
+        const matchStage = (currentStage === 'ALL' || stage == currentStage);
         const matchQuery = (!query || searchTxt.includes(query));
 
         if (matchSev && matchStage && matchQuery) {{
