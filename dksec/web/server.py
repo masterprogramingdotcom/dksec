@@ -30,6 +30,21 @@ CURRENT_RUN = {
     "report_summary": None,
 }
 
+# Auto-discover any existing report from previous CLI runs at startup
+def _auto_discover_report():
+    candidates = [
+        "./reports/dksec-report.html",
+        "./reports/web_audit/dksec-report.html",
+        "./reports/web_pentest/dksec-report.html",
+        "./reports/code_audit/dksec-report.html",
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            CURRENT_RUN["report_html_path"] = os.path.abspath(c)
+            CURRENT_RUN["report_dir"] = os.path.dirname(os.path.abspath(c))
+            break
+
+_auto_discover_report()
 
 
 class DKSecWebHandler(BaseHTTPRequestHandler):
@@ -48,26 +63,55 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             self._serve_json(STAGE_METADATA)
         elif path.startswith("/download/"):
             fname = os.path.basename(path.replace("/download/", ""))
-            fpath = os.path.join(CURRENT_RUN["report_dir"], fname)
-            if os.path.exists(fpath):
+            # Search in current report_dir first, then fallback dirs
+            search_dirs = [
+                CURRENT_RUN["report_dir"],
+                "./reports",
+                "./reports/web_audit",
+                "./reports/web_pentest",
+                "./reports/code_audit",
+            ]
+            fpath = None
+            for d in search_dirs:
+                candidate = os.path.join(d, fname)
+                if os.path.exists(candidate):
+                    fpath = candidate
+                    break
+            if fpath:
                 self.send_response(200)
-                mime = "application/json" if fname.endswith((".json", ".sarif")) else ("text/html" if fname.endswith(".html") else "text/plain")
+                mime = "application/json" if fname.endswith((".json", ".sarif")) else ("text/html" if fname.endswith(".html") else ("text/xml" if fname.endswith(".xml") else ("text/plain")))
                 self.send_header("Content-Type", f"{mime}; charset=utf-8")
                 self.send_header("Content-Disposition", f'inline; filename="{fname}"')
                 self.end_headers()
                 with open(fpath, "rb") as fl:
                     self.wfile.write(fl.read())
             else:
-                self.send_error(404, f"File {fname} not found")
-        elif path == "/report" and CURRENT_RUN.get("report_html_path"):
-            if os.path.exists(CURRENT_RUN["report_html_path"]):
+                self.send_error(404, f"File '{fname}' not found. Run a scan first to generate it.")
+        elif path == "/report":
+            # Try from last scan first, then fall back to known report paths
+            html_path = CURRENT_RUN.get("report_html_path")
+            if not html_path or not os.path.exists(str(html_path)):
+                # Auto-discover: check common report dirs for dksec-report.html
+                candidates = [
+                    os.path.join(CURRENT_RUN["report_dir"], "dksec-report.html"),
+                    "./reports/dksec-report.html",
+                    "./reports/web_audit/dksec-report.html",
+                    "./reports/web_pentest/dksec-report.html",
+                    "./reports/code_audit/dksec-report.html",
+                ]
+                for c in candidates:
+                    if os.path.exists(c):
+                        html_path = c
+                        CURRENT_RUN["report_html_path"] = os.path.abspath(c)
+                        break
+            if html_path and os.path.exists(html_path):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.end_headers()
-                with open(CURRENT_RUN["report_html_path"], "rb") as fl:
+                with open(html_path, "rb") as fl:
                     self.wfile.write(fl.read())
             else:
-                self.send_error(404, "Report not yet generated.")
+                self.send_error(404, "No report found. Please run a scan first.")
         else:
             self.send_error(404, "Not Found")
 

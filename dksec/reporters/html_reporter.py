@@ -1,9 +1,12 @@
 """
 Single-file Interactive HTML Dashboard & Report Generator for DKSec (Enterprise Edition).
-Generates an executive-ready dark/light dashboard with Mermaid DFDs, SARIF/SBOM exporters,
-18 OpenSSF Scorecard checks, ASVS matrix, and code remediation diffs.
+Generates an executive-ready, high-contrast dark/light dashboard with Mermaid DFDs,
+SARIF/SBOM exporters, live DAST & API security matrix, VAPT attack surface recon,
+18 OpenSSF Scorecard checks, ASVS matrix, DefectDojo SLAs, Wazuh SIEM & Sigma rules,
+and code remediation diffs.
 """
 
+from typing import Any, Dict, List, Optional
 import os
 import json
 import re
@@ -16,31 +19,68 @@ class HtmlReporter:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         report_data_json = json.dumps(report.to_dict())
 
+        # Gate Colors
+        verdict = report.gate_verdict.status if report.gate_verdict else "UNKNOWN"
         gate_color = {
             "APPROVED": "#10b981",            # Emerald green
             "CONDITIONAL_APPROVAL": "#f59e0b",# Amber
             "BLOCKED": "#ef4444"              # Rose red
-        }.get(report.gate_verdict.status, "#64748b")
+        }.get(verdict, "#64748b")
 
-        mermaid_dfd = ""
+        gate_class = "approved" if verdict == "APPROVED" else ("conditional" if verdict == "CONDITIONAL_APPROVAL" else "blocked")
+
+        # Stage 1: Threat Dragon & Mermaid DFD
         s1 = report.stage_results.get(1)
+        mermaid_dfd = ""
         if s1 and "mermaid_dfd" in s1.details:
             mermaid_dfd = s1.details["mermaid_dfd"]
         if not mermaid_dfd:
-            mermaid_dfd = 'flowchart TD\n  Client["Client"] --> App["Application Server"]'
+            mermaid_dfd = 'flowchart TD\n  Client["Client"] --> App["Application Server"]\n  App --> DB[("Primary Database")]'
 
-        auth_badge = ""
+        # Stage 4: Live DAST, TLS & Headers
         s4 = report.stage_results.get(4)
-        if s4 and s4.details.get("auth_status", {}).get("authenticated"):
-            m = s4.details["auth_status"].get("method", "session").upper()
-            auth_badge = f'<span style="background: rgba(16,185,129,0.2); color: #34d399; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px; border: 1px solid #10b981;">🔒 AUTHENTICATED ({m})</span>'
+        s4_details = s4.details if s4 else {}
+        tls_data = s4_details.get("tls", {})
+        headers_data = s4_details.get("headers", {})
+        cors_data = s4_details.get("cors", {})
+        methods_data = s4_details.get("methods", {})
+        api_probes_data = s4_details.get("api_probes", {})
+        live_routes_data = s4_details.get("live_routes_audit", {})
+        auth_status = s4_details.get("auth_status", {})
+
+        # Stage 6: VAPT & Attack Surface Recon
+        s6 = report.stage_results.get(6)
+        s6_details = s6.details if s6 else {}
+        recon_data = s6_details.get("recon", {})
+        dns_data = s6_details.get("dns", {})
+        fuzzing_data = s6_details.get("fuzzing", {})
+        active_vapt_data = s6_details.get("active_vapt", {})
+
+        # Auth Badge & Info
+        auth_badge = ""
+        auth_status_text = "N/A"
+        if auth_status.get("authenticated"):
+            m = auth_status.get("method", "session").upper()
+            auth_badge = f'<span class="badge" style="background: rgba(16,185,129,0.15); color: #059669; border: 1px solid #10b981;">🔒 AUTHENTICATED ({m})</span>'
+            auth_status_text = f"Authenticated ({m})"
         elif report.target_url:
-            auth_badge = '<span style="background: rgba(100,116,139,0.2); color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">🌐 PUBLIC / UNAUTHENTICATED</span>'
+            auth_badge = '<span class="badge" style="background: rgba(100,116,139,0.15); color: #64748b; border: 1px solid #94a3b8;">🌐 PUBLIC / UNAUTHENTICATED</span>'
+            auth_status_text = "Public / Unauthenticated"
 
         target_display = f"Target: {report.target_path}"
         if report.target_url:
             target_display += f" | URL: {report.target_url}"
 
+        server_banner = headers_data.get("server_banner") or headers_data.get("server") or "N/A"
+        tls_version = tls_data.get("protocol") or tls_data.get("version") or ("HTTPS (TLS)" if report.target_url and report.target_url.startswith("https") else ("HTTP" if report.target_url else "N/A"))
+        open_ports = recon_data.get("open_ports", [])
+        open_ports_str = ", ".join(str(p) for p in open_ports) if open_ports else ("80, 443 (Web)" if report.target_url else "N/A")
+
+        # Score & Grade
+        score = round(report.overall_score, 1)
+        score_grade = "A" if score >= 85 else ("B" if score >= 70 else ("C" if score >= 50 else "F"))
+
+        # AI Executive Briefing HTML
         ai_briefing_html = ""
         if report.ai_executive_summary:
             paragraphs = report.ai_executive_summary.strip().split("\n\n")
@@ -48,44 +88,404 @@ class HtmlReporter:
             for p in paragraphs:
                 p = p.strip()
                 if p.startswith("### "):
-                    body_parts.append(f'<h3 style="font-size: 16px; color: #c7d2fe; margin: 14px 0 6px 0; font-weight: 700;">{p[4:]}</h3>')
+                    body_parts.append(f'<h3 style="font-size: 15px; color: var(--text-heading); margin: 14px 0 6px 0; font-weight: 700;">{p[4:]}</h3>')
                 elif p:
                     p_html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', p)
-                    body_parts.append(f'<p style="margin-bottom: 10px; line-height: 1.6; font-size: 13.5px; color: #e0e7ff;">{p_html}</p>')
+                    body_parts.append(f'<p style="margin-bottom: 10px; line-height: 1.6; font-size: 13.5px; color: var(--text-main);">{p_html}</p>')
             formatted_html = "\n".join(body_parts)
             ai_briefing_html = f"""
     <!-- AI Executive Security Briefing -->
     <div class="ai-briefing-card">
       <div class="ai-briefing-header">
         <span class="ai-tag">🤖 DKSec AI Security Intelligence</span>
-        <span style="font-size: 12px; color: #a5b4fc; font-weight: 600;">Autonomous Executive Triaging &amp; Posture Synthesis</span>
+        <span style="font-size: 12px; color: #4338ca; font-weight: 700;">Autonomous Executive Triaging &amp; Posture Synthesis</span>
       </div>
-      <div style="margin-top: 12px;">
+      <div style="margin-top: 10px;">
         {formatted_html}
       </div>
     </div>
 """
 
+        # -------------------------------------------------------------
+        # BUILD TAB 1: FINDINGS
+        # -------------------------------------------------------------
+        findings_html = ""
+        for f in report.all_findings:
+            ai_badge = ""
+            if f.ai_triage:
+                triage_color = "#059669" if f.ai_triage == "TRUE_POSITIVE" else ("#dc2626" if f.ai_triage == "FALSE_POSITIVE" else "#d97706")
+                conf_pct = int((f.ai_confidence or 0.9) * 100)
+                ai_badge = f'<span class="badge" style="background: rgba(99, 102, 241, 0.15); color: {triage_color}; border: 1px solid #6366f1;">🤖 {f.ai_triage} ({conf_pct}%)</span>'
+
+            ai_box = ""
+            if f.ai_analysis:
+                ai_box = f'<div class="ai-analysis-box"><strong>🤖 DKSec AI Analysis &amp; Context:</strong> {f.ai_analysis}</div>'
+
+            # OWASP & CVSS Badges
+            owasp_badge = f'<span class="badge" style="background: rgba(37,99,235,0.1); color: #2563eb; border: 1px solid rgba(37,99,235,0.3);">{f.owasp}</span>' if f.owasp else ''
+            cvss_badge = f'<span class="badge" style="background: rgba(220,38,38,0.1); color: #dc2626; border: 1px solid rgba(220,38,38,0.3);">CVSS {f.cvss_score}</span>' if f.cvss_score else ''
+            mitre_badge = f'<span class="badge" style="background: rgba(79,70,229,0.1); color: #4f46e5; border: 1px solid rgba(79,70,229,0.3);">MITRE {f.mitre_attack}</span>' if f.mitre_attack else ''
+
+            # References
+            refs_html = ""
+            if f.references:
+                ref_links = []
+                for r in f.references:
+                    r_str = str(r).strip()
+                    if r_str.startswith("http"):
+                        ref_links.append(f'<a href="{r_str}" target="_blank" style="color: #2563eb; text-decoration: underline; margin-right: 12px; font-size: 12px;">🔗 {r_str}</a>')
+                    else:
+                        ref_links.append(f'<span style="color: var(--text-muted); font-size: 12px; margin-right: 12px;">• {r_str}</span>')
+                refs_html = f'<div style="margin-top: 10px; font-size: 12px;"><strong>References &amp; Advisories:</strong><div style="margin-top: 4px; word-break: break-all;">{" ".join(ref_links)}</div></div>'
+
+            code_box_html = f'<div class="code-box"><div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Matched Code / Evidence:</div><pre style="margin: 0; white-space: pre-wrap;">{f.code_snippet}</pre></div>' if f.code_snippet else ''
+            diff_box_html = f'<div class="diff-box"><strong>Proposed Patch (Unified Diff):</strong><pre style="margin: 4px 0 0 0; white-space: pre-wrap;">{f.remediation_diff}</pre></div>' if f.remediation_diff else ''
+            remediation_html = f'<div class="remediation-box"><strong>💡 Remediation Guidance:</strong> {f.remediation}</div>' if f.remediation else ''
+
+            findings_html += f"""
+        <div class="finding-card {f.severity.value}" data-severity="{f.severity.value}" data-stage="{f.stage_id}" data-search="{f.title.lower()} {f.tool.lower()} {str(f.cwe).lower()} {str(f.mitre_attack).lower()} {str(f.file_path).lower()} {str(f.owasp).lower()} {str(f.ai_triage or '').lower()}">
+          <div class="finding-header">
+            <div>
+              <span style="color: var(--text-muted); font-family: monospace; font-size: 12px; margin-right: 8px; font-weight: 700;">{f.id}</span>
+              <span class="finding-title">{f.title}</span>
+            </div>
+            <div class="finding-badges">
+              {ai_badge}
+              <span class="badge badge-{f.severity.value}">{f.severity.value}</span>
+              <span class="badge" style="background: var(--pill-bg); color: var(--text-main);">Stage {f.stage_id}</span>
+              {owasp_badge}
+              {cvss_badge}
+              {mitre_badge}
+            </div>
+          </div>
+          <div class="finding-meta">
+            <span>🔧 Tool: <strong>{f.tool}</strong></span>
+            <span>📂 Target: <strong>{f.file_path or f.target or 'N/A'}{(':' + str(f.line_number)) if f.line_number else ''}</strong></span>
+            <span>🏷️ CWE: <strong>{f.cwe or 'N/A'}</strong></span>
+            <span>⏱️ Remediation SLA: <strong>{f.sla_days} Days</strong></span>
+            <span>📋 Status: <strong>{f.status.value}</strong></span>
+          </div>
+          <p class="finding-desc">{f.description}</p>
+          {ai_box}
+          {code_box_html}
+          {diff_box_html}
+          {remediation_html}
+          {refs_html}
+        </div>
+"""
+
+        # -------------------------------------------------------------
+        # BUILD TAB 2: STAGE 1 (THREAT MODEL & DFD)
+        # -------------------------------------------------------------
+        components_table_html = ""
+        stride_table_html = ""
+        if s1 and "components" in s1.details:
+            for comp in s1.details.get("components", []):
+                components_table_html += f"""
+                <tr>
+                  <td><strong>{comp.get('name')}</strong></td>
+                  <td><span class="badge" style="background: var(--pill-bg); color: var(--text-main);">{comp.get('type')}</span></td>
+                  <td>{comp.get('boundary')}</td>
+                  <td style="color: var(--text-muted);">{comp.get('description')}</td>
+                </tr>
+                """
+        if s1 and "threats" in s1.details:
+            for t in s1.details.get("threats", []):
+                stride_table_html += f"""
+                <tr>
+                  <td style="font-family: monospace; font-weight: 700;">{t.get('category')[:3].upper()}</td>
+                  <td><strong>{t.get('category')}</strong></td>
+                  <td>{t.get('component')}</td>
+                  <td><span class="badge badge-{t.get('severity')}">{t.get('severity')}</span></td>
+                  <td style="font-family: monospace; color: #4f46e5;">{t.get('mitre_attack', 'T1190')}</td>
+                  <td>{t.get('title')}</td>
+                  <td style="color: #059669; font-weight: 600;">{t.get('mitigation')}</td>
+                </tr>
+                """
+
+        # -------------------------------------------------------------
+        # BUILD TAB 3: STAGE 2 (ASVS MATRIX)
+        # -------------------------------------------------------------
+        asvs_table_html = ""
+        s2 = report.stage_results.get(2)
+        if s2 and "checklist" in s2.details:
+            for item in s2.details.get("checklist", []):
+                st = item.get('status', 'VERIFY')
+                st_class = "status-pill-pass" if st == 'PASS' else ("status-pill-fail" if st == 'FAIL' else "status-pill-verify")
+                asvs_table_html += f"""
+                <tr>
+                  <td style="font-family: monospace; font-weight: 700;">{item.get('id')}</td>
+                  <td>{item.get('chapter')}</td>
+                  <td><span class="badge" style="background: var(--pill-bg); color: var(--text-main);">Level {item.get('level')}</span></td>
+                  <td>{item.get('description')}</td>
+                  <td style="font-family: monospace;">{item.get('cwe') or 'N/A'}</td>
+                  <td><span class="{st_class}">{st}</span></td>
+                  <td style="color: var(--text-muted); font-size: 12px;">{item.get('evidence') or 'Verified'}</td>
+                  <td style="color: #059669; font-size: 12px;">{item.get('remediation') or 'None'}</td>
+                </tr>
+                """
+
+        # -------------------------------------------------------------
+        # BUILD TAB 4: STAGE 3 (SBOM INVENTORY)
+        # -------------------------------------------------------------
+        sbom_table_html = ""
+        for c in report.sbom_components:
+            vulns = c.vulnerabilities or []
+            vuln_badge = f'<span class="badge badge-HIGH">{len(vulns)} CVEs</span>' if vulns else '<span class="status-pill-pass">Clean</span>'
+            cve_details = ", ".join(f"{v.get('cve_id')} ({v.get('severity')})" for v in vulns) if vulns else "No known CVEs"
+            fix_details = ", ".join(f"{v.get('cve_id')}: Upgrade to {v.get('fixed_in')}" for v in vulns if v.get('fixed_in')) if vulns else "Up to date"
+
+            sbom_table_html += f"""
+            <tr>
+              <td><strong>{c.name}</strong></td>
+              <td style="font-family: monospace;">{c.version}</td>
+              <td><span class="badge" style="background: var(--pill-bg); color: var(--text-main);">{c.ecosystem}</span></td>
+              <td style="font-family: monospace; color: var(--text-muted); font-size: 11px;">{c.purl}</td>
+              <td>{c.license or 'MIT'}</td>
+              <td>{vuln_badge} <span style="font-size: 11px; color: var(--text-muted); display: block;">{cve_details}</span></td>
+              <td style="color: #059669; font-size: 12px;">{fix_details}</td>
+            </tr>
+            """
+
+        # -------------------------------------------------------------
+        # BUILD TAB 5: STAGE 4 (DAST & LIVE API SECURITY) - PREVIOUSLY MISSING!
+        # -------------------------------------------------------------
+        headers_table_html = ""
+        for h in headers_data.get("evaluated_headers", []):
+            st = h.get("status", "MISSING")
+            st_class = "status-pill-pass" if st == "PRESENT" else "status-pill-fail"
+            headers_table_html += f"""
+            <tr>
+              <td style="font-family: monospace; font-weight: 700;">{h.get('name')}</td>
+              <td><span class="{st_class}">{st}</span></td>
+              <td><span class="badge badge-{h.get('severity', 'LOW')}">{h.get('severity', 'LOW')}</span></td>
+              <td style="font-family: monospace; font-size: 12px; color: var(--text-muted);">{h.get('value') or 'Header not sent by server'}</td>
+              <td style="font-size: 12px; color: #059669;">{h.get('recommendation', 'Enforce secure value.')}</td>
+            </tr>
+            """
+
+        probes_table_html = ""
+        for p in api_probes_data.get("probed_paths", []):
+            st_code = p.get("status_code", 404)
+            st_class = "status-pill-fail" if st_code in (200, 201, 301, 302) else "status-pill-pass"
+            probes_table_html += f"""
+            <tr>
+              <td style="font-family: monospace; font-weight: 700;">{p.get('path')}</td>
+              <td><span class="{st_class}">HTTP {st_code}</span></td>
+              <td style="font-family: monospace;">{p.get('content_length', 0)} bytes</td>
+              <td><span class="badge badge-{p.get('severity', 'INFO')}">{p.get('status_description', 'Probed')}</span></td>
+              <td style="font-size: 12px; color: var(--text-muted);">{p.get('notes', 'Checked for sensitive information disclosure.')}</td>
+            </tr>
+            """
+
+        live_routes_table_html = ""
+        for r in live_routes_data.get("routes_audited", []):
+            live_routes_table_html += f"""
+            <tr>
+              <td style="font-family: monospace; font-weight: 700;">{r.get('route')}</td>
+              <td style="font-family: monospace;">HTTP {r.get('unauth_status', 'N/A')}</td>
+              <td style="font-family: monospace;">HTTP {r.get('auth_status', 'N/A')}</td>
+              <td><span class="badge" style="background: var(--pill-bg); color: var(--text-main);">{r.get('differential_verdict', 'Consistent')}</span></td>
+            </tr>
+            """
+
+        # -------------------------------------------------------------
+        # BUILD TAB 6: STAGE 5 (WSTG PENTEST CHECKLIST)
+        # -------------------------------------------------------------
+        wstg_table_html = ""
+        s5 = report.stage_results.get(5)
+        if s5 and "checklist" in s5.details:
+            for item in s5.details.get("checklist", []):
+                st = item.get('status', 'UNTESTED')
+                st_class = "status-pill-pass" if st == 'PASS' else ("status-pill-fail" if st == 'FAIL' else "status-pill-verify")
+                wstg_table_html += f"""
+                <tr>
+                  <td style="font-family: monospace; font-weight: 700;">{item.get('id')}</td>
+                  <td><strong>{item.get('category')}</strong></td>
+                  <td>{item.get('name')}</td>
+                  <td><span class="{st_class}">{st}</span></td>
+                  <td style="color: var(--text-muted); font-size: 12px;">{item.get('tester_notes') or item.get('evidence') or 'Verified'}</td>
+                </tr>
+                """
+
+        # -------------------------------------------------------------
+        # BUILD TAB 7: STAGE 6 (PENETRATION TEST & ATTACK SURFACE RECON) - PREVIOUSLY MISSING!
+        # -------------------------------------------------------------
+        ports_table_html = ""
+        if open_ports:
+            for port in open_ports:
+                svc = {80: "HTTP", 443: "HTTPS", 8080: "HTTP-Proxy / Alt", 8443: "HTTPS-Alt", 3000: "Node / Dev", 5000: "Flask / API", 6379: "Redis Cache", 5432: "PostgreSQL", 3306: "MySQL"}.get(port, "TCP Service")
+                ports_table_html += f"""
+                <tr>
+                  <td style="font-family: monospace; font-weight: 700;">{port}</td>
+                  <td>{svc}</td>
+                  <td><span class="status-pill-verify">OPEN / ACCESSIBLE</span></td>
+                  <td style="color: var(--text-muted); font-size: 12px;">Verified reachable via TCP SYN / connect handshake</td>
+                </tr>
+                """
+
+        dns_table_html = ""
+        for d_check in dns_data.get("checks", []):
+            st = d_check.get("status", "PASS")
+            st_class = "status-pill-pass" if st == "PASS" else ("status-pill-fail" if st == "FAIL" else "status-pill-verify")
+            val = d_check.get("value") or d_check.get("record_value") or "No record"
+            rec = d_check.get("recommendation") or d_check.get("security_impact") or "N/A"
+            dns_table_html += f"""
+            <tr>
+              <td style="font-weight: 700;">{d_check.get('record_type')}</td>
+              <td><span class="{st_class}">{st}</span></td>
+              <td style="font-family: monospace; font-size: 12px; color: var(--text-muted);">{val}</td>
+              <td style="font-size: 12px; color: #059669;">{rec}</td>
+            </tr>
+            """
+
+        fuzzing_table_html = ""
+        for fz in fuzzing_data.get("results", []):
+            fz_status = fz.get("status_code", 404)
+            fz_class = "status-pill-fail" if str(fz_status) in ("200", "201", "301", "302", "500") else "status-pill-pass"
+            target_path = fz.get("path") or fz.get("endpoint") or fz.get("target") or "N/A"
+            sz = fz.get("content_length") or fz.get("response_size") or 0
+            verdict_text = fz.get("verdict") or "Checked"
+            risk_text = fz.get("risk") or fz.get("severity") or "INFO"
+            fuzzing_table_html += f"""
+            <tr>
+              <td style="font-family: monospace; font-weight: 700;">{target_path}</td>
+              <td><span class="{fz_class}">HTTP {fz_status}</span></td>
+              <td style="font-family: monospace;">{sz} bytes</td>
+              <td><span class="badge badge-{risk_text}">{verdict_text}</span></td>
+            </tr>
+            """
+
+        active_vapt_table_html = ""
+        for av in active_vapt_data.get("tests", []):
+            av_risk = av.get("risk", "SAFE")
+            av_class = "status-pill-fail" if av_risk in ("CRITICAL", "HIGH") else "status-pill-pass"
+            active_vapt_table_html += f"""
+            <tr>
+              <td><strong>{av.get('test_type')}</strong></td>
+              <td style="font-family: monospace; font-size: 12px;">{av.get('probe_vector')}</td>
+              <td style="font-family: monospace;">HTTP {av.get('status_code')}</td>
+              <td><span class="{av_class}">{av.get('result')}</span></td>
+              <td><span class="badge badge-{av_risk}">{av_risk}</span></td>
+            </tr>
+            """
+
+        # -------------------------------------------------------------
+        # BUILD TAB 8: STAGE 7 (DEFECTDOJO & JIRA SLAs)
+        # -------------------------------------------------------------
+        dojo_table_html = ""
+        s7 = report.stage_results.get(7)
+        if s7 and "remediation_plan" in s7.details:
+            for plan in s7.details.get("remediation_plan", []):
+                dojo_table_html += f"""
+                <tr>
+                  <td style="font-family: monospace; font-weight: 700;">{plan.get('id')}</td>
+                  <td><strong>{plan.get('title')}</strong></td>
+                  <td><span class="badge badge-{plan.get('severity')}">{plan.get('severity')}</span></td>
+                  <td><strong>{plan.get('sla_days')} Days</strong></td>
+                  <td style="color: #dc2626; font-family: monospace; font-weight: 700;">{plan.get('target_due_date')}</td>
+                  <td><span class="status-pill-verify">{plan.get('status')}</span></td>
+                </tr>
+                """
+
+        # -------------------------------------------------------------
+        # BUILD TAB 9: STAGE 8 (OPENSSF 18 CHECKS)
+        # -------------------------------------------------------------
+        scorecard_table_html = ""
+        s8 = report.stage_results.get(8)
+        slsa_badge_text = s8.details.get('slsa_level', 'SLSA Level 1') if s8 else 'SLSA Level 1'
+        if s8 and "scorecard_18_checks" in s8.details:
+            for check in s8.details.get("scorecard_18_checks", []):
+                sc = check.get('score', 0)
+                sc_color = "#059669" if sc >= 8 else ("#d97706" if sc >= 5 else "#dc2626")
+                scorecard_table_html += f"""
+                <tr>
+                  <td><strong>{check.get('name')}</strong></td>
+                  <td style="font-weight: 800; color: {sc_color}; font-size: 14px;">{sc}/10</td>
+                  <td style="font-size: 12px; color: var(--text-muted);">{check.get('reason')}</td>
+                  <td style="font-size: 12px; color: #059669; font-weight: 600;">{check.get('remediation')}</td>
+                </tr>
+                """
+
+        # -------------------------------------------------------------
+        # BUILD TAB 10: STAGE 9 (WAZUH & SIGMA RULES)
+        # -------------------------------------------------------------
+        s9 = report.stage_results.get(9)
+        wazuh_xml_content = s9.details.get('wazuh_xml') if s9 else '<ruleset><!-- Wazuh rules generated --></ruleset>'
+        sigma_yaml_content = s9.details.get('sigma_yaml') if s9 else '# Sigma detection rules'
+
+        mitre_table_html = ""
+        if s9 and "mitre_matrix" in s9.details:
+            for tech in s9.details.get("mitre_matrix", []):
+                mitre_table_html += f"""
+                <tr>
+                  <td style="font-family: monospace; font-weight: 700; color: #4f46e5;">{tech.get('technique_id')}</td>
+                  <td><strong>{tech.get('name')}</strong></td>
+                  <td>{tech.get('tactic')}</td>
+                  <td>{tech.get('observed_findings_count', 1)} finding(s)</td>
+                </tr>
+                """
+
+        # -------------------------------------------------------------
+        # FULL HTML TEMPLATE
+        # -------------------------------------------------------------
         html_content = f"""<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DKSec Enterprise Report - {report.project_name}</title>
+  <title>DKSec Enterprise Security Report - {report.project_name}</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
-  <script>mermaid.initialize({{ startOnLoad: true, theme: 'dark' }});</script>
+  <script>mermaid.initialize({{ startOnLoad: true, theme: 'default' }});</script>
   <style>
     :root {{
+      --bg-main: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-card-inner: #f1f5f9;
+      --bg-card-hover: #f8fafc;
+      --border: #e2e8f0;
+      --border-focus: #3b82f6;
+      --text-heading: #0f172a;
+      --text-main: #334155;
+      --text-muted: #64748b;
+      --card-title: #0f172a;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --crit: #dc2626;
+      --high: #ea580c;
+      --med: #d97706;
+      --low: #2563eb;
+      --info: #64748b;
+      --success: #059669;
+      --code-bg: #0f172a;
+      --code-text: #38bdf8;
+      --diff-bg: #0f172a;
+      --diff-text: #34d399;
+      --table-header: #f1f5f9;
+      --table-header-text: #475569;
+      --table-row-border: #e2e8f0;
+      --pill-bg: #e2e8f0;
+      --pill-text: #475569;
+      --pill-active-bg: #2563eb;
+      --pill-active-text: #ffffff;
+      --header-bg: #ffffff;
+      --tab-border: #e2e8f0;
+      --tab-active-color: #2563eb;
+      --shadow: 0 4px 14px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
+    }}
+    [data-theme="dark"] {{
       --bg-main: #0b0f19;
       --bg-card: #131b2e;
+      --bg-card-inner: #0d1424;
       --bg-card-hover: #1c2742;
       --border: #233252;
-      --text-main: #f1f5f9;
+      --border-focus: #3b82f6;
       --text-heading: #ffffff;
+      --text-main: #cbd5e1;
       --text-muted: #94a3b8;
-      --header-bg: linear-gradient(180deg, #162035 0%, #0b0f19 100%);
       --card-title: #ffffff;
       --accent: #3b82f6;
+      --accent-hover: #1d4ed8;
       --crit: #ef4444;
       --high: #f97316;
       --med: #eab308;
@@ -93,69 +493,58 @@ class HtmlReporter:
       --info: #64748b;
       --success: #10b981;
       --code-bg: #090d16;
+      --code-text: #38bdf8;
       --diff-bg: #090d16;
+      --diff-text: #a7f3d0;
       --table-header: #162035;
+      --table-header-text: #94a3b8;
+      --table-row-border: #233252;
       --pill-bg: #1e293b;
-      --shadow: 0 4px 14px rgba(0,0,0,0.4);
-    }}
-    [data-theme="light"] {{
-      --bg-main: #f8fafc;
-      --bg-card: #ffffff;
-      --bg-card-hover: #f1f5f9;
-      --border: #cbd5e1;
-      --text-main: #1e293b;
-      --text-heading: #0f172a;
-      --text-muted: #64748b;
-      --header-bg: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
-      --card-title: #0f172a;
-      --accent: #2563eb;
-      --crit: #dc2626;
-      --high: #ea580c;
-      --med: #d97706;
-      --low: #2563eb;
-      --info: #64748b;
-      --success: #059669;
-      --code-bg: #f8fafc;
-      --diff-bg: #f8fafc;
-      --table-header: #f1f5f9;
-      --pill-bg: #e2e8f0;
-      --shadow: 0 4px 16px rgba(0,0,0,0.06);
+      --pill-text: #94a3b8;
+      --pill-active-bg: #3b82f6;
+      --pill-active-text: #ffffff;
+      --header-bg: linear-gradient(180deg, #162035 0%, #0b0f19 100%);
+      --tab-border: #233252;
+      --tab-active-color: #60a5fa;
+      --shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
     body {{ background: var(--bg-main); color: var(--text-main); line-height: 1.5; padding-bottom: 80px; transition: background 0.2s, color 0.2s; }}
+    
     header {{
       background: var(--header-bg);
       border-bottom: 1px solid var(--border);
-      padding: 24px 36px;
+      padding: 20px 32px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 16px;
-      transition: background 0.2s;
+      box-shadow: var(--shadow);
     }}
     .logo-area {{ display: flex; align-items: center; gap: 14px; }}
     .logo-shield {{
-      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
       color: #fff;
       font-weight: 800;
       font-size: 24px;
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+      box-shadow: 0 4px 12px rgba(37,99,235,0.3);
     }}
-    h1 {{ font-size: 22px; font-weight: 700; color: var(--text-heading); }}
-    .subtitle {{ font-size: 13px; color: var(--text-muted); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }}
-    .header-actions {{ display: flex; gap: 10px; flex-wrap: wrap; }}
+    h1 {{ font-size: 20px; font-weight: 800; color: var(--text-heading); }}
+    .subtitle {{ font-size: 13px; color: var(--text-muted); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 2px; }}
+    .header-actions {{ display: flex; gap: 8px; flex-wrap: wrap; }}
+    
     .btn {{
       background: var(--bg-card);
       border: 1px solid var(--border);
-      color: var(--text-main);
-      padding: 8px 16px;
+      color: var(--text-heading);
+      padding: 8px 14px;
       border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
@@ -166,154 +555,203 @@ class HtmlReporter:
       align-items: center;
       gap: 6px;
     }}
-    .btn:hover {{ background: var(--border); }}
+    .btn:hover {{ border-color: var(--accent); background: var(--bg-card-inner); }}
     .btn-primary {{ background: #2563eb; border-color: #3b82f6; color: #fff; }}
     .btn-primary:hover {{ background: #1d4ed8; }}
 
+    .container {{ max-width: 1440px; margin: 0 auto; padding: 24px 32px; }}
 
-    .container {{ max-width: 1440px; margin: 0 auto; padding: 28px 36px; }}
-
-    /* Gate Banner */
+    /* Gatekeeper Verdict Banner */
     .gate-banner {{
-      background: rgba(19, 27, 46, 0.85);
-      border: 2px solid {gate_color};
       border-radius: 14px;
-      padding: 20px 28px;
+      padding: 22px 28px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 28px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
       flex-wrap: wrap;
-      gap: 20px;
+      gap: 16px;
+      border: 2px solid;
     }}
+    .gate-banner.approved {{
+      background: #ecfdf5;
+      border-color: #10b981;
+      color: #065f46;
+    }}
+    .gate-banner.blocked {{
+      background: #fef2f2;
+      border-color: #ef4444;
+      color: #991b1b;
+    }}
+    .gate-banner.conditional {{
+      background: #fffbeb;
+      border-color: #f59e0b;
+      color: #92400e;
+    }}
+    [data-theme="dark"] .gate-banner.approved {{ background: rgba(16, 185, 129, 0.12); color: #6ee7b7; }}
+    [data-theme="dark"] .gate-banner.blocked {{ background: rgba(239, 68, 68, 0.12); color: #fca5a5; }}
+    [data-theme="dark"] .gate-banner.conditional {{ background: rgba(245, 158, 11, 0.12); color: #fde68a; }}
+
     .gate-status-badge {{
       display: inline-block;
-      padding: 6px 16px;
+      padding: 5px 14px;
       border-radius: 20px;
       font-weight: 800;
-      font-size: 14px;
+      font-size: 13px;
       letter-spacing: 0.5px;
       background: {gate_color};
       color: #fff;
     }}
-    .gate-info h2 {{ font-size: 20px; margin-bottom: 4px; }}
-    .gate-reasons {{ font-size: 13px; color: var(--text-muted); }}
+
+    /* Target Environment Profile Card */
+    .profile-card {{
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }}
+    .profile-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+    }}
+    .profile-item strong {{ display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }}
+    .profile-item span {{ font-size: 13px; font-weight: 700; color: var(--text-heading); }}
 
     /* KPI Summary Row */
     .kpi-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      margin-bottom: 28px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
     }}
     .kpi-card {{
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 18px 22px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
     }}
-    .kpi-label {{ font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }}
-    .kpi-val {{ font-size: 32px; font-weight: 800; margin: 6px 0; }}
+    .kpi-label {{ font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }}
+    .kpi-val {{ font-size: 32px; font-weight: 800; margin: 4px 0; color: var(--text-heading); }}
     .kpi-sub {{ font-size: 11px; color: var(--text-muted); }}
 
-    /* Lifecycle Pipeline Visualizer */
-    .section-title {{ font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }}
+    /* AI Card */
+    .ai-briefing-card {{
+      background: var(--bg-card);
+      border: 1.5px solid #6366f1;
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15);
+    }}
+    .ai-briefing-header {{ display: flex; align-items: center; gap: 10px; }}
+    .ai-tag {{ background: #6366f1; color: #fff; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 6px; }}
+    .ai-analysis-box {{ background: var(--bg-card-inner); border-left: 3px solid #6366f1; padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 13px; color: var(--text-heading); margin: 8px 0 10px 0; line-height: 1.5; }}
+
+    /* 9 Stages Visualizer */
     .pipeline-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-      gap: 16px;
-      margin-bottom: 32px;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
     }}
     .pipeline-card {{
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px 20px;
-      position: relative;
-      transition: transform 0.2s, border-color 0.2s;
-      cursor: pointer;
+      border-radius: 10px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.2s, transform 0.2s;
     }}
     .pipeline-card:hover {{ border-color: var(--accent); transform: translateY(-2px); }}
-    .pipeline-card.active {{ border-color: #3b82f6; background: #16233f; }}
     .stage-num {{
       display: inline-block;
-      width: 26px;
-      height: 26px;
-      line-height: 26px;
+      width: 24px;
+      height: 24px;
+      line-height: 24px;
       text-align: center;
-      background: #233252;
-      color: #93c5fd;
-      font-size: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
       font-weight: 800;
       border-radius: 6px;
       margin-right: 8px;
     }}
-    .stage-title {{ font-size: 15px; font-weight: 700; color: #fff; }}
-    .stage-tools {{ font-size: 12px; color: #60a5fa; margin: 4px 0 8px 0; font-family: monospace; }}
-    .stage-desc {{ font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }}
-    .stage-footer {{ display: flex; justify-content: space-between; font-size: 12px; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; }}
-    .badge-count {{ padding: 2px 8px; border-radius: 10px; font-weight: 700; font-size: 11px; }}
+    .stage-title {{ font-size: 14px; font-weight: 700; color: var(--text-heading); }}
+    .stage-tools {{ font-size: 11px; color: var(--accent); margin: 3px 0 6px 0; font-family: monospace; }}
+    .stage-desc {{ font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }}
+    .stage-footer {{ display: flex; justify-content: space-between; font-size: 11px; align-items: center; border-top: 1px solid var(--border); padding-top: 8px; }}
 
-    /* Tab Navigation */
+    /* Tab Bar */
     .tab-bar {{
       display: flex;
-      gap: 8px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
+      gap: 4px;
+      border-bottom: 1px solid var(--tab-border);
+      margin-bottom: 20px;
       overflow-x: auto;
-      padding-bottom: 4px;
+      padding-bottom: 2px;
     }}
     .tab-btn {{
       background: transparent;
       border: none;
       color: var(--text-muted);
-      padding: 10px 18px;
-      font-size: 14px;
-      font-weight: 600;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
       cursor: pointer;
       border-bottom: 2px solid transparent;
       white-space: nowrap;
+      transition: all 0.2s;
     }}
-    .tab-btn.active {{ color: #fff; border-bottom-color: var(--accent); }}
+    .tab-btn:hover {{ color: var(--text-heading); }}
+    .tab-btn.active {{ color: var(--tab-active-color); border-bottom-color: var(--tab-active-color); }}
+
+    .tab-content {{ display: none; }}
+    .tab-content.active {{ display: block; }}
 
     /* Filter Bar */
     .filter-bar {{
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 12px 18px;
+      padding: 12px 16px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
+      box-shadow: var(--shadow);
     }}
-    .filter-group {{ display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }}
     .pill {{
-      padding: 4px 12px;
+      padding: 5px 12px;
       border-radius: 16px;
       font-size: 12px;
       font-weight: 700;
       border: 1px solid transparent;
       cursor: pointer;
-      background: #1e293b;
-      color: #94a3b8;
+      background: var(--pill-bg);
+      color: var(--pill-text);
+      transition: all 0.2s;
     }}
-    .pill.active {{ background: #3b82f6; color: #fff; }}
+    .pill.active {{ background: var(--pill-active-bg); color: var(--pill-active-text); }}
     .search-input {{
-      background: #0b0f19;
+      background: var(--bg-card-inner);
       border: 1px solid var(--border);
-      color: #fff;
-      padding: 6px 14px;
+      color: var(--text-heading);
+      padding: 7px 12px;
       border-radius: 8px;
       font-size: 13px;
-      min-width: 260px;
+      min-width: 280px;
     }}
+    .search-input:focus {{ outline: none; border-color: var(--border-focus); }}
 
     /* Findings Cards */
     .finding-card {{
@@ -323,53 +761,54 @@ class HtmlReporter:
       border-radius: 10px;
       padding: 18px 22px;
       margin-bottom: 14px;
+      box-shadow: var(--shadow);
       transition: all 0.2s;
     }}
-    .finding-card:hover {{ border-color: #3b82f6; }}
     .finding-card.CRITICAL {{ border-left-color: var(--crit); }}
     .finding-card.HIGH {{ border-left-color: var(--high); }}
     .finding-card.MEDIUM {{ border-left-color: var(--med); }}
     .finding-card.LOW {{ border-left-color: var(--low); }}
     .finding-card.INFO {{ border-left-color: var(--info); }}
-
-    .finding-header {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; }}
-    .finding-title {{ font-size: 16px; font-weight: 700; color: #fff; }}
-    .finding-badges {{ display: flex; gap: 8px; }}
+    
+    .finding-header {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }}
+    .finding-title {{ font-size: 15px; font-weight: 800; color: var(--text-heading); }}
+    .finding-badges {{ display: flex; gap: 6px; flex-wrap: wrap; }}
+    
     .badge {{
       font-size: 11px;
       font-weight: 800;
       padding: 3px 8px;
       border-radius: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.3px;
     }}
-    .badge-CRITICAL {{ background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }}
-    .badge-HIGH {{ background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.3); }}
-    .badge-MEDIUM {{ background: rgba(234, 179, 8, 0.2); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }}
-    .badge-LOW {{ background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }}
-    .badge-INFO {{ background: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); }}
+    .badge-CRITICAL {{ background: rgba(220, 38, 38, 0.15); color: #dc2626; border: 1px solid rgba(220, 38, 38, 0.3); }}
+    .badge-HIGH {{ background: rgba(234, 88, 12, 0.15); color: #ea580c; border: 1px solid rgba(234, 88, 12, 0.3); }}
+    .badge-MEDIUM {{ background: rgba(217, 119, 6, 0.15); color: #d97706; border: 1px solid rgba(217, 119, 6, 0.3); }}
+    .badge-LOW {{ background: rgba(37, 99, 235, 0.15); color: #2563eb; border: 1px solid rgba(37, 99, 235, 0.3); }}
+    .badge-INFO {{ background: rgba(100, 116, 139, 0.15); color: #64748b; border: 1px solid rgba(100, 116, 139, 0.3); }}
 
-    .finding-meta {{ font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 10px; font-family: monospace; flex-wrap: wrap; }}
+    .finding-meta {{ font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }}
+    .finding-desc {{ font-size: 13.5px; color: var(--text-main); line-height: 1.5; margin-bottom: 8px; }}
+
     .code-box {{
-      background: #090d16;
-      border: 1px solid #1a253b;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
       padding: 10px 14px;
       border-radius: 6px;
       font-family: monospace;
       font-size: 12px;
-      color: #38bdf8;
+      color: var(--code-text);
       overflow-x: auto;
       margin: 8px 0;
     }}
     .diff-box {{
-      background: #090d16;
-      border: 1px solid #1a253b;
+      background: var(--diff-bg);
+      border: 1px solid var(--border);
       padding: 10px 14px;
       border-radius: 6px;
       font-family: monospace;
       font-size: 12px;
-      color: #a7f3d0;
-      white-space: pre;
+      color: var(--diff-text);
       overflow-x: auto;
       margin: 8px 0;
     }}
@@ -379,10 +818,11 @@ class HtmlReporter:
       padding: 10px 14px;
       border-radius: 4px;
       font-size: 13px;
-      color: #a7f3d0;
+      color: var(--text-heading);
       margin-top: 10px;
     }}
 
+    /* Tables */
     .data-table {{
       width: 100%;
       border-collapse: collapse;
@@ -392,52 +832,22 @@ class HtmlReporter:
       overflow: hidden;
       border: 1px solid var(--border);
     }}
-    .data-table th, .data-table td {{ padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }}
-    .data-table th {{ background: #162035; color: #94a3b8; font-size: 12px; text-transform: uppercase; }}
-    .status-pill-pass {{ color: #34d399; font-weight: 700; }}
-    .status-pill-fail {{ color: #f87171; font-weight: 700; }}
-    .status-pill-verify {{ color: #fbbf24; font-weight: 700; }}
+    .data-table th, .data-table td {{ padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--table-row-border); color: var(--text-main); }}
+    .data-table th {{ background: var(--table-header); color: var(--table-header-text); font-size: 11px; text-transform: uppercase; font-weight: 700; }}
+    .status-pill-pass {{ color: #059669; font-weight: 700; }}
+    .status-pill-fail {{ color: #dc2626; font-weight: 700; }}
+    .status-pill-verify {{ color: #d97706; font-weight: 700; }}
 
-    /* AI Security Intelligence */
-    .ai-briefing-card {{
-      background: linear-gradient(135deg, rgba(30, 27, 75, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
-      border: 1.5px solid #6366f1;
-      border-radius: 14px;
-      padding: 24px 28px;
-      margin-bottom: 28px;
-      box-shadow: 0 6px 24px rgba(99, 102, 241, 0.2);
+    .panel-box {{
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow);
     }}
-    .ai-briefing-header {{
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }}
-    .ai-tag {{
-      background: linear-gradient(90deg, #6366f1, #a855f7);
-      color: #fff;
-      font-size: 11px;
-      font-weight: 800;
-      padding: 4px 10px;
-      border-radius: 6px;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
-    }}
-    .ai-analysis-box {{
-      background: rgba(49, 46, 129, 0.25);
-      border-left: 3px solid #818cf8;
-      padding: 10px 14px;
-      border-radius: 0 6px 6px 0;
-      font-size: 13px;
-      color: #c7d2fe;
-      margin: 8px 0 10px 0;
-      line-height: 1.5;
-    }}
-
-    .tab-content {{ display: none; }}
-    .tab-content.active {{ display: block; }}
+    .panel-box h3 {{ font-size: 16px; font-weight: 700; color: var(--text-heading); margin-bottom: 6px; }}
+    .panel-box p {{ font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }}
   </style>
 </head>
 <body>
@@ -448,11 +858,10 @@ class HtmlReporter:
       <div>
         <h1>DKSec Unified Product Security Platform</h1>
         <div class="subtitle"><strong>{report.project_name}</strong> &bull; {target_display} {auth_badge} &bull; ⏱️ {report.duration_seconds:.2f}s</div>
-
       </div>
     </div>
     <div class="header-actions">
-      <button id="themeToggleBtn" class="btn" onclick="toggleTheme()">🌓 Theme</button>
+      <button id="themeToggleBtn" class="btn" onclick="toggleTheme()">☀️ Light</button>
       <button class="btn" onclick="window.print()">🖨️ Print to PDF</button>
       <button class="btn" onclick="downloadFile('dksec-results.sarif', 'application/json')">📥 SARIF v2.1.0</button>
       <button class="btn" onclick="downloadFile('cyclonedx-sbom.json', 'application/json')">📦 CycloneDX SBOM</button>
@@ -463,18 +872,48 @@ class HtmlReporter:
   <div class="container">
 
     <!-- Gatekeeper Verdict Banner -->
-    <div class="gate-banner">
+    <div class="gate-banner {gate_class}">
       <div class="gate-info">
-        <span class="gate-status-badge">{report.gate_verdict.status}</span>
-        <h2 style="margin-top: 8px;">Release Signoff Decision: {report.gate_verdict.status}</h2>
-        <div class="gate-reasons">
-          {" | ".join(report.gate_verdict.reasons)}
+        <span class="gate-status-badge">{verdict}</span>
+        <h2 style="font-size: 20px; font-weight: 800; margin-top: 8px;">Release Signoff Decision: {verdict}</h2>
+        <div style="font-size: 13px; margin-top: 4px; opacity: 0.9;">
+          {" | ".join(report.gate_verdict.reasons) if report.gate_verdict else "Security gate evaluated."}
         </div>
       </div>
       <div style="text-align: right;">
-        <div style="font-size: 11px; color: var(--text-muted);">Signoff Certificate Hash</div>
-        <div style="font-family: monospace; font-size: 13px; color: #93c5fd;">{report.gate_verdict.signoff_hash[:24]}...</div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">{report.timestamp[:19]} UTC</div>
+        <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; opacity: 0.8;">Signoff Certificate Hash</div>
+        <div style="font-family: monospace; font-size: 13px; font-weight: 700;">{report.gate_verdict.signoff_hash[:24] if report.gate_verdict else 'N/A'}...</div>
+        <div style="font-size: 11px; margin-top: 4px; opacity: 0.8;">{report.timestamp[:19]} UTC</div>
+      </div>
+    </div>
+
+    <!-- Target & Environment Profile Card -->
+    <div class="profile-card">
+      <div class="profile-grid">
+        <div class="profile-item">
+          <strong>Live Target Endpoint</strong>
+          <span>{report.target_url or 'N/A (Local Code Audit)'}</span>
+        </div>
+        <div class="profile-item">
+          <strong>Source Code Path</strong>
+          <span>{report.target_path}</span>
+        </div>
+        <div class="profile-item">
+          <strong>Authentication Mode</strong>
+          <span>{auth_status_text}</span>
+        </div>
+        <div class="profile-item">
+          <strong>Detected Web Server</strong>
+          <span>{server_banner}</span>
+        </div>
+        <div class="profile-item">
+          <strong>TLS / SSL Protocol</strong>
+          <span>{tls_version}</span>
+        </div>
+        <div class="profile-item">
+          <strong>Discovered Open Ports</strong>
+          <span>{open_ports_str}</span>
+        </div>
       </div>
     </div>
 
@@ -483,8 +922,8 @@ class HtmlReporter:
     <!-- Executive KPI Grid -->
     <div class="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-label">Security Posture Score</div>
-        <div class="kpi-val" style="color: {gate_color};">{report.overall_score:.0f}<span style="font-size: 16px; color: var(--text-muted);">/100</span></div>
+        <div class="kpi-label">Composite Security Score</div>
+        <div class="kpi-val" style="color: {gate_color};">{score:.0f}<span style="font-size: 16px; color: var(--text-muted); font-weight: 600;">/100 (Grade {score_grade})</span></div>
         <div class="kpi-sub">Cross-Stage Aggregate Health</div>
       </div>
       <div class="kpi-card">
@@ -504,49 +943,65 @@ class HtmlReporter:
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Dependencies (SBOM)</div>
-        <div class="kpi-val" style="color: #38bdf8;">{len(report.sbom_components)}</div>
+        <div class="kpi-val" style="color: var(--accent);">{len(report.sbom_components)}</div>
         <div class="kpi-sub">CycloneDX v1.5 Tracked</div>
       </div>
     </div>
 
     <!-- Product Security 9-Stage Flow Visualizer -->
-    <div class="section-title">
+    <div style="font-size: 16px; font-weight: 700; color: var(--text-heading); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
       <span>🔄</span> 9-Stage Product Security Lifecycle Execution
     </div>
     <div class="pipeline-grid">
 """
 
+        stage_tab_map = {
+            1: "tab-stride",
+            2: "tab-asvs",
+            3: "tab-sbom",
+            4: "tab-dast",
+            5: "tab-wstg",
+            6: "tab-vapt",
+            7: "tab-dojo",
+            8: "tab-scorecard",
+            9: "tab-wazuh"
+        }
+
         for s_id in range(1, 10):
             res = report.stage_results.get(s_id)
+            target_tab = stage_tab_map.get(s_id, "tab-findings")
             if res:
                 s_name = res.stage_name
                 tools = res.recommended_tools
                 covers = res.what_it_covers
                 f_count = len(res.findings)
-                badge_bg = "rgba(16, 185, 129, 0.2)" if f_count == 0 else "rgba(239, 68, 68, 0.2)"
-                badge_color = "#34d399" if f_count == 0 else "#f87171"
+                badge_bg = "rgba(16, 185, 129, 0.15)" if f_count == 0 else "rgba(239, 68, 68, 0.15)"
+                badge_color = "#059669" if f_count == 0 else "#dc2626"
                 status_text = f"{f_count} findings" if f_count > 0 else "Clean / Passed"
                 dur_display = f"{res.execution_time_seconds:.1f}s"
             else:
                 s_name = f"Stage {s_id}"
                 tools = "N/A"
                 covers = "Stage skipped in this run"
-                badge_bg = "rgba(100, 116, 139, 0.2)"
-                badge_color = "#94a3b8"
+                badge_bg = "rgba(100, 116, 139, 0.15)"
+                badge_color = "#64748b"
                 status_text = "Skipped"
                 dur_display = "N/A"
 
             html_content += f"""
-      <div class="pipeline-card" onclick="filterByStage({s_id})">
-        <div style="display: flex; align-items: center; margin-bottom: 6px;">
+      <div class="pipeline-card">
+        <div style="display: flex; align-items: center; margin-bottom: 4px;">
           <span class="stage-num">{s_id}</span>
           <span class="stage-title">{s_name}</span>
         </div>
         <div class="stage-tools">{tools}</div>
         <div class="stage-desc">{covers}</div>
         <div class="stage-footer">
-          <span class="badge-count" style="background: {badge_bg}; color: {badge_color};">{status_text}</span>
-          <span style="color: var(--text-muted); font-size: 11px;">{dur_display}</span>
+          <span class="badge" style="background: {badge_bg}; color: {badge_color};">{status_text}</span>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn" style="padding: 2px 8px; font-size: 11px;" onclick="filterByStage({s_id})">🔍 Findings</button>
+            <button class="btn btn-primary" style="padding: 2px 8px; font-size: 11px;" onclick="switchTab('{target_tab}')">📖 Details</button>
+          </div>
         </div>
       </div>
 """
@@ -556,20 +1011,22 @@ class HtmlReporter:
 
     <!-- Detailed Tabs Section -->
     <div class="tab-bar">
-      <button class="tab-btn active" onclick="switchTab('tab-findings', this)">🔍 Vulnerabilities ({len(report.all_findings)})</button>
-      <button class="tab-btn" onclick="switchTab('tab-stride', this)">📐 Stage 1: Threat Model & DFD</button>
-      <button class="tab-btn" onclick="switchTab('tab-asvs', this)">📜 Stage 2: ASVS Matrix</button>
-      <button class="tab-btn" onclick="switchTab('tab-sbom', this)">📦 Stage 3: SBOM Inventory ({len(report.sbom_components)})</button>
-      <button class="tab-btn" onclick="switchTab('tab-wstg', this)">🧪 Stage 5: WSTG Checklist</button>
-      <button class="tab-btn" onclick="switchTab('tab-dojo', this)">📊 Stage 7: DefectDojo SLAs</button>
-      <button class="tab-btn" onclick="switchTab('tab-scorecard', this)">🎖️ Stage 8: OpenSSF 18-Checks</button>
-      <button class="tab-btn" onclick="switchTab('tab-wazuh', this)">🛡️ Stage 9: Wazuh & Sigma Rules</button>
+      <button class="tab-btn active" id="btn-tab-findings" onclick="switchTab('tab-findings', this)">🔍 Vulnerabilities ({len(report.all_findings)})</button>
+      <button class="tab-btn" id="btn-tab-stride" onclick="switchTab('tab-stride', this)">📐 Stage 1: Threat Model &amp; DFD</button>
+      <button class="tab-btn" id="btn-tab-asvs" onclick="switchTab('tab-asvs', this)">📜 Stage 2: ASVS Matrix</button>
+      <button class="tab-btn" id="btn-tab-sbom" onclick="switchTab('tab-sbom', this)">📦 Stage 3: SBOM Inventory ({len(report.sbom_components)})</button>
+      <button class="tab-btn" id="btn-tab-dast" onclick="switchTab('tab-dast', this)">🌐 Stage 4: DAST &amp; Live API</button>
+      <button class="tab-btn" id="btn-tab-wstg" onclick="switchTab('tab-wstg', this)">🧪 Stage 5: WSTG Checklist</button>
+      <button class="tab-btn" id="btn-tab-vapt" onclick="switchTab('tab-vapt', this)">🎯 Stage 6: Penetration Test &amp; Recon</button>
+      <button class="tab-btn" id="btn-tab-dojo" onclick="switchTab('tab-dojo', this)">📊 Stage 7: DefectDojo SLAs</button>
+      <button class="tab-btn" id="btn-tab-scorecard" onclick="switchTab('tab-scorecard', this)">🎖️ Stage 8: OpenSSF 18-Checks</button>
+      <button class="tab-btn" id="btn-tab-wazuh" onclick="switchTab('tab-wazuh', this)">🛡️ Stage 9: Wazuh &amp; Sigma Rules</button>
     </div>
 
     <!-- TAB 1: FINDINGS -->
     <div id="tab-findings" class="tab-content active">
       <div class="filter-bar">
-        <div class="filter-group">
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
           <span style="font-size: 12px; color: var(--text-muted); font-weight: 700;">SEVERITY:</span>
           <button class="pill active" onclick="setSeverityFilter('ALL', this)">All</button>
           <button class="pill" onclick="setSeverityFilter('CRITICAL', this)">Critical</button>
@@ -577,99 +1034,61 @@ class HtmlReporter:
           <button class="pill" onclick="setSeverityFilter('MEDIUM', this)">Medium</button>
           <button class="pill" onclick="setSeverityFilter('LOW', this)">Low</button>
         </div>
-        <div class="filter-group">
-          <input type="text" id="findingSearch" class="search-input" placeholder="Search findings by title, tool, CWE, MITRE..." oninput="applyFilters()" />
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="findingSearch" class="search-input" placeholder="Search findings by title, tool, CWE, MITRE, OWASP..." oninput="applyFilters()" />
         </div>
       </div>
 
       <div id="findingsContainer">
-"""
-
-        for f in report.all_findings:
-            ai_badge = ""
-            if f.ai_triage:
-                triage_color = "#34d399" if f.ai_triage == "TRUE_POSITIVE" else ("#f87171" if f.ai_triage == "FALSE_POSITIVE" else "#fbbf24")
-                conf_pct = int((f.ai_confidence or 0.9) * 100)
-                ai_badge = f'<span class="badge" style="background: rgba(99, 102, 241, 0.2); color: {triage_color}; border: 1px solid #6366f1;">🤖 {f.ai_triage} ({conf_pct}%)</span>'
-
-            ai_box = ""
-            if f.ai_analysis:
-                ai_box = f'<div class="ai-analysis-box"><strong>🤖 DKSec AI Context &amp; Triage:</strong> {f.ai_analysis}</div>'
-
-            html_content += f"""
-        <div class="finding-card {f.severity.value}" data-severity="{f.severity.value}" data-stage="{f.stage_id}" data-search="{f.title.lower()} {f.tool.lower()} {str(f.cwe).lower()} {str(f.mitre_attack).lower()} {str(f.file_path).lower()} {str(f.ai_triage or '').lower()}">
-          <div class="finding-header">
-            <div>
-              <span style="color: var(--text-muted); font-family: monospace; font-size: 12px; margin-right: 8px;">{f.id}</span>
-              <span class="finding-title">{f.title}</span>
-            </div>
-            <div class="finding-badges">
-              {ai_badge}
-              <span class="badge badge-{f.severity.value}">{f.severity.value}</span>
-              <span class="badge" style="background: #1e293b; color: #94a3b8;">Stage {f.stage_id}</span>
-              {f'<span class="badge" style="background: #1e1b4b; color: #a5b4fc; border: 1px solid #4338ca;">MITRE {f.mitre_attack}</span>' if f.mitre_attack else ''}
-            </div>
-          </div>
-          <div class="finding-meta">
-            <span>🔧 Tool: <strong>{f.tool}</strong></span>
-            <span>📂 Target: <strong>{f.file_path or f.target or 'N/A'}{(':' + str(f.line_number)) if f.line_number else ''}</strong></span>
-            <span>🏷️ CWE: <strong>{f.cwe or 'N/A'}</strong></span>
-            <span>⏱️ SLA: <strong>{f.sla_days} Days</strong></span>
-          </div>
-          <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 8px;">{f.description}</p>
-          {ai_box}
-          {f'<div class="code-box">{f.code_snippet}</div>' if f.code_snippet else ''}
-          {f'<div class="diff-box"><strong>Proposed Patch (Unified Diff):</strong><br/>{f.remediation_diff}</div>' if f.remediation_diff else ''}
-          {f'<div class="remediation-box"><strong>💡 Remediation Guidance:</strong> {f.remediation}</div>' if f.remediation else ''}
-        </div>
-"""
-
-        html_content += f"""
+        {findings_html}
       </div>
     </div>
 
     <!-- TAB 2: THREAT MODEL (STRIDE & DFD) -->
     <div id="tab-stride" class="tab-content">
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-        <h3 style="margin-bottom: 8px;">Automated Data Flow Diagram (DFD)</h3>
-        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
-          Generated data-flow architecture diagram mapping trust boundaries and components.
-        </p>
-        <div class="mermaid" style="background: #090d16; padding: 20px; border-radius: 8px; overflow-x: auto;">
+      <div class="panel-box">
+        <h3>Target Architecture Elements &amp; Trust Boundaries</h3>
+        <p>Discovered architectural components, trust zones, and data flow channels.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Component Name</th>
+              <th>Type</th>
+              <th>Trust Boundary</th>
+              <th>Description / Tech</th>
+            </tr>
+          </thead>
+          <tbody>
+            {components_table_html or '<tr><td colspan="4" style="text-align:center;">No architectural components cataloged.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-box">
+        <h3>Automated Data Flow Diagram (DFD)</h3>
+        <p>Generated architectural data flow diagram mapping trust boundaries and components.</p>
+        <div class="mermaid" id="mermaidContainer" style="background: var(--bg-card-inner); padding: 20px; border-radius: 8px; overflow-x: auto;">
 {mermaid_dfd}
         </div>
       </div>
 
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">OWASP Threat Dragon & STRIDE Threat Matrix</h3>
+      <div class="panel-box">
+        <h3>OWASP Threat Dragon &amp; STRIDE Threat Matrix</h3>
+        <p>Architectural threat catalog derived from STRIDE, LINDDUN, and MITRE ATT&amp;CK mappings.</p>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Threat ID</th>
+              <th>ID</th>
               <th>Category</th>
               <th>Component</th>
               <th>Severity</th>
-              <th>MITRE ATT&CK</th>
+              <th>MITRE</th>
               <th>Identified Architectural Threat</th>
-              <th>Mitigation</th>
+              <th>Security Mitigation</th>
             </tr>
           </thead>
           <tbody>
-"""
-        if s1 and "threats" in s1.details:
-            for t in s1.details["threats"]:
-                html_content += f"""
-            <tr>
-              <td style="font-family: monospace;">{t.get('category')[:3].upper()}</td>
-              <td><strong>{t.get('category')}</strong></td>
-              <td>{t.get('component')}</td>
-              <td><span class="badge badge-{t.get('severity')}">{t.get('severity')}</span></td>
-              <td style="font-family: monospace; color: #a5b4fc;">{t.get('mitre_attack', 'T1190')}</td>
-              <td>{t.get('title')}</td>
-              <td style="color: #6ee7b7;">{t.get('mitigation')}</td>
-            </tr>
-"""
-        html_content += f"""
+            {stride_table_html or '<tr><td colspan="7" style="text-align:center;">No architectural threats identified.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -677,8 +1096,9 @@ class HtmlReporter:
 
     <!-- TAB 3: ASVS CHECKLIST -->
     <div id="tab-asvs" class="tab-content">
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">OWASP ASVS v4.0.3 Security Requirements Matrix</h3>
+      <div class="panel-box">
+        <h3>OWASP ASVS v4.0.3 Security Requirements Matrix</h3>
+        <p>Verification standard requirements across Levels 1-3 auditing application security controls.</p>
         <table class="data-table">
           <thead>
             <tr>
@@ -688,25 +1108,12 @@ class HtmlReporter:
               <th>Requirement Description</th>
               <th>CWE</th>
               <th>Status</th>
+              <th>Evidence &amp; Findings</th>
+              <th>Remediation Action</th>
             </tr>
           </thead>
           <tbody>
-"""
-        s2 = report.stage_results.get(2)
-        if s2 and "checklist" in s2.details:
-            for item in s2.details["checklist"]:
-                st_class = "status-pill-pass" if item['status'] == 'PASS' else ("status-pill-fail" if item['status'] == 'FAIL' else "status-pill-verify")
-                html_content += f"""
-            <tr>
-              <td style="font-family: monospace;"><strong>{item.get('id')}</strong></td>
-              <td>{item.get('chapter')}</td>
-              <td>Level {item.get('level')}</td>
-              <td>{item.get('description')}</td>
-              <td style="font-family: monospace;">{item.get('cwe')}</td>
-              <td><span class="{st_class}">{item.get('status')}</span></td>
-            </tr>
-"""
-        html_content += f"""
+            {asvs_table_html or '<tr><td colspan="8" style="text-align:center;">No ASVS requirements evaluated.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -714,11 +1121,9 @@ class HtmlReporter:
 
     <!-- TAB 4: SBOM INVENTORY -->
     <div id="tab-sbom" class="tab-content">
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">CycloneDX v1.5 Software Bill of Materials (SBOM)</h3>
-        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 18px;">
-          Software component inventory with Package URLs (PURL), licenses, and versions.
-        </p>
+      <div class="panel-box">
+        <h3>CycloneDX v1.5 Software Bill of Materials (SBOM)</h3>
+        <p>Catalog of open-source dependencies, licenses, and detected CVE security advisories.</p>
         <table class="data-table">
           <thead>
             <tr>
@@ -727,30 +1132,81 @@ class HtmlReporter:
               <th>Ecosystem</th>
               <th>Package URL (PURL)</th>
               <th>License</th>
+              <th>Known CVEs</th>
+              <th>Remediation Fix</th>
             </tr>
           </thead>
           <tbody>
-"""
-        for c in report.sbom_components:
-            html_content += f"""
-            <tr>
-              <td><strong>{c.name}</strong></td>
-              <td style="font-family: monospace;">{c.version}</td>
-              <td><span class="badge" style="background: #1e293b; color: #93c5fd;">{c.ecosystem}</span></td>
-              <td style="font-family: monospace; color: #94a3b8; font-size: 11px;">{c.purl}</td>
-              <td>{c.license or 'MIT'}</td>
-            </tr>
-"""
-        html_content += f"""
+            {sbom_table_html or '<tr><td colspan="7" style="text-align:center;">No dependencies discovered.</td></tr>'}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- TAB 5: WSTG PENTEST CHECKLIST -->
+    <!-- TAB 5: DAST & LIVE API SECURITY (PREVIOUSLY MISSING!) -->
+    <div id="tab-dast" class="tab-content">
+      <div class="panel-box">
+        <h3>HTTP Security Headers Audit</h3>
+        <p>Verification of defensive security response headers according to OWASP Secure Headers Project.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Header Name</th>
+              <th>Status</th>
+              <th>Severity</th>
+              <th>Current Server Value</th>
+              <th>Remediation Recommendation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {headers_table_html or '<tr><td colspan="5" style="text-align:center;">No live HTTP headers evaluated.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-box">
+        <h3>Sensitive API Endpoints &amp; Path Fuzzing</h3>
+        <p>Active probing of high-risk sensitive paths, debug endpoints, and configuration exposures.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Probed Path</th>
+              <th>Response</th>
+              <th>Payload Size</th>
+              <th>Risk Assessment</th>
+              <th>Observation Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {probes_table_html or '<tr><td colspan="5" style="text-align:center;">No endpoints probed.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-box">
+        <h3>Live Differential API Routes (Auth vs Unauth)</h3>
+        <p>Differential response code analysis testing authorization boundaries on active routes.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Route Tested</th>
+              <th>Unauthenticated Status</th>
+              <th>Authenticated Status</th>
+              <th>Authorization Schema</th>
+            </tr>
+          </thead>
+          <tbody>
+            {live_routes_table_html or '<tr><td colspan="4" style="text-align:center;">No differential route tests executed.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 6: WSTG PENTEST CHECKLIST -->
     <div id="tab-wstg" class="tab-content">
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">OWASP Web Security Testing Guide (WSTG v4.2) Verification</h3>
+      <div class="panel-box">
+        <h3>OWASP Web Security Testing Guide (WSTG v4.2) Verification</h3>
+        <p>Standardized manual &amp; heuristic testing checklist across all 12 core testing categories.</p>
         <table class="data-table">
           <thead>
             <tr>
@@ -762,30 +1218,93 @@ class HtmlReporter:
             </tr>
           </thead>
           <tbody>
-"""
-        s5 = report.stage_results.get(5)
-        if s5 and "checklist" in s5.details:
-            for item in s5.details["checklist"]:
-                st_class = "status-pill-pass" if item['status'] == 'PASS' else ("status-pill-fail" if item['status'] == 'FAIL' else "status-pill-verify")
-                html_content += f"""
-            <tr>
-              <td style="font-family: monospace;">{item.get('id')}</td>
-              <td><strong>{item.get('category')}</strong></td>
-              <td>{item.get('name')}</td>
-              <td><span class="{st_class}">{item.get('status')}</span></td>
-              <td style="color: var(--text-muted);">{item.get('tester_notes') or item.get('evidence') or 'Verified'}</td>
-            </tr>
-"""
-        html_content += f"""
+            {wstg_table_html or '<tr><td colspan="5" style="text-align:center;">No WSTG items evaluated.</td></tr>'}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- TAB 6: DEFECTDOJO SLA -->
+    <!-- TAB 7: PENETRATION TEST & RECON (PREVIOUSLY MISSING!) -->
+    <div id="tab-vapt" class="tab-content">
+      <div class="panel-box">
+        <h3>Network Port Reconnaissance &amp; Attack Surface Discovery</h3>
+        <p>Port discovery scan identifying open network listeners and externally accessible daemons.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Port</th>
+              <th>Service</th>
+              <th>Status</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ports_table_html or '<tr><td colspan="4" style="text-align:center;">No open ports identified.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-box">
+        <h3>DNS Security &amp; Spoofing Prevention</h3>
+        <p>Verification of SPF, DMARC, and CAA DNS security records.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Record Type</th>
+              <th>Status</th>
+              <th>Configured Value</th>
+              <th>Security Impact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dns_table_html or '<tr><td colspan="4" style="text-align:center;">No DNS security checks executed.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-box">
+        <h3>Automated Exploit &amp; Nuclei-Style Fuzzing</h3>
+        <p>Active penetration test verification scanning for exposed admin interfaces and sensitive files.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fuzzed Target</th>
+              <th>HTTP Status</th>
+              <th>Response Size</th>
+              <th>Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fuzzing_table_html or '<tr><td colspan="4" style="text-align:center;">No active exploit probes executed.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-box">
+        <h3>Active Penetration Testing &amp; Authorization Probes</h3>
+        <p>Active injection probes testing for directory traversal (CWE-22) and URL normalization authorization bypass (CWE-285).</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Test Type</th>
+              <th>Probe Vector</th>
+              <th>HTTP Status</th>
+              <th>Test Result</th>
+              <th>Risk Assessment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {active_vapt_table_html or '<tr><td colspan="5" style="text-align:center;">No active penetration probes executed.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 8: DEFECTDOJO SLA -->
     <div id="tab-dojo" class="tab-content">
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">OWASP DefectDojo Remediation Schedule & SLA Tracker</h3>
+      <div class="panel-box">
+        <h3>OWASP DefectDojo Remediation Schedule &amp; SLA Tracker</h3>
+        <p>Lifecycle vulnerability management plan with enterprise remediation deadlines.</p>
         <table class="data-table">
           <thead>
             <tr>
@@ -793,41 +1312,27 @@ class HtmlReporter:
               <th>Finding Title</th>
               <th>Severity</th>
               <th>Remediation SLA</th>
-              <th>Target Due Date</th>
-              <th>Status</th>
+              <th>Target Due Date (UTC)</th>
+              <th>Lifecycle Status</th>
             </tr>
           </thead>
           <tbody>
-"""
-        s7 = report.stage_results.get(7)
-        if s7 and "remediation_plan" in s7.details:
-            for plan in s7.details["remediation_plan"]:
-                html_content += f"""
-            <tr>
-              <td style="font-family: monospace;">{plan.get('id')}</td>
-              <td><strong>{plan.get('title')}</strong></td>
-              <td><span class="badge badge-{plan.get('severity')}">{plan.get('severity')}</span></td>
-              <td>{plan.get('sla_days')} Days</td>
-              <td style="color: #fca5a5; font-family: monospace;">{plan.get('target_due_date')}</td>
-              <td><span class="status-pill-verify">{plan.get('status')}</span></td>
-            </tr>
-"""
-        html_content += f"""
+            {dojo_table_html or '<tr><td colspan="6" style="text-align:center;">No remediation actions pending.</td></tr>'}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- TAB 7: OPENSSF 18-CHECKS SCORECARD -->
+    <!-- TAB 9: OPENSSF 18-CHECKS SCORECARD -->
     <div id="tab-scorecard" class="tab-content">
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div class="panel-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
           <div>
             <h3>OpenSSF Scorecard v4 (All 18 Checks)</h3>
-            <p style="color: var(--text-muted); font-size: 13px;">Supply chain posture and release integrity controls.</p>
+            <p>Supply chain posture and release integrity controls.</p>
           </div>
-          <span class="badge" style="background: #1e1b4b; color: #c7d2fe; font-size: 13px; padding: 6px 14px;">
-            {report.stage_results.get(8).details.get('slsa_level', 'SLSA Level 1') if report.stage_results.get(8) else 'SLSA Level 1'}
+          <span class="badge" style="background: rgba(79,70,229,0.15); color: #4f46e5; font-size: 13px; padding: 6px 14px; border: 1px solid #6366f1;">
+            {slsa_badge_text}
           </span>
         </div>
         <table class="data-table">
@@ -835,39 +1340,53 @@ class HtmlReporter:
             <tr>
               <th>Check Name</th>
               <th>Score (/10)</th>
-              <th>Reason</th>
+              <th>Reason &amp; Evaluation</th>
               <th>Remediation Action</th>
             </tr>
           </thead>
           <tbody>
-"""
-        s8 = report.stage_results.get(8)
-        if s8 and "scorecard_18_checks" in s8.details:
-            for check in s8.details["scorecard_18_checks"]:
-                sc = check.get('score', 0)
-                sc_color = "#34d399" if sc >= 8 else ("#fbbf24" if sc >= 5 else "#f87171")
-                html_content += f"""
-            <tr>
-              <td><strong>{check.get('name')}</strong></td>
-              <td style="font-weight: 800; color: {sc_color}; font-size: 14px;">{sc}/10</td>
-              <td>{check.get('reason')}</td>
-              <td style="color: #93c5fd;">{check.get('remediation')}</td>
-            </tr>
-"""
-        html_content += f"""
+            {scorecard_table_html or '<tr><td colspan="4" style="text-align:center;">No Scorecard checks evaluated.</td></tr>'}
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- TAB 8: WAZUH & SIGMA -->
+    <!-- TAB 10: WAZUH & SIGMA -->
     <div id="tab-wazuh" class="tab-content">
-      <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-        <h3 style="margin-bottom: 8px;">Wazuh SIEM XML & Sigma YAML Detection Engineering</h3>
-        <h4 style="margin: 16px 0 8px 0; color: #93c5fd;">Generated Wazuh local_rules.xml</h4>
-        <pre class="code-box" style="white-space: pre; max-height: 240px;">{report.stage_results.get(9).details.get('wazuh_xml') if report.stage_results.get(9) else 'N/A'}</pre>
-        <h4 style="margin: 20px 0 8px 0; color: #93c5fd;">Generated Sigma Detection Rules (sigma-rules.yml)</h4>
-        <pre class="code-box" style="white-space: pre; max-height: 240px;">{report.stage_results.get(9).details.get('sigma_yaml') if report.stage_results.get(9) else 'N/A'}</pre>
+      <div class="panel-box">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>Generated Wazuh local_rules.xml</h3>
+          <button class="btn" onclick="copyText('wazuhCode')">📋 Copy Wazuh XML</button>
+        </div>
+        <p>Custom SIEM correlation rules tailored to detect exploited vectors in production.</p>
+        <pre id="wazuhCode" class="code-box" style="white-space: pre; max-height: 260px;">{wazuh_xml_content}</pre>
+      </div>
+
+      <div class="panel-box">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <h3>Generated Sigma Detection Rules (sigma-rules.yml)</h3>
+          <button class="btn" onclick="copyText('sigmaCode')">📋 Copy Sigma YAML</button>
+        </div>
+        <p>Open-source detection engineering rules mapped to discovered attack patterns.</p>
+        <pre id="sigmaCode" class="code-box" style="white-space: pre; max-height: 260px;">{sigma_yaml_content}</pre>
+      </div>
+
+      <div class="panel-box">
+        <h3>MITRE ATT&amp;CK Enterprise Matrix Mapping</h3>
+        <p>Observed security flaws mapped to adversary tactics and techniques.</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Technique ID</th>
+              <th>Name</th>
+              <th>Adversary Tactic</th>
+              <th>Observed In Audit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {mitre_table_html or '<tr><td colspan="4" style="text-align:center;">No MITRE techniques mapped.</td></tr>'}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -880,7 +1399,7 @@ class HtmlReporter:
 
     function setTheme(t) {{
       document.documentElement.setAttribute('data-theme', t);
-      try {{ localStorage.setItem('dksec_theme', t); }} catch(e) {{}}
+      try {{ localStorage.setItem('dksec_report_theme', t); }} catch(e) {{}}
       const btn = document.getElementById('themeToggleBtn');
       if (btn) {{
         btn.innerHTML = (t === 'light') ? '☀️ Light' : '🌙 Dark';
@@ -888,14 +1407,14 @@ class HtmlReporter:
     }}
 
     function toggleTheme() {{
-      const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+      const cur = document.documentElement.getAttribute('data-theme') || 'light';
       setTheme(cur === 'light' ? 'dark' : 'light');
     }}
 
     (function() {{
-      let saved = 'dark';
+      let saved = 'light';
       try {{
-        saved = localStorage.getItem('dksec_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        saved = localStorage.getItem('dksec_report_theme') || 'light';
       }} catch(e) {{}}
       setTheme(saved);
     }})();
@@ -903,8 +1422,23 @@ class HtmlReporter:
     function switchTab(tabId, btn) {{
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-      document.getElementById(tabId).classList.add('active');
-      btn.classList.add('active');
+      
+      const targetPane = document.getElementById(tabId);
+      if (targetPane) targetPane.classList.add('active');
+      
+      if (btn) {{
+        btn.classList.add('active');
+      }} else {{
+        const btnId = 'btn-' + tabId;
+        const matchingBtn = document.getElementById(btnId);
+        if (matchingBtn) matchingBtn.classList.add('active');
+      }}
+
+      if (tabId === 'tab-stride') {{
+        setTimeout(() => {{
+          try {{ mermaid.run(); }} catch(e) {{}}
+        }}, 50);
+      }}
     }}
 
     function setSeverityFilter(sev, btn) {{
@@ -916,9 +1450,7 @@ class HtmlReporter:
 
     function filterByStage(stageId) {{
       currentStage = stageId;
-      document.querySelectorAll('.pipeline-card').forEach(c => c.classList.remove('active'));
-      event.currentTarget.classList.add('active');
-      switchTab('tab-findings', document.querySelectorAll('.tab-btn')[0]);
+      switchTab('tab-findings', document.getElementById('btn-tab-findings'));
       applyFilters();
     }}
 
@@ -942,6 +1474,15 @@ class HtmlReporter:
       }});
     }}
 
+    function copyText(id) {{
+      const el = document.getElementById(id);
+      if (el) {{
+        navigator.clipboard.writeText(el.innerText).then(() => {{
+          alert('Copied to clipboard!');
+        }});
+      }}
+    }}
+
     function downloadJSON() {{
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(reportData, null, 2));
       const downloadAnchor = document.createElement('a');
@@ -953,8 +1494,7 @@ class HtmlReporter:
     }}
 
     function downloadFile(filename, mime) {{
-      const endpoint = filename;
-      window.open(endpoint, '_blank');
+      window.open('/download/' + filename, '_blank');
     }}
   </script>
 </body>

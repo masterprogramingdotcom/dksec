@@ -259,8 +259,11 @@ class Stage4DastApi(BaseStage):
                 ("referrer-policy", "Referrer-Policy Header Missing", Severity.LOW, "CWE-200", "Set 'Referrer-Policy: strict-origin-when-cross-origin'.")
             ]
 
+            data["evaluated_headers"] = []
             for hdr, title, sev, cwe, fix in rules:
-                if hdr not in hdrs:
+                val = hdrs.get(hdr, "")
+                is_present = hdr in hdrs
+                if not is_present:
                     data["missing"].append(hdr)
                     findings.append(self.create_finding(
                         finding_id=f"DAST-HDR-{len(findings)+1:03d}",
@@ -274,6 +277,13 @@ class Stage4DastApi(BaseStage):
                         remediation=fix,
                         references=["https://owasp.org/www-project-secure-headers/"]
                     ))
+                data["evaluated_headers"].append({
+                    "name": hdr,
+                    "status": "PRESENT" if is_present else "MISSING",
+                    "severity": sev.value,
+                    "value": val or "Header not sent by server",
+                    "recommendation": fix
+                })
 
             if "server" in hdrs:
                 findings.append(self.create_finding(
@@ -287,6 +297,13 @@ class Stage4DastApi(BaseStage):
                     owasp="OWASP A05:2021-Security Misconfiguration",
                     remediation="Suppress the Server response header."
                 ))
+                data["evaluated_headers"].append({
+                    "name": "server",
+                    "status": "LEAKED",
+                    "severity": "LOW",
+                    "value": hdrs["server"],
+                    "recommendation": "Suppress Server banner in reverse proxy configuration."
+                })
 
             if "x-powered-by" in hdrs:
                 findings.append(self.create_finding(
@@ -300,6 +317,13 @@ class Stage4DastApi(BaseStage):
                     owasp="OWASP A05:2021-Security Misconfiguration",
                     remediation="Disable X-Powered-By header in web framework."
                 ))
+                data["evaluated_headers"].append({
+                    "name": "x-powered-by",
+                    "status": "LEAKED",
+                    "severity": "LOW",
+                    "value": hdrs["x-powered-by"],
+                    "recommendation": "Disable X-Powered-By banner."
+                })
         except Exception:
             pass
         return findings, data
@@ -369,12 +393,17 @@ class Stage4DastApi(BaseStage):
             ("/api/v1/users", Severity.MEDIUM, "CWE-306", "Potential Unauthenticated User Directory Endpoint"),
             ("/graphql", Severity.LOW, "CWE-200", "Exposed GraphQL Endpoint (Verify Introspection Disabled)")
         ]
+        data = {"probes": 0, "probed_paths": []}
         count = 0
         for ep, sev, cwe, desc in probes:
             count += 1
             target = urllib.parse.urljoin(base_url, ep)
+            status_code = 404
+            content_len = 0
             try:
                 r = requests.get(target, timeout=4, verify=False, allow_redirects=False)
+                status_code = r.status_code
+                content_len = len(r.content)
                 if r.status_code == 200 and len(r.content) > 10:
                     findings.append(self.create_finding(
                         finding_id=f"DAST-EXPOSE-{count:03d}",
@@ -389,7 +418,16 @@ class Stage4DastApi(BaseStage):
                     ))
             except Exception:
                 pass
-        return findings, {"probes": count}
+            data["probed_paths"].append({
+                "path": ep,
+                "status_code": status_code,
+                "content_length": content_len,
+                "severity": sev.value if status_code == 200 else "INFO",
+                "status_description": "Exposed (HTTP 200)" if status_code == 200 else f"HTTP {status_code}",
+                "notes": desc
+            })
+        data["probes"] = count
+        return findings, data
 
     def _audit_live_routes(self, base_url: str, session_mgr: DKSecSessionManager, routes: List[str]) -> Tuple[List[Finding], Dict[str, Any]]:
         findings: List[Finding] = []
