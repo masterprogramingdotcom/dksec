@@ -177,10 +177,8 @@ class TechStackDetector:
                 "primary_language": "Unknown"
             }
 
-        skip_dirs = {".git", "node_modules", "venv", ".venv", "__pycache__", "target", "bin", "obj", "vendor", ".pg_local", "build", "dist", ".tox"}
-
         for root, dirs, files in os.walk(target_path):
-            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            dirs[:] = [d for d in dirs if not UniversalMultiTechScanner.is_excluded_dir(d)]
             for f in files:
                 total_files += 1
                 rel = os.path.relpath(os.path.join(root, f), target_path)
@@ -544,7 +542,34 @@ class UniversalMultiTechScanner:
         return all_findings, all_components, summary
 
 
+    # Directories excluded from SAST scanning (vendor, generated, env, build)
+    _SAST_EXCLUDE_DIRS = frozenset({
+        ".git", "node_modules", "venv", ".venv", "__pycache__",
+        "target", "bin", "obj", "vendor", "dist", "build", ".next",
+        ".nuxt", "out", "coverage", "htmlcov", ".pytest_cache",
+        "migrations", "static", "media", "public", "assets",
+        ".tox", "eggs", ".eggs", "bower_components", "jspm_packages",
+        ".yarn", "stubs", "typings", ".cache", "tmp", ".turbo",
+    })
+
+    @classmethod
+    def is_excluded_dir(cls, d: str) -> bool:
+        dl = d.lower()
+        if dl in cls._SAST_EXCLUDE_DIRS:
+            return True
+        if dl.startswith(("venv", ".venv", "virtualenv", "env-", ".env-", "node_modules")) or dl.endswith(("-venv", "-env", "_venv", "_env")):
+            return True
+        if dl in ("env", ".env", "logs", "log", ".log", "fixtures", "test_fixtures"):
+            return True
+        return False
+
     def _scan_sast_multi_lang(self, target_path: str) -> List[Finding]:
+        """
+        Multi-language SAST scan with smart deduplication:
+        - Same rule fires at most once per file (first match wins)
+        - Global cap: max 5 findings per rule across the entire scan
+        - Skips generated/minified files and excluded directories
+        """
         findings = []
         scanned_exts = (
             ".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
@@ -553,44 +578,74 @@ class UniversalMultiTechScanner:
             ".sh", ".bash", ".zsh", ".yaml", ".yml", ".tf"
         )
 
+        # Per-rule global cap tracker
+        rule_global_count: dict = {}
+        MAX_PER_RULE = 5
+
         for root, dirs, files in os.walk(target_path):
-            dirs[:] = [d for d in dirs if d not in [".git", "node_modules", "venv", ".venv", "__pycache__", "target", "bin", "obj", "vendor"]]
-            for f in files:
-                if f.lower().endswith(scanned_exts) or f in ("Dockerfile", "Jenkinsfile"):
-                    fpath = os.path.join(root, f)
-                    rel_path = os.path.relpath(fpath, target_path)
+            dirs[:] = [d for d in dirs if not self.is_excluded_dir(d)]
+            for fname in files:
+                # Skip minified / bundled / lock files
+                if fname.endswith((".min.js", ".min.css", ".bundle.js",
+                                   ".chunk.js", ".map", ".snap", "._.js")):
+                    continue
+                if not (fname.lower().endswith(scanned_exts) or
+                        fname in ("Dockerfile", "Jenkinsfile")):
+                    continue
 
-                    try:
-                        if os.path.getsize(fpath) > 1000000:
+                fpath = os.path.join(root, fname)
+                rel_path = os.path.relpath(fpath, target_path)
+
+                try:
+                    if os.path.getsize(fpath) > 500_000:  # skip files > 500 KB
+                        continue
+                    with open(fpath, "r", encoding="utf-8", errors="ignore") as fl:
+                        lines = fl.readlines()
+
+                    # Per-file dedup: track which rules already fired in this file
+                    fired_in_file: set = set()
+
+                    for line_no, line in enumerate(lines, 1):
+                        line_str = line.strip()
+                        if not line_str or line_str.startswith(
+                                ("#", "//", "/*", "*", "--")):
                             continue
-                        with open(fpath, "r", encoding="utf-8", errors="ignore") as fl:
-                            lines = fl.readlines()
 
-                        for line_no, line in enumerate(lines, 1):
-                            line_str = line.strip()
-                            if not line_str or line_str.startswith(("#", "//", "/*", "*")):
+                        for r_id, pat, title, sev, cwe, owasp, fix, mitre in MULTI_LANG_RULES:
+                            # One hit per rule per file
+                            if r_id in fired_in_file:
+                                continue
+                            # Global cap per rule
+                            if rule_global_count.get(r_id, 0) >= MAX_PER_RULE:
                                 continue
 
-                            for r_id, pat, title, sev, cwe, owasp, fix, mitre in MULTI_LANG_RULES:
-                                if re.search(pat, line):
-                                    f_obj = self.parent.create_finding(
-                                        finding_id=f"SAST-{r_id.upper()}-{len(findings)+1:03d}",
-                                        title=title,
-                                        severity=sev,
-                                        description=f"Static analysis identified security pattern `{r_id}` in {rel_path}:{line_no}.",
-                                        tool="DKSec Universal SAST Engine",
-                                        file_path=rel_path,
-                                        line_number=line_no,
-                                        code_snippet=line_str[:160],
-                                        cwe=cwe,
-                                        owasp=owasp,
-                                        remediation=fix,
-                                        status=FindingStatus.OPEN
-                                    )
-                                    f_obj.mitre_attack = mitre
-                                    findings.append(f_obj)
-                    except Exception:
-                        pass
+                            if re.search(pat, line):
+                                fired_in_file.add(r_id)
+                                rule_global_count[r_id] = rule_global_count.get(r_id, 0) + 1
+
+                                f_obj = self.parent.create_finding(
+                                    finding_id=f"SAST-{r_id.upper()}-{len(findings)+1:03d}",
+                                    title=title,
+                                    severity=sev,
+                                    description=(
+                                        f"Static analysis identified security pattern `{r_id}` "
+                                        f"in {rel_path}:{line_no}."
+                                    ),
+                                    tool="DKSec Universal SAST Engine",
+                                    file_path=rel_path,
+                                    line_number=line_no,
+                                    code_snippet=line_str[:160],
+                                    cwe=cwe,
+                                    owasp=owasp,
+                                    remediation=fix,
+                                    status=FindingStatus.OPEN
+                                )
+                                f_obj.mitre_attack = mitre
+                                findings.append(f_obj)
+
+                except Exception:
+                    pass
+
         return findings
 
     def _scan_sca_multi_ecosystem(self, target_path: str) -> Tuple[List[Finding], List[SBOMComponent]]:
@@ -883,26 +938,40 @@ class UniversalMultiTechScanner:
             ("Hardcoded JWT Token", r"\beyJ[A-Za-z0-9-_=]+\.eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_.+/=]+\b", Severity.HIGH, "CWE-798", "T1552"),
         ]
 
+        # Global cap per secret label to avoid flooding
+        label_global_count: dict = {}
+        MAX_PER_LABEL = 3
+
         for root, dirs, files in os.walk(target_path):
-            dirs[:] = [d for d in dirs if d not in [".git", "node_modules", "venv", ".venv"]]
+            dirs[:] = [d for d in dirs if not self.is_excluded_dir(d)]
             for f in files:
                 fpath = os.path.join(root, f)
                 rel_path = os.path.relpath(fpath, target_path)
 
-                if f.endswith((".pyc", ".png", ".jpg", ".jpeg", ".ico", ".svg", ".zip", ".tar", ".gz", ".sqlite3", ".db")):
+                if f.endswith((".pyc", ".png", ".jpg", ".jpeg", ".ico", ".svg",
+                               ".zip", ".tar", ".gz", ".sqlite3", ".db",
+                               ".min.js", ".map", ".snap", ".lock", "._.js")):
                     continue
 
                 try:
                     if os.path.getsize(fpath) > 500000:
                         continue
                     with open(fpath, "r", encoding="utf-8", errors="ignore") as fl:
+                        # Per-file dedup: each label fires at most once per file
+                        fired_in_file: set = set()
                         for line_no, line in enumerate(fl, 1):
                             line_str = line.strip()
                             if not line_str:
                                 continue
                             for label, regex, sev, cwe, mitre in secret_patterns:
+                                if label in fired_in_file:
+                                    continue
+                                if label_global_count.get(label, 0) >= MAX_PER_LABEL:
+                                    continue
                                 match = re.search(regex, line_str)
                                 if match:
+                                    fired_in_file.add(label)
+                                    label_global_count[label] = label_global_count.get(label, 0) + 1
                                     matched_val = match.group(0)
                                     masked = matched_val[:4] + "*" * (len(matched_val) - 8) + matched_val[-4:] if len(matched_val) > 8 else "***"
                                     f_obj = self.parent.create_finding(
@@ -928,10 +997,9 @@ class UniversalMultiTechScanner:
     def _scan_web_servers_and_configs(self, target_path: str) -> List[Finding]:
         """Audits web server, reverse proxy, and environment configurations for security misconfigurations."""
         findings = []
-        skip_dirs = {".git", "node_modules", "venv", ".venv", "__pycache__", "target", "bin", "obj", "vendor", ".pg_local", "build", "dist"}
 
         for root, dirs, files in os.walk(target_path):
-            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            dirs[:] = [d for d in dirs if not self.is_excluded_dir(d)]
             for f in files:
                 fpath = os.path.join(root, f)
                 rel_path = os.path.relpath(fpath, target_path)

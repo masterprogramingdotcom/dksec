@@ -170,6 +170,27 @@ class Stage3SastScaSecrets(BaseStage):
         return findings, metrics, details
 
 
+    # Standard directory exclusions for stage 3 scanners
+    _STAGE3_EXCLUDE_DIRS = frozenset({
+        ".git", "node_modules", "venv", ".venv", "__pycache__",
+        "target", "bin", "obj", "vendor", "dist", "build", ".next",
+        ".nuxt", "out", "coverage", "htmlcov", ".pytest_cache",
+        "migrations", "static", "media", "assets", ".tox", "eggs",
+        ".eggs", "bower_components", "jspm_packages", ".yarn",
+        "stubs", "typings", ".cache", "tmp", ".turbo"
+    })
+
+    @classmethod
+    def _is_excluded_dir(cls, d: str) -> bool:
+        dl = d.lower()
+        if dl in cls._STAGE3_EXCLUDE_DIRS:
+            return True
+        if dl.startswith(("venv", ".venv", "virtualenv", "env-", ".env-", "node_modules")) or dl.endswith(("-venv", "-env", "_venv", "_env")):
+            return True
+        if dl in ("env", ".env", "logs", "log", ".log", "fixtures", "test_fixtures"):
+            return True
+        return False
+
     # =========================================================================
     # 1. SECRET SCANNING (Gitleaks + Shannon Entropy)
     # =========================================================================
@@ -221,20 +242,32 @@ class Stage3SastScaSecrets(BaseStage):
         if not os.path.exists(target):
             return findings
 
+        sec_counts: dict = {}
+        MAX_PER_PATTERN = 3
+
         for root, dirs, files in os.walk(target):
-            dirs[:] = [d for d in dirs if d not in [".git", "node_modules", "venv", ".venv", "__pycache__"]]
+            dirs[:] = [d for d in dirs if not self._is_excluded_dir(d)]
             for fname in files:
+                if fname.endswith((".min.js", ".min.css", ".bundle.js", ".chunk.js", ".map", ".snap", "._.js", "-lock.json")):
+                    continue
                 fpath = os.path.join(root, fname)
-                if os.path.getsize(fpath) > 1024 * 1024:
+                if os.path.getsize(fpath) > 500_000:
                     continue
                 rel_path = os.path.relpath(fpath, target)
                 try:
                     with open(fpath, "r", encoding="utf-8", errors="ignore") as fl:
                         lines = fl.readlines()
+                    fired_in_file: set = set()
                     for line_no, line in enumerate(lines, 1):
                         for title, pat, sev, cwe, mitre in patterns:
+                            if title in fired_in_file:
+                                continue
+                            if sec_counts.get(title, 0) >= MAX_PER_PATTERN:
+                                continue
                             match = re.search(pat, line)
                             if match:
+                                fired_in_file.add(title)
+                                sec_counts[title] = sec_counts.get(title, 0) + 1
                                 val = match.group(0)
                                 masked = val[:4] + "*" * max(0, len(val) - 8) + val[-4:] if len(val) > 8 else "***"
                                 snippet = line.strip().replace(val, masked)
@@ -297,10 +330,15 @@ class Stage3SastScaSecrets(BaseStage):
                     pass
 
         self.log("Running Python Abstract Syntax Tree (AST) Taint/Sink Analysis...")
+        rule_global_count: dict = {}
         for root, dirs, files in os.walk(target):
-            dirs[:] = [d for d in dirs if d not in [".git", "node_modules", "venv", ".venv", "__pycache__"]]
+            dirs[:] = [d for d in dirs if not self._is_excluded_dir(d)]
             for fname in files:
+                if fname.endswith((".min.js", ".min.css", ".bundle.js", ".chunk.js", ".map", ".snap", "._.js", "-lock.json")):
+                    continue
                 fpath = os.path.join(root, fname)
+                if os.path.getsize(fpath) > 500_000:
+                    continue
                 rel_path = os.path.relpath(fpath, target)
 
                 if fname.endswith(".py"):
@@ -309,7 +347,7 @@ class Stage3SastScaSecrets(BaseStage):
 
                 # Multi-language regex checks for JS/TS/Go
                 if fname.endswith((".js", ".ts", ".jsx", ".tsx", ".go", ".php", ".java")):
-                    multi_findings = self._analyze_other_languages(fpath, rel_path)
+                    multi_findings = self._analyze_other_languages(fpath, rel_path, rule_global_count)
                     findings.extend(multi_findings)
 
         return findings
@@ -480,7 +518,7 @@ class Stage3SastScaSecrets(BaseStage):
             pass
         return findings
 
-    def _analyze_other_languages(self, fpath: str, rel_path: str) -> List[Finding]:
+    def _analyze_other_languages(self, fpath: str, rel_path: str, rule_global_count: Optional[dict] = None) -> List[Finding]:
         findings = []
         rules = [
             # === JavaScript / Node.js ===
@@ -531,12 +569,24 @@ class Stage3SastScaSecrets(BaseStage):
             # === Framework Debug Mode ===
             ("framework-debug-mode", r"app\.run\s*\(.*debug\s*=\s*True|DEBUG\s*=\s*True", "Production Debug Mode Enabled", Severity.MEDIUM, "CWE-489", "Disable debug mode in production."),
         ]
+        MAX_PER_RULE = 5
         try:
             with open(fpath, "r", errors="ignore") as fl:
                 lines = fl.readlines()
+            fired_in_file: set = set()
             for line_no, line in enumerate(lines, 1):
+                line_str = line.strip()
+                if not line_str or line_str.startswith(("#", "//", "/*", "*", "--")):
+                    continue
                 for r_id, pat, title, sev, cwe, fix in rules:
+                    if r_id in fired_in_file:
+                        continue
+                    if rule_global_count is not None and rule_global_count.get(r_id, 0) >= MAX_PER_RULE:
+                        continue
                     if re.search(pat, line):
+                        fired_in_file.add(r_id)
+                        if rule_global_count is not None:
+                            rule_global_count[r_id] = rule_global_count.get(r_id, 0) + 1
                         f = self.create_finding(
                             finding_id=f"SAST-{r_id.upper()}-{len(findings)+1:03d}",
                             title=title,
@@ -545,7 +595,7 @@ class Stage3SastScaSecrets(BaseStage):
                             tool="Semgrep Multi-Lang Engine",
                             file_path=rel_path,
                             line_number=line_no,
-                            code_snippet=line.strip(),
+                            code_snippet=line.strip()[:160],
                             cwe=cwe,
                             owasp="OWASP A03:2021-Injection",
                             remediation=fix
