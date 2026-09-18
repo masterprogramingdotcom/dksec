@@ -20,6 +20,64 @@ Instead of juggling separate tools for your codebase and live APIs, DKSec orches
 
 ---
 
+
+## 🗺️ How it Works (The 9-Stage Pipeline)
+
+DKSec maps exactly to the modern DevSecOps lifecycle. When you run a full scan, your application goes through this automated pipeline:
+
+```text
+             PRODUCT
+                │
+                ▼
+     ┌─────────────────────┐
+     │ 1. Architecture     │
+     │    & Threat Model   │
+     └──────────┬──────────┘
+                ▼
+     ┌─────────────────────┐
+     │ 2. Security         │
+     │    Requirements     │
+     └──────────┬──────────┘
+                ▼
+     ┌─────────────────────┐
+     │ 3. SAST + SCA +     │
+     │    Secret Scanning  │
+     └──────────┬──────────┘
+                ▼
+     ┌─────────────────────┐
+     │ 4. DAST + API       │
+     │    Security Testing │
+     └──────────┬──────────┘
+                ▼
+     ┌─────────────────────┐
+     │ 5. Manual Security  │
+     │    Testing          │
+     └──────────┬──────────┘
+                ▼
+     ┌─────────────────────┐
+     │ 6. Penetration Test │
+     │    / VAPT           │
+     └──────────┬──────────┘
+                ▼
+     ┌─────────────────────┐
+     │ 7. Fix & Retest     │
+     └──────────┬──────────┘
+                ▼
+     ┌─────────────────────┐
+     │ 8. Security Signoff │
+     └──────────┬──────────┘
+                ▼
+             RELEASE
+                │
+                ▼
+     ┌─────────────────────┐
+     │ 9. Monitoring &     │
+     │    Incident Response│
+     └─────────────────────┘
+```
+
+---
+
 ## ⚙️ 1. Prerequisites
 
 Before installing DKSec, ensure your system has the following installed:
