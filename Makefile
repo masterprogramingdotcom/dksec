@@ -139,16 +139,16 @@ venv:
 quickstart: demo
 
 demo:
-	@$(PYTHON) python3 dksec.py demo
+	@$(PYTHON) dksec.py demo
 
 wizard:
-	@$(PYTHON) python3 dksec.py wizard
+	@$(PYTHON) dksec.py wizard
 
 interactive: wizard
 
 ui:
 	@echo "$(GREEN)$(BOLD)Starting DKSec Web Dashboard on port $(PORT)...$(RESET)"
-	@$(PYTHON) python3 dksec.py ui --port $(PORT)
+	@$(PYTHON) dksec.py ui --port $(PORT)
 
 dashboard: ui
 
@@ -173,7 +173,7 @@ live-scan:
 # ------------------------------------------------------------------------------
 vapt pentest:
 	@echo "$(BOLD)🎯 Executing Stage 6: Penetration Testing & Attack Surface Discovery...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -182,7 +182,7 @@ vapt pentest:
 
 sast:
 	@echo "$(BOLD)🔍 Executing Stage 3: SAST, SCA & Secret Scanning...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s sast \
@@ -190,7 +190,7 @@ sast:
 
 threat threat-model:
 	@echo "$(BOLD)📐 Executing Stage 1: Architecture & STRIDE Threat Modeling...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s threat \
@@ -198,7 +198,7 @@ threat threat-model:
 
 asvs:
 	@echo "$(BOLD)📋 Executing Stage 2: OWASP ASVS 4.0.3 Security Requirements & Verification...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s asvs \
@@ -206,7 +206,7 @@ asvs:
 
 dast:
 	@echo "$(BOLD)⚡ Executing Stage 4: DAST & API Security Fuzzing...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -215,7 +215,7 @@ dast:
 
 wstg:
 	@echo "$(BOLD)📑 Executing Stage 5: OWASP Web Security Testing Guide (WSTG v4.2)...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -224,7 +224,7 @@ wstg:
 
 defectdojo dojo:
 	@echo "$(BOLD)🎯 Executing Stage 7: DefectDojo Vulnerability Tracking & Retest Sync...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s defectdojo \
@@ -232,7 +232,7 @@ defectdojo dojo:
 
 signoff scorecard:
 	@echo "$(BOLD)🛡️ Executing Stage 8: OpenSSF Scorecard & Cryptographic Release Gate...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s signoff \
@@ -240,7 +240,7 @@ signoff scorecard:
 
 wazuh siem:
 	@echo "$(BOLD)🚨 Executing Stage 9: Wazuh SIEM XML Rules & Sigma Detection Engine...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s wazuh \
@@ -250,7 +250,7 @@ wazuh siem:
 # 5. Multi-Stage Combinations & Workflows
 # ------------------------------------------------------------------------------
 scan:
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -259,11 +259,11 @@ scan:
 
 code-audit:
 	@echo "$(BOLD)🔍 Running Code & Architecture Audit (Threat Model + SAST + Secrets)...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan -p $(PROJECT) -t $(TARGET) -s "1,3" -o $(OUTPUT) $(EXTRA_ARGS)
+	@$(PYTHON) dksec.py scan -p $(PROJECT) -t $(TARGET) -s "1,3" -o $(OUTPUT) $(EXTRA_ARGS)
 
 api-audit:
 	@echo "$(BOLD)⚡ Running Dynamic Web & API Penetration Audit (DAST + WSTG + VAPT)...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan \
+	@$(PYTHON) dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -272,11 +272,11 @@ api-audit:
 
 supply-chain:
 	@echo "$(BOLD)📦 Running Supply Chain & Compliance Audit (ASVS + SBOM + OpenSSF)...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan -p $(PROJECT) -t $(TARGET) -s "2,3,8" -o $(OUTPUT) $(EXTRA_ARGS)
+	@$(PYTHON) dksec.py scan -p $(PROJECT) -t $(TARGET) -s "2,3,8" -o $(OUTPUT) $(EXTRA_ARGS)
 
 pr-check:
 	@echo "$(BOLD)Executing Fast Pull Request Security Gate (Stages 1, 3, 8)...$(RESET)"
-	@$(PYTHON) python3 dksec.py scan -t $(TARGET) --preset pr --fail-on-gate -o reports/pr_gate $(EXTRA_ARGS)
+	@$(PYTHON) dksec.py scan -t $(TARGET) --preset pr --fail-on-gate -o reports/pr_gate $(EXTRA_ARGS)
 
 # ------------------------------------------------------------------------------
 # 6. Testing & Quality Assurance
