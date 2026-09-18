@@ -218,6 +218,36 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             self._serve_json(status)
             return
 
+        elif path == "/api/config/save":
+            content_len = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_len).decode("utf-8")
+            try:
+                payload = json.loads(body)
+            except Exception:
+                payload = {}
+            try:
+                from dksec import yaml_compat as yaml
+                cfg_path = "dksec.yml"
+                existing = {}
+                if os.path.exists(cfg_path):
+                    try:
+                        with open(cfg_path, "r", encoding="utf-8") as f:
+                            existing = yaml.safe_load(f) or {}
+                    except Exception:
+                        existing = {}
+                if "auth" in payload and payload["auth"]:
+                    existing["auth"] = payload["auth"]
+                if "llm" in payload and payload["llm"]:
+                    existing["llm"] = payload["llm"]
+                if "target_url" in payload and payload["target_url"]:
+                    existing["target_url"] = payload["target_url"]
+                with open(cfg_path, "w", encoding="utf-8") as f:
+                    yaml.dump(existing, f, default_flow_style=False)
+                self._serve_json({"status": "ok", "message": "Configuration saved to dksec.yml"})
+            except Exception as e:
+                self._serve_json({"status": "error", "message": str(e)}, status=500)
+            return
+
         elif path == "/api/run":
             content_len = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_len).decode("utf-8")
@@ -699,6 +729,14 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             </div>
 
             <div id="authTestResult" style="display: none;" class="test-result-box"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button type="button" class="btn btn-secondary" onclick="saveCredentials('auth')" style="font-size: 12px; padding: 6px 12px;">💾 Save Auth Credentials</button>
+                <button type="button" class="btn" onclick="clearSavedCredentials('auth')" style="font-size: 12px; padding: 6px 12px; background: transparent; color: var(--muted); border: 1px solid var(--border);">🗑️ Clear</button>
+                <span id="authSaveStatus" style="font-size: 12px; color: #10b981; font-weight: 600; display: none;">✓ Saved!</span>
+              </div>
+              <span style="font-size: 11px; color: var(--muted);">Auto-saved & restored on refresh</span>
+            </div>
           </div>
         </details>
 
@@ -742,6 +780,14 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
               </div>
               <button type="button" class="btn btn-secondary" onclick="testLLMConnection('url')">⚡ Test AI Connection</button>
               <div id="llmTestResultUrl" style="display: none;" class="test-result-box"></div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button type="button" class="btn btn-secondary" onclick="saveCredentials('llm')" style="font-size: 12px; padding: 6px 12px;">💾 Save AI Settings</button>
+                  <button type="button" class="btn" onclick="clearSavedCredentials('llm')" style="font-size: 12px; padding: 6px 12px; background: transparent; color: var(--muted); border: 1px solid var(--border);">🗑️ Clear</button>
+                  <span id="llmSaveStatus" style="font-size: 12px; color: #10b981; font-weight: 600; display: none;">✓ Saved!</span>
+                </div>
+                <span style="font-size: 11px; color: var(--muted);">Auto-saved & restored on refresh</span>
+              </div>
             </div>
           </div>
         </details>
@@ -1128,6 +1174,118 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       }}
     }}
 
+    /* Configuration Persistence (LocalStorage + dksec.yml) */
+    function saveCredentials(type) {{
+      const auth = getAuthConfig();
+      const llm = getLLMConfig();
+      const targetUrl = document.getElementById('urlTargetUrl') ? document.getElementById('urlTargetUrl').value : '';
+
+      const configToSave = {{
+        target_url: targetUrl,
+        auth: auth,
+        llm: llm
+      }};
+
+      try {{
+        localStorage.setItem('dksec_saved_config', JSON.stringify(configToSave));
+      }} catch(e) {{}}
+
+      fetch('/api/config/save', {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/json' }},
+        body: JSON.stringify(configToSave)
+      }}).catch(() => {{}});
+
+      const badgeId = (type === 'auth') ? 'authSaveStatus' : 'llmSaveStatus';
+      const badge = document.getElementById(badgeId);
+      if (badge) {{
+        badge.style.display = 'inline';
+        setTimeout(() => {{ badge.style.display = 'none'; }}, 2500);
+      }}
+    }}
+
+    function clearSavedCredentials(type) {{
+      try {{
+        let existing = JSON.parse(localStorage.getItem('dksec_saved_config') || '{{}}');
+        if (type === 'auth') {{
+          delete existing.auth;
+          if (document.getElementById('authType')) document.getElementById('authType').value = 'none';
+          onAuthTypeChange();
+          if (document.getElementById('authUsername')) document.getElementById('authUsername').value = '';
+          if (document.getElementById('authPassword')) document.getElementById('authPassword').value = '';
+          if (document.getElementById('authBearer')) document.getElementById('authBearer').value = '';
+          if (document.getElementById('authCookie')) document.getElementById('authCookie').value = '';
+          if (document.getElementById('authHeader')) document.getElementById('authHeader').value = '';
+        }} else if (type === 'llm') {{
+          delete existing.llm;
+          if (document.getElementById('llmApiKeyUrl')) document.getElementById('llmApiKeyUrl').value = '';
+          if (document.getElementById('llmApiKeyAdv')) document.getElementById('llmApiKeyAdv').value = '';
+          if (document.getElementById('llmBaseUrlUrl')) document.getElementById('llmBaseUrlUrl').value = '';
+          if (document.getElementById('llmBaseUrlAdv')) document.getElementById('llmBaseUrlAdv').value = '';
+          if (document.getElementById('llmEnabledUrl')) document.getElementById('llmEnabledUrl').checked = false;
+          syncLLM('url');
+        }}
+        localStorage.setItem('dksec_saved_config', JSON.stringify(existing));
+      }} catch(e) {{}}
+    }}
+
+    function restoreSavedConfig() {{
+      try {{
+        const raw = localStorage.getItem('dksec_saved_config');
+        if (!raw) return;
+        const cfg = JSON.parse(raw);
+
+        if (cfg.target_url && document.getElementById('urlTargetUrl')) {{
+          document.getElementById('urlTargetUrl').value = cfg.target_url;
+        }}
+
+        if (cfg.auth && cfg.auth.enabled && cfg.auth.auth_type) {{
+          const a = cfg.auth;
+          if (document.getElementById('authType')) {{
+            document.getElementById('authType').value = a.auth_type;
+            onAuthTypeChange();
+          }}
+          if (a.login_url && document.getElementById('authLoginUrl')) document.getElementById('authLoginUrl').value = a.login_url;
+          if (a.username && document.getElementById('authUsername')) document.getElementById('authUsername').value = a.username;
+          if (a.password && document.getElementById('authPassword')) document.getElementById('authPassword').value = a.password;
+          if (a.payload_type && document.getElementById('authPayloadType')) document.getElementById('authPayloadType').value = a.payload_type;
+          if (a.bearer_token && document.getElementById('authBearer')) document.getElementById('authBearer').value = a.bearer_token;
+          if (a.cookies && document.getElementById('authCookie')) document.getElementById('authCookie').value = a.cookies;
+          if (a.custom_header && document.getElementById('authHeader')) document.getElementById('authHeader').value = a.custom_header;
+          if (a.oauth_token_url && document.getElementById('authOAuthTokenUrl')) document.getElementById('authOAuthTokenUrl').value = a.oauth_token_url;
+          if (a.oauth_client_id && document.getElementById('authOAuthClientId')) document.getElementById('authOAuthClientId').value = a.oauth_client_id;
+          if (a.oauth_client_secret && document.getElementById('authOAuthClientSecret')) document.getElementById('authOAuthClientSecret').value = a.oauth_client_secret;
+          if (a.oauth_scope && document.getElementById('authOAuthScope')) document.getElementById('authOAuthScope').value = a.oauth_scope;
+          if (a.api_key_name && document.getElementById('authApiKeyName')) document.getElementById('authApiKeyName').value = a.api_key_name;
+          if (a.api_key_value && document.getElementById('authApiKeyValue')) document.getElementById('authApiKeyValue').value = a.api_key_value;
+          if (a.api_key_in && document.getElementById('authApiKeyIn')) document.getElementById('authApiKeyIn').value = a.api_key_in;
+          if (a.username && document.getElementById('authBasicUsername')) document.getElementById('authBasicUsername').value = a.username;
+          if (a.password && document.getElementById('authBasicPassword')) document.getElementById('authBasicPassword').value = a.password;
+        }}
+
+        if (cfg.llm) {{
+          const l = cfg.llm;
+          if (l.enabled) {{
+            if (document.getElementById('llmEnabledUrl')) document.getElementById('llmEnabledUrl').checked = true;
+            syncLLM('url');
+          }}
+          if (l.provider && document.getElementById('llmProviderUrl')) {{
+            document.getElementById('llmProviderUrl').value = l.provider;
+            onLLMProviderChange('url');
+          }}
+          if (l.model && document.getElementById('llmModelUrl')) {{
+            document.getElementById('llmModelUrl').value = l.model;
+          }}
+          if (l.api_key && document.getElementById('llmApiKeyUrl')) {{
+            document.getElementById('llmApiKeyUrl').value = l.api_key;
+          }}
+          if (l.api_base_url && document.getElementById('llmBaseUrlUrl')) {{
+            document.getElementById('llmBaseUrlUrl').value = l.api_base_url;
+          }}
+        }}
+      }} catch(e) {{}}
+    }}
+
     /* Auth Handlers */
     function onAuthTypeChange() {{
       const type = document.getElementById('authType').value;
@@ -1181,6 +1339,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       resBox.style.color = '#2563eb';
       resBox.innerHTML = 'Connecting to target and validating session credentials...';
 
+      saveCredentials('auth');
       fetch('/api/auth/test', {{
         method: 'POST',
         headers: {{ 'Content-Type': 'application/json' }},
@@ -1264,6 +1423,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       resBox.style.color = '#2563eb';
       resBox.innerHTML = `Testing connection to ${{cfg.provider.toUpperCase()}} (${{cfg.model}})...`;
 
+      saveCredentials('llm');
       fetch('/api/llm/test', {{
         method: 'POST',
         headers: {{ 'Content-Type': 'application/json' }},
@@ -1446,6 +1606,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       document.getElementById('statusMessage').innerText = 'Initializing scan engines...';
       document.getElementById('consoleLog').innerHTML = '';
 
+      saveCredentials('auto');
       fetch('/api/run', {{
         method: 'POST',
         headers: {{ 'Content-Type': 'application/json' }},
