@@ -5,6 +5,7 @@ and posture score trends across CI/CD pipeline runs.
 """
 
 import json
+import os
 import logging
 from typing import Dict, Any, List, Optional
 from dksec.models import DKSecReport, Finding, Severity
@@ -37,7 +38,7 @@ def compare_reports(current_report: DKSecReport, previous_report_path: str) -> O
         return None
 
     prev_findings = prev_data.get("findings", [])
-    curr_findings = [f.to_dict() for f in current_report.findings]
+    curr_findings = [f.to_dict() for f in current_report.all_findings]
 
     prev_map = {_finding_fingerprint(f): f for f in prev_findings}
     curr_map = {_finding_fingerprint(f): f for f in curr_findings}

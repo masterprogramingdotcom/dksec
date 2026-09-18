@@ -327,7 +327,7 @@ def execute_pipeline(config: DKSecConfig, stages_to_run: List[int], fail_on_gate
     if hasattr(config, 'diff_against') and config.diff_against:
         try:
             from dksec.diff import compare_reports
-            diff_result = compare_reports(config.diff_against, report)
+            diff_result = compare_reports(report, config.diff_against)
             print(f"\n{Colors.BOLD}🔍 Delta Scan Comparison Results:{Colors.RESET}")
             print(f"   New Findings: {len(diff_result['new_findings'])}")
             print(f"   Resolved Findings: {len(diff_result['resolved_findings'])}")

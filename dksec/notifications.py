@@ -25,11 +25,11 @@ def dispatch_webhook(
 
     approved = report.gate_verdict.approved
     status = report.gate_verdict.status
-    score = report.security_posture_score
-    crit_count = report.findings_by_severity.get("CRITICAL", 0)
-    high_count = report.findings_by_severity.get("HIGH", 0)
-    med_count = report.findings_by_severity.get("MEDIUM", 0)
-    low_count = report.findings_by_severity.get("LOW", 0)
+    score = report.overall_score
+    crit_count = report.severity_counts.get("CRITICAL", 0)
+    high_count = report.severity_counts.get("HIGH", 0)
+    med_count = report.severity_counts.get("MEDIUM", 0)
+    low_count = report.severity_counts.get("LOW", 0)
 
     target_name = report.target_url or report.target_path or "Target Application"
     color = "#10b981" if approved else "#ef4444"
@@ -50,9 +50,7 @@ def dispatch_webhook(
                                 "type": "section",
                                 "text": {
                                     "type": "mrkdwn",
-                                    "text": f"*Target:* `{target_name}`
-*Decision:* *{status}* | *Score:* `{score_str}/100`
-"
+                                    "text": f"*Target:* `{target_name}`\n*Decision:* *{status}* | *Score:* `{score_str}/100`\n"\
                                             f"🔴 *Critical:* {crit_count} | 🟠 *High:* {high_count} | 🟡 *Medium:* {med_count} | 🔵 *Low:* {low_count}"
                                 }
                             },
@@ -61,7 +59,7 @@ def dispatch_webhook(
                                 "elements": [
                                     {
                                         "type": "mrkdwn",
-                                        "text": f"Scanned by DKSec Enterprise Orchestrator • {len(report.findings)} Total Issues Identified"
+                                        "text": f"Scanned by DKSec Enterprise Orchestrator • {len(report.all_findings)} Total Issues Identified"
                                     }
                                 ]
                             }
@@ -76,15 +74,14 @@ def dispatch_webhook(
                 "embeds": [
                     {
                         "title": f"Security Release Gate: {status}",
-                        "description": f"Target: `{target_name}`
-Security Posture Score: **{score_str}/100**",
+                        "description": f"Target: `{target_name}`\nSecurity Posture Score: **{score_str}/100**",
                         "color": dec_color,
                         "fields": [
                             {"name": "Critical", "value": str(crit_count), "inline": True},
                             {"name": "High", "value": str(high_count), "inline": True},
                             {"name": "Medium", "value": str(med_count), "inline": True},
                             {"name": "Low", "value": str(low_count), "inline": True},
-                            {"name": "Total Issues", "value": str(len(report.findings)), "inline": True}
+                            {"name": "Total Issues", "value": str(len(report.all_findings)), "inline": True}
                         ],
                         "footer": {"text": "DKSec Application Security Platform"}
                     }
@@ -105,7 +102,7 @@ Security Posture Score: **{score_str}/100**",
                             {"name": "Critical Issues", "value": str(crit_count)},
                             {"name": "High Issues", "value": str(high_count)},
                             {"name": "Medium Issues", "value": str(med_count)},
-                            {"name": "Total Findings", "value": str(len(report.findings))}
+                            {"name": "Total Findings", "value": str(len(report.all_findings))}
                         ],
                         "markdown": True
                     }
@@ -124,7 +121,7 @@ Security Posture Score: **{score_str}/100**",
                     "high": high_count,
                     "medium": med_count,
                     "low": low_count,
-                    "total": len(report.findings)
+                    "total": len(report.all_findings)
                 },
                 "reasons": report.gate_verdict.reasons,
                 "top_findings": [
@@ -135,7 +132,7 @@ Security Posture Score: **{score_str}/100**",
                         "cwe": f.cwe,
                         "tool": f.tool
                     }
-                    for f in report.findings[:5]
+                    for f in report.all_findings[:5]
                 ]
             }
 
