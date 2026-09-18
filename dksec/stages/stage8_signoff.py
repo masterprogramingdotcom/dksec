@@ -60,9 +60,14 @@ class Stage8Signoff(BaseStage):
         high_count = sum(1 for f in all_findings if f.severity == Severity.HIGH)
         med_count = sum(1 for f in all_findings if f.severity == Severity.MEDIUM)
 
-        # Composite Health Score: 100 - (15*crit + 5*high + 2*med)
-        penalty = (crit_count * 15) + (high_count * 5) + (med_count * 2)
-        overall_score = max(0.0, min(100.0, 100.0 - penalty))
+
+        # Composite Health Score using logarithmic decay (consistent with runner.py)
+        import math as _math
+        raw_penalty = (crit_count * 20) + (high_count * 7) + (med_count * 2)
+        k = 0.01
+        overall_score = round(max(0.0, min(100.0, 100.0 * _math.exp(-k * raw_penalty))), 1)
+
+
 
         # Release Gating Policy Execution
         reasons = []

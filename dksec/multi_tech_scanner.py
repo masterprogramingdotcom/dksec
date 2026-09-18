@@ -26,6 +26,51 @@ from dksec.models import Finding, Severity, FindingStatus, SBOMComponent
 
 
 # =============================================================================
+# VERSION COMPARISON UTILITY
+# =============================================================================
+
+def _parse_version(ver_str: str) -> Tuple[int, ...]:
+    """Parse a version string into a tuple of ints for comparison.
+    Handles strings like '5.2.1', '4.2.4', '0.0.0-20211202192323', etc.
+    Returns (0,) on failure so unknown versions are treated as non-vulnerable.
+    """
+    if not ver_str:
+        return (0,)
+    # Strip common prefixes like 'v', '>=' or '<='
+    clean = re.sub(r'^[v<>=^~\s]+', '', ver_str.strip())
+    # Take only the first segment (before '-' for pre-release / build metadata)
+    clean = clean.split('-')[0].split('+')[0]
+    parts = re.split(r'[.\s]', clean)
+    result = []
+    for p in parts[:4]:  # cap at 4 segments
+        try:
+            result.append(int(p))
+        except ValueError:
+            break
+    return tuple(result) if result else (0,)
+
+
+def _is_version_vulnerable(installed: str, max_vuln: str) -> bool:
+    """Return True only if installed_version <= max_vuln version.
+    
+    e.g. installed='5.2.1', max_vuln='4.2.4' → False (already fixed)
+         installed='2.31.0', max_vuln='2.31.0' → True (still affected)
+         installed='1.0.0',  max_vuln='1.26.17' → True  (affected)
+    """
+    try:
+        inst_t = _parse_version(installed)
+        max_t = _parse_version(max_vuln)
+        # Pad tuples to same length for comparison
+        length = max(len(inst_t), len(max_t))
+        inst_t = inst_t + (0,) * (length - len(inst_t))
+        max_t = max_t + (0,) * (length - len(max_t))
+        return inst_t <= max_t
+    except Exception:
+        # On any error, be conservative and skip the flag
+        return False
+
+
+# =============================================================================
 # 1. TECHNOLOGY STACK DETECTOR
 # =============================================================================
 
@@ -546,6 +591,10 @@ class UniversalMultiTechScanner:
         pkg_lower = pkg.lower()
         if pkg_lower in db:
             for adv in db[pkg_lower]:
+                # --- Version gating: only flag if installed version is still vulnerable ---
+                if ver and ver != "1.0.0" and not _is_version_vulnerable(ver, adv["max_vuln"]):
+                    # Installed version is NEWER than max-vulnerable; CVE is already patched
+                    continue
                 f_obj = self.parent.create_finding(
                     finding_id=f"SCA-{adv['cve']}",
                     title=f"Vulnerable Dependency: {pkg}@{ver} ({adv['cve']})",

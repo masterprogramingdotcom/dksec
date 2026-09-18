@@ -13,6 +13,8 @@ from typing import List, Dict, Any, Tuple, Optional
 from dksec.stages.base import BaseStage
 from dksec.models import Finding, Severity, FindingStatus, SBOMComponent
 from dksec.config import DKSecConfig
+from dksec.multi_tech_scanner import _is_version_vulnerable
+
 
 
 class Stage3SastScaSecrets(BaseStage):
@@ -108,10 +110,20 @@ class Stage3SastScaSecrets(BaseStage):
         tech_scanner = UniversalMultiTechScanner(self)
         tech_findings, tech_components, tech_summary = tech_scanner.scan_all(target)
 
-        # Merge findings with deduplication
-        seen_keys = {(f.title, f.file_path, f.line_number) for f in findings}
+        # Merge findings with improved deduplication (CVE-aware)
+        def _make_dedup_key(f_obj):
+            t = f_obj.title.strip().lower()
+            if "cve-" in t:
+                cve_m = re.search(r'cve-\d{4}-\d+', t)
+                pkg_m = re.search(r'dependency:\s*([^@]+)@', t)
+                cve_id = cve_m.group(0) if cve_m else t
+                pkg_id = pkg_m.group(1).strip() if pkg_m else (f_obj.file_path or "")
+                return f"CVE:{cve_id}|pkg:{pkg_id}"
+            return f"{t}|{f_obj.cwe}|{f_obj.file_path or ''}|{f_obj.line_number}"
+
+        seen_keys = {_make_dedup_key(f) for f in findings}
         for tf in tech_findings:
-            key = (tf.title, tf.file_path, tf.line_number)
+            key = _make_dedup_key(tf)
             if key not in seen_keys:
                 findings.append(tf)
                 seen_keys.add(key)
@@ -648,6 +660,9 @@ class Stage3SastScaSecrets(BaseStage):
 
                             if pkg in cve_advisories["pypi"]:
                                 for adv in cve_advisories["pypi"][pkg]:
+                                    # Version gating: skip if installed version is newer than max vulnerable
+                                    if ver and ver != "1.0.0" and not _is_version_vulnerable(ver, adv["max_vuln"]):
+                                        continue
                                     f_obj = self.create_finding(
                                         finding_id=f"SCA-{adv['cve']}",
                                         title=f"Vulnerable Dependency: {pkg}@{ver} ({adv['cve']})",
@@ -685,6 +700,9 @@ class Stage3SastScaSecrets(BaseStage):
 
                         if pkg in cve_advisories["npm"]:
                             for adv in cve_advisories["npm"][pkg]:
+                                # Version gating: skip if installed version is newer than max vulnerable
+                                if clean_ver and not _is_version_vulnerable(clean_ver, adv["max_vuln"]):
+                                    continue
                                 f_obj = self.create_finding(
                                     finding_id=f"SCA-{adv['cve']}",
                                     title=f"Vulnerable NPM Dependency: {pkg}@{clean_ver} ({adv['cve']})",
@@ -701,6 +719,7 @@ class Stage3SastScaSecrets(BaseStage):
                                 )
                                 f_obj.mitre_attack = "T1190"
                                 findings.append(f_obj)
+
             except Exception:
                 pass
 

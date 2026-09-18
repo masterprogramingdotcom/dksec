@@ -90,8 +90,20 @@ class DKSecRunner:
 
         overall_score = self.context.get("overall_score")
         if overall_score is None:
-            penalty = (counts["CRITICAL"] * 15) + (counts["HIGH"] * 5) + (counts["MEDIUM"] * 2)
-            overall_score = max(0.0, min(100.0, 100.0 - penalty))
+            # Weighted penalty (normalized by total findings to prevent excessive punishment
+            # on large scans with many low-severity items)
+            import math as _math
+            n_crit = counts["CRITICAL"]
+            n_high = counts["HIGH"]
+            n_med  = counts["MEDIUM"]
+            n_low  = counts["LOW"]
+            # Raw penalty per severity tier
+            raw_penalty = (n_crit * 20) + (n_high * 7) + (n_med * 2) + (n_low * 0.5)
+            # Logarithmic decay: score = 100 * e^(-k*penalty)
+            # k chosen so that 1 critical → ~82, 3 criticals → ~55, 7 criticals → ~25
+            k = 0.01
+            overall_score = round(max(0.0, min(100.0, 100.0 * _math.exp(-k * raw_penalty))), 1)
+
 
         verdict = self.context.get("gate_verdict")
         if verdict is None:

@@ -96,12 +96,26 @@ class Stage7FixRetest(BaseStage):
         seen = {}
         unique = []
         for f in findings:
-            key = f"{f.title.strip()}|{f.cwe}|{f.file_path or f.target}"
+            # For SCA / CVE findings: deduplicate by CVE ID + package (file_path)
+            # so the same CVE from two different scanners doesn't appear twice
+            title_normalized = f.title.strip().lower()
+            if "cve-" in title_normalized:
+                # Extract CVE ID from the title for a stable key
+                import re as _re
+                cve_match = _re.search(r'cve-\d{4}-\d+', title_normalized)
+                pkg_match = _re.search(r'dependency:\s*([^@]+)@', title_normalized)
+                cve_id = cve_match.group(0) if cve_match else title_normalized
+                pkg_id = pkg_match.group(1).strip() if pkg_match else (f.file_path or "")
+                key = f"CVE:{cve_id}|pkg:{pkg_id}"
+            else:
+                key = f"{title_normalized}|{f.cwe}|{f.file_path or f.target}"
             h = hashlib.sha256(key.encode()).hexdigest()
             if h not in seen:
                 seen[h] = True
                 unique.append(f)
         return unique
+
+
 
     def _generate_remediation_plan(self, findings: List[Finding]) -> List[Dict[str, Any]]:
         now = datetime.datetime.now(datetime.timezone.utc)
