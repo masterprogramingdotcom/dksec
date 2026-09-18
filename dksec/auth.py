@@ -136,12 +136,38 @@ class DKSecSessionManager:
             return False, err
 
         try:
+            import re
+            # Preflight request to capture CSRF cookies and HTML tokens
+            preflight = self.session.get(target_login, timeout=self.config.timeout, verify=False)
+            csrf_token = None
+            if "csrftoken" in self.session.cookies:
+                csrf_token = self.session.cookies["csrftoken"]
+            elif "XSRF-TOKEN" in self.session.cookies:
+                csrf_token = self.session.cookies["XSRF-TOKEN"]
+                
+            if not csrf_token:
+                match = re.search(r'name="csrfmiddlewaretoken"\s+value="([^"]+)"', preflight.text)
+                if match:
+                    csrf_token = match.group(1)
+                else:
+                    match = re.search(r'name="_csrf"\s+value="([^"]+)"', preflight.text)
+                    if match:
+                        csrf_token = match.group(1)
+            
+            headers = {"Referer": target_login}
+            if csrf_token:
+                headers["X-CSRFToken"] = csrf_token
+                headers["X-XSRF-TOKEN"] = csrf_token
+
             if self.config.payload_type == "form":
                 payload = {"username": username, "password": password}
-                r = self.session.post(target_login, data=payload, timeout=self.config.timeout, verify=False)
+                if csrf_token:
+                    payload["csrfmiddlewaretoken"] = csrf_token
+                    payload["_csrf"] = csrf_token
+                r = self.session.post(target_login, data=payload, headers=headers, timeout=self.config.timeout, verify=False, allow_redirects=False)
             else:
                 payload = {"username": username, "password": password}
-                r = self.session.post(target_login, json=payload, timeout=self.config.timeout, verify=False)
+                r = self.session.post(target_login, json=payload, headers=headers, timeout=self.config.timeout, verify=False, allow_redirects=False)
 
             self.login_status_code = r.status_code
             self.last_login_response = r
@@ -162,13 +188,25 @@ class DKSecSessionManager:
                 self.captured_token = token_found
                 self.session.headers[self.config.token_header_name] = f"{self.config.token_header_prefix}{token_found}"
 
-            if r.status_code in (200, 201, 204) or token_found or len(self.session.cookies) > 0:
+            # Strict success check to prevent false positives:
+            auth_success = False
+            if token_found:
+                auth_success = True
+            elif r.status_code in (302, 303, 301):
+                auth_success = True
+            elif any(c in self.session.cookies for c in ["sessionid", "PHPSESSID", "JSESSIONID", "connect.sid"]):
+                auth_success = True
+            elif r.status_code in (200, 201) and "json" in r.headers.get("Content-Type", ""):
+                auth_success = True
+
+            if auth_success:
                 if not is_secondary:
                     self.is_authenticated = True
                     self.auth_method = "login"
                 return True, f"Login successful (HTTP {r.status_code})"
             else:
-                err = f"Login failed with status code {r.status_code}: {r.text[:120]}"
+                err_text = r.text[:120].strip().replace('\n', ' ')
+                err = f"Login failed with status code {r.status_code}. Response: {err_text}"
                 self.login_error = err
                 return False, err
 
