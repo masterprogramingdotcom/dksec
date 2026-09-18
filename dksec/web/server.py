@@ -580,6 +580,8 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
                   <option value="bearer">Bearer Token / JWT</option>
                   <option value="cookie">Session Cookies</option>
                   <option value="header">Custom Authorization Header</option>
+                  <option value="basic">HTTP Basic Authentication</option>
+                  <option value="digest">HTTP Digest Authentication</option>
                 </select>
               </div>
               <div class="form-group" style="display: flex; flex-direction: row; align-items: flex-end;">
@@ -604,6 +606,19 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
               </div>
             </div>
 
+            <div id="groupBasic" class="form-row" style="display: none;">
+              <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                <div>
+                  <label>HTTP Auth Username</label>
+                  <input type="text" id="authBasicUsername" class="text-input" placeholder="admin" value="" />
+                </div>
+                <div>
+                  <label>HTTP Auth Password</label>
+                  <input type="password" id="authBasicPassword" class="text-input" placeholder="••••••••" value="" />
+                </div>
+              </div>
+            </div>
+            
             <div id="groupBearer" class="form-group" style="display: none; margin-bottom: 12px;">
               <label>Bearer Token / JWT</label>
               <input type="text" id="authBearer" class="text-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />

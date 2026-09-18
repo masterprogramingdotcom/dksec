@@ -115,6 +115,19 @@ class DKSecSessionManager:
         if auth_type == "login" or (self.config.login_url and self.config.username):
             self.perform_login(self.config.username or "", self.config.password or "")
 
+        # 5. HTTP Basic Authentication
+        import requests.auth
+        if auth_type == "basic":
+            self.session.auth = requests.auth.HTTPBasicAuth(self.config.username or "", self.config.password or "")
+            self.is_authenticated = True
+            self.auth_method = "basic"
+
+        # 6. HTTP Digest Authentication
+        if auth_type == "digest":
+            self.session.auth = requests.auth.HTTPDigestAuth(self.config.username or "", self.config.password or "")
+            self.is_authenticated = True
+            self.auth_method = "digest" 
+
     def _apply_cookie_string(self, cookie_str: str):
         for part in cookie_str.split(";"):
             if "=" in part:
