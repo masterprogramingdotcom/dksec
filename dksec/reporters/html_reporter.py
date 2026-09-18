@@ -164,30 +164,130 @@ class HtmlReporter:
         open_ports = recon_data.get("open_ports", [])
         open_ports_str = ", ".join(str(p) for p in open_ports) if open_ports else ("80, 443 (Web)" if report.target_url else "N/A")
 
-        # Multi-technology, framework, and server profile
+        # Multi-technology, framework, and server profile with rich categorization
         tp = getattr(report, "tech_profile", {}) or {}
         if not tp and 3 in report.stage_results:
-            tp = report.stage_results[3].details.get("tech_profile", {})
+            tp = report.stage_results[3].details.get("tech_profile", {}) or {}
 
-        fws = tp.get("frameworks", [])
+        frontend_list = tp.get("frontend", [])
+        backend_list = tp.get("backend", [])
         srvs = tp.get("servers", [])
         dbs = tp.get("databases", [])
         infra = tp.get("infra", [])
+        primary_lang = tp.get("primary_language") or "Application"
+        app_type = tp.get("app_type") or ("Full-Stack Application" if (frontend_list and backend_list) else ("Frontend Web/Mobile App" if frontend_list else ("Backend Service" if backend_list else "Application")))
+        total_files = tp.get("total_files", 0)
+        sbom_count = len(getattr(report, "sbom_components", []))
 
         if server_banner == "N/A" and srvs:
-            server_banner = ", ".join(s.capitalize() for s in srvs) + " (Code Config)"
+            server_banner = ", ".join(s for s in srvs) + " (Code Config)"
+
+        # Generate Badges for Tech Breakdown Card
+        def _make_badge(name, bg, fg, border):
+            return f'<span style="display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 600; background: {bg}; color: {fg}; border: 1px solid {border}; margin: 2px;">{name}</span>'
+
+        empty_badge = '<span style="font-size: 11px; color: var(--text-muted); font-style: italic; padding: 2px 4px;">None detected</span>'
+
+        frontend_badges_html = " ".join(_make_badge(f, "rgba(99,102,241,0.12)", "#4338ca", "rgba(99,102,241,0.25)") for f in frontend_list) or empty_badge
+        backend_badges_html = " ".join(_make_badge(b, "rgba(16,185,129,0.12)", "#047857", "rgba(16,185,129,0.25)") for b in backend_list) or empty_badge
+        dbs_badges_html = " ".join(_make_badge(d, "rgba(245,158,11,0.12)", "#b45309", "rgba(245,158,11,0.25)") for d in dbs) or empty_badge
+        servers_badges_html = " ".join(_make_badge(s, "rgba(14,165,233,0.12)", "#0369a1", "rgba(14,165,233,0.25)") for s in srvs) or empty_badge
+        infra_badges_html = " ".join(_make_badge(i, "rgba(139,92,246,0.12)", "#6d28d9", "rgba(139,92,246,0.25)") for i in infra) or empty_badge
 
         tech_stack_parts = []
-        if tp.get("primary_language") and tp.get("primary_language") != "Unknown":
-            tech_stack_parts.append(tp["primary_language"])
-        if fws:
-            tech_stack_parts.extend(f.capitalize() for f in fws[:2])
+        if primary_lang and primary_lang != "Unknown":
+            tech_stack_parts.append(primary_lang)
+        if frontend_list:
+            tech_stack_parts.extend(frontend_list[:2])
+        if backend_list:
+            for b in backend_list[:2]:
+                if b not in tech_stack_parts:
+                    tech_stack_parts.append(b)
         if dbs:
-            tech_stack_parts.extend(d.capitalize() for d in dbs[:1])
+            tech_stack_parts.extend(dbs[:1])
+        if srvs:
+            tech_stack_parts.extend(srvs[:1])
         if infra:
-            tech_stack_parts.extend(i.capitalize() for i in infra[:1])
+            tech_stack_parts.extend(infra[:1])
 
-        tech_stack_summary = " • ".join(tech_stack_parts) if tech_stack_parts else (tp.get("primary_language") or "Full-Stack Application")
+        tech_stack_summary = " • ".join(tech_stack_parts) if tech_stack_parts else app_type
+
+        tech_breakdown_card_html = f"""
+    <!-- Detected Architecture & Technology Stack Breakdown Card -->
+    <div style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 12px; padding: 18px 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 12px; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 24px; line-height: 1;">🏛️</span>
+          <div>
+            <div style="font-size: 15px; font-weight: 700; color: var(--heading, #0f172a); display: flex; align-items: center; gap: 8px;">
+              <span>Architecture &amp; Technology Stack Breakdown</span>
+              <span class="badge" style="background: rgba(37,99,235,0.1); color: #2563eb; border: 1px solid rgba(37,99,235,0.25); font-size: 11px;">{app_type}</span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted, #64748b); margin-top: 2px;">
+              Primary: <strong>{primary_lang}</strong> {f'• {total_files} source files' if total_files else ''}
+            </div>
+          </div>
+        </div>
+        <div>
+          <span class="badge" style="background: rgba(16,185,129,0.1); color: #059669; border: 1px solid rgba(16,185,129,0.25); font-weight: 700; font-size: 12px;">
+            📦 {sbom_count} SBOM Dependencies Inventoried
+          </span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+        <!-- Frontend & UI -->
+        <div style="background: rgba(99,102,241,0.03); border: 1px solid rgba(99,102,241,0.15); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #4338ca; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>🎨</span> Frontend &amp; UI
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            {frontend_badges_html}
+          </div>
+        </div>
+
+        <!-- Backend & APIs -->
+        <div style="background: rgba(16,185,129,0.03); border: 1px solid rgba(16,185,129,0.15); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #047857; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>⚙️</span> Backend &amp; APIs
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            {backend_badges_html}
+          </div>
+        </div>
+
+        <!-- Databases & Storage -->
+        <div style="background: rgba(245,158,11,0.03); border: 1px solid rgba(245,158,11,0.18); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #b45309; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>🗄️</span> Databases &amp; Storage
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            {dbs_badges_html}
+          </div>
+        </div>
+
+        <!-- Web Servers & Gateways -->
+        <div style="background: rgba(14,165,233,0.03); border: 1px solid rgba(14,165,233,0.18); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #0369a1; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>🌐</span> Web Servers &amp; Proxies
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            {servers_badges_html}
+          </div>
+        </div>
+
+        <!-- DevOps & Cloud Infra -->
+        <div style="background: rgba(139,92,246,0.03); border: 1px solid rgba(139,92,246,0.18); border-radius: 8px; padding: 12px;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #6d28d9; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            <span>🚀</span> DevOps &amp; Cloud Infra
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            {infra_badges_html}
+          </div>
+        </div>
+      </div>
+    </div>
+"""
 
 
         # Score & Grade
@@ -1397,6 +1497,7 @@ class HtmlReporter:
       </div>
     </div>
 
+    {tech_breakdown_card_html}
 
     {ai_briefing_html}
 

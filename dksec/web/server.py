@@ -2004,20 +2004,58 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             document.getElementById('pillLow').innerText = `Low: ${{rep.low || 0}}`;
             document.getElementById('pillInfo').innerText = `Info: ${{rep.info || 0}}`;
 
-            // Tech stack + SBOM row
+            // Categorized Tech Stack Breakdown
             const techRow = document.getElementById('verdictTechRow');
             if (techRow) {{
-              const techLabel = rep.tech_stack || '';
               const sbomCount = rep.sbom_count || 0;
-              const fws = (rep.frameworks || []).slice(0, 4).map(f => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,0.12);color:#6366f1;font-size:11px;font-weight:600;">${{f}}</span>`).join('');
-              const srvs = (rep.servers || []).slice(0, 3).map(s => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,0.12);color:#059669;font-size:11px;font-weight:600;">${{s}}</span>`).join('');
-              const dbs = (rep.databases || []).slice(0, 2).map(d => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.12);color:#d97706;font-size:11px;font-weight:600;">${{d}}</span>`).join('');
-              const infras = (rep.infra || []).slice(0, 2).map(i => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:10px;background:rgba(14,165,233,0.12);color:#0284c7;font-size:11px;font-weight:600;">${{i}}</span>`).join('');
+              const appType = rep.app_type || 'Full-Stack Application';
+              const primLang = rep.primary_language || '';
+              const totalFiles = rep.total_files ? ` \u2022 ${{rep.total_files}} files` : '';
+
+              function formatPills(items, bg, color) {{
+                if (!items || items.length === 0) return '<span style="font-size:11px;opacity:0.6;font-style:italic;">None detected</span>';
+                return items.map(x => `<span style="display:inline-block;margin:2px 3px;padding:2px 7px;border-radius:6px;background:${{bg}};color:${{color}};font-size:11px;font-weight:600;">${{x}}</span>`).join('');
+              }}
+
+              const fePills = formatPills(rep.frontend, 'rgba(99,102,241,0.15)', '#4338ca');
+              const bePills = formatPills(rep.backend, 'rgba(16,185,129,0.15)', '#047857');
+              const dbPills = formatPills(rep.databases, 'rgba(245,158,11,0.15)', '#b45309');
+              const srvPills = formatPills(rep.servers, 'rgba(14,165,233,0.15)', '#0369a1');
+              const infPills = formatPills(rep.infra, 'rgba(139,92,246,0.15)', '#6d28d9');
+
               techRow.innerHTML = `
-                <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.15);">
-                  <span style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.05em;">🔬 Tech Stack Detected:</span>
-                  <div style="margin-top:5px;">${{fws}}${{srvs}}${{dbs}}${{infras}}</div>
-                  <div style="margin-top:6px;font-size:12px;opacity:0.85;">📦 <strong>${{sbomCount}}</strong> SBOM Dependencies Inventoried (CycloneDX 1.5)</div>
+                <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(0,0,0,0.08);">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+                    <span style="font-size:12px;font-weight:700;color:var(--heading);display:flex;align-items:center;gap:6px;">
+                      <span>🏛️</span> Architecture &amp; Tech Stack: <strong style="color:#2563eb;">${{appType}}</strong>
+                      <span style="font-weight:normal;opacity:0.75;font-size:11px;">(${{primLang}}${{totalFiles}})</span>
+                    </span>
+                    <span style="font-size:11px;font-weight:700;color:#059669;background:rgba(16,185,129,0.1);padding:3px 8px;border-radius:10px;">
+                      📦 ${{sbomCount}} SBOM Packages Tracked
+                    </span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;text-align:left;">
+                    <div style="background:rgba(255,255,255,0.7);padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);">
+                      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4338ca;margin-bottom:4px;">🎨 Frontend &amp; UI</div>
+                      <div>${{fePills}}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.7);padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);">
+                      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#047857;margin-bottom:4px;">⚙️ Backend &amp; APIs</div>
+                      <div>${{bePills}}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.7);padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);">
+                      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#b45309;margin-bottom:4px;">🗄️ Databases &amp; Storage</div>
+                      <div>${{dbPills}}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.7);padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);">
+                      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#0369a1;margin-bottom:4px;">🌐 Web Servers</div>
+                      <div>${{srvPills}}</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.7);padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.06);">
+                      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6d28d9;margin-bottom:4px;">🚀 DevOps &amp; Infra</div>
+                      <div>${{infPills}}</div>
+                    </div>
+                  </div>
                 </div>`;
             }}
           }}
@@ -2372,12 +2410,15 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
                 "info": info,
                 "reasons": report.gate_verdict.reasons if report.gate_verdict else [],
                 "sbom_count": sbom_count,
-                "tech_stack": tech_stack_label,
+                "app_type": tp.get("app_type", "Full-Stack Application"),
                 "primary_language": tp.get("primary_language", ""),
+                "frontend": tp.get("frontend", []),
+                "backend": tp.get("backend", []),
                 "frameworks": tp.get("frameworks", []),
                 "servers": tp.get("servers", []),
                 "databases": tp.get("databases", []),
                 "infra": tp.get("infra", []),
+                "total_files": tp.get("total_files", 0)
             }
 
             CURRENT_RUN["logs"].append(f"[DONE] Security Score: {score}/100 | Gate: {verdict_str}")

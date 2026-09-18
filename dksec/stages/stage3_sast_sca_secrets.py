@@ -177,7 +177,8 @@ class Stage3SastScaSecrets(BaseStage):
         ".nuxt", "out", "coverage", "htmlcov", ".pytest_cache",
         "migrations", "static", "media", "assets", ".tox", "eggs",
         ".eggs", "bower_components", "jspm_packages", ".yarn",
-        "stubs", "typings", ".cache", "tmp", ".turbo"
+        "stubs", "typings", ".cache", "tmp", ".turbo",
+        ".qt", ".gradle", ".m2", ".cargo", ".rustup", ".nuget"
     })
 
     @classmethod

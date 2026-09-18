@@ -104,65 +104,92 @@ class TechStackDetector:
     }
 
     SERVER_PATTERNS = {
-        "nginx": [r"nginx.*\.conf$", r"sites-available", r"sites-enabled", r"conf\.d/.*\.conf$"],
-        "apache": [r"\.htaccess$", r"httpd\.conf$", r"apache2?\.conf$"],
-        "caddy": [r"Caddyfile$"],
-        "iis": [r"web\.config$"],
-        "envoy": [r"envoy.*\.ya?ml$", r"envoy.*\.json$"],
-        "haproxy": [r"haproxy.*\.cfg$"],
-        "traefik": [r"traefik.*\.ya?ml$", r"traefik.*\.toml$"],
-        "gunicorn": [r"gunicorn\.conf\.py$", r"Procfile"],
-        "supervisord": [r"supervisord\.conf$"],
+        "nginx": ("Nginx", [r"nginx.*\.conf$", r"sites-available", r"sites-enabled", r"conf\.d/.*\.conf$"]),
+        "apache": ("Apache HTTPD", [r"\.htaccess$", r"httpd\.conf$", r"apache2?\.conf$"]),
+        "caddy": ("Caddy", [r"Caddyfile$"]),
+        "iis": ("IIS", [r"web\.config$"]),
+        "envoy": ("Envoy", [r"envoy.*\.ya?ml$", r"envoy.*\.json$"]),
+        "haproxy": ("HAProxy", [r"haproxy.*\.cfg$"]),
+        "traefik": ("Traefik", [r"traefik.*\.ya?ml$", r"traefik.*\.toml$"]),
+        "gunicorn": ("Gunicorn", [r"gunicorn\.conf\.py$", r"Procfile.*gunicorn", r"gunicorn"]),
+        "uvicorn": ("Uvicorn", [r"uvicorn", r"Procfile.*uvicorn"]),
+        "supervisord": ("Supervisord", [r"supervisord\.conf$"]),
     }
 
     FRAMEWORK_SIGNATURES = {
-        "django": ("Python", [r"django\.", r"manage\.py", r"settings\.py", r"urls\.py"]),
-        "flask": ("Python", [r"from\s+flask\s+import", r"Flask\(__name__\)"]),
-        "fastapi": ("Python", [r"from\s+fastapi\s+import", r"FastAPI\(\)"]),
-        "celery": ("Python", [r"from\s+celery\s+import", r"Celery\(", r"@shared_task"]),
-        "tornado": ("Python", [r"tornado\.web", r"tornado\.ioloop"]),
-        "express": ("Node.js", [r"require\(['\"]express['\"]\)", r"from\s+['\"]express['\"]"]),
-        "react": ("Frontend", [r"from\s+['\"]react['\"]", r"require\(['\"]react['\"]\)"]),
-        "vue": ("Frontend", [r"from\s+['\"]vue['\"]", r"\.vue$"]),
-        "angular": ("Frontend", [r"@angular/core", r"angular\.json"]),
-        "svelte": ("Frontend", [r"\.svelte$", r"@sveltejs"]),
-        "nextjs": ("Node.js", [r"from\s+['\"]next/", r"next\.config\.js"]),
-        "nuxt": ("Node.js", [r"nuxt\.config", r"@nuxt"]),
-        "nestjs": ("Node.js", [r"@nestjs/core", r"@nestjs/common"]),
-        "fastify": ("Node.js", [r"fastify\(", r"require\(['\"]fastify['\"]\)"]),
-        "koa": ("Node.js", [r"require\(['\"]koa['\"]\)"]),
-        "spring_boot": ("Java", [r"@SpringBootApplication", r"org\.springframework"]),
-        "quarkus": ("Java", [r"io\.quarkus", r"@QuarkusTest"]),
-        "micronaut": ("Java", [r"io\.micronaut", r"@Controller"]),
-        "laravel": ("PHP", [r"Illuminate\\", r"artisan", r"app/Http/Controllers"]),
-        "symfony": ("PHP", [r"Symfony\\", r"bin/console"]),
-        "wordpress": ("PHP", [r"wp-config\.php", r"wp-content", r"add_action\("]),
-        "rails": ("Ruby", [r"Rails\.application", r"config/routes\.rb"]),
-        "aspnet_core": (".NET", [r"Microsoft\.AspNetCore", r"Program\.cs"]),
-        "gin": ("Go", [r"github\.com/gin-gonic/gin"]),
-        "echo": ("Go", [r"github\.com/labstack/echo"]),
-        "fiber": ("Go", [r"github\.com/gofiber/fiber"]),
-        "actix": ("Rust", [r"actix_web", r"actix-web"]),
-        "rocket": ("Rust", [r"rocket::", r"#\[launch\]"]),
-        "axum": ("Rust", [r"axum::", r"axum"]),
+        # Backend Frameworks & Runtimes
+        "django": ("Backend", "Django", [r"django\.", r"manage\.py", r"settings\.py", r"urls\.py"]),
+        "flask": ("Backend", "Flask", [r"from\s+flask\s+import", r"Flask\(__name__\)"]),
+        "fastapi": ("Backend", "FastAPI", [r"from\s+fastapi\s+import", r"FastAPI\(\)"]),
+        "celery": ("Backend", "Celery", [r"from\s+celery\s+import", r"Celery\(", r"@shared_task"]),
+        "tornado": ("Backend", "Tornado", [r"tornado\.web", r"tornado\.ioloop"]),
+        "express": ("Backend", "Express", [r"require\(['\"]express['\"]\)", r"from\s+['\"]express['\"]"]),
+        "nestjs": ("Backend", "NestJS", [r"@nestjs/core", r"@nestjs/common"]),
+        "fastify": ("Backend", "Fastify", [r"fastify\(", r"require\(['\"]fastify['\"]\)"]),
+        "koa": ("Backend", "Koa", [r"require\(['\"]koa['\"]\)"]),
+        "spring_boot": ("Backend", "Spring Boot", [r"@SpringBootApplication", r"org\.springframework"]),
+        "quarkus": ("Backend", "Quarkus", [r"io\.quarkus", r"@QuarkusTest"]),
+        "micronaut": ("Backend", "Micronaut", [r"io\.micronaut", r"@Controller"]),
+        "laravel": ("Backend", "Laravel", [r"Illuminate\\", r"artisan", r"app/Http/Controllers"]),
+        "symfony": ("Backend", "Symfony", [r"Symfony\\", r"bin/console"]),
+        "wordpress": ("Backend", "WordPress", [r"wp-config\.php", r"wp-content", r"add_action\("]),
+        "rails": ("Backend", "Ruby on Rails", [r"Rails\.application", r"config/routes\.rb"]),
+        "aspnet_core": ("Backend", "ASP.NET Core", [r"Microsoft\.AspNetCore", r"Program\.cs"]),
+        "gin": ("Backend", "Gin", [r"github\.com/gin-gonic/gin"]),
+        "echo": ("Backend", "Echo", [r"github\.com/labstack/echo"]),
+        "fiber": ("Backend", "Fiber", [r"github\.com/gofiber/fiber"]),
+        "actix": ("Backend", "Actix Web", [r"actix_web", r"actix-web"]),
+        "rocket": ("Backend", "Rocket", [r"rocket::", r"#\[launch\]"]),
+        "axum": ("Backend", "Axum", [r"axum::", r"axum"]),
+        "qt_cpp": ("Backend", "Qt C++", [r"QApplication", r"QWidget", r"QObject", r"find_package\(Qt"]),
+
+        # Frontend Frameworks & Libraries
+        "react": ("Frontend", "React", [r"from\s+['\"]react['\"]", r"require\(['\"]react['\"]\)", r"['\"]react['\"]\s*:"]),
+        "react_native": ("Frontend", "React Native", [r"react-native", r"['\"]react-native['\"]\s*:"]),
+        "nextjs": ("Frontend", "Next.js", [r"from\s+['\"]next/", r"next\.config\.js", r"['\"]next['\"]\s*:"]),
+        "vue": ("Frontend", "Vue.js", [r"from\s+['\"]vue['\"]", r"\.vue$", r"createApp\(", r"['\"]vue['\"]\s*:"]),
+        "nuxt": ("Frontend", "Nuxt.js", [r"nuxt\.config", r"@nuxt", r"['\"]nuxt['\"]\s*:"]),
+        "angular": ("Frontend", "Angular", [r"@angular/core", r"angular\.json", r"@angular/router"]),
+        "svelte": ("Frontend", "Svelte", [r"\.svelte$", r"@sveltejs", r"svelte/internal"]),
+        "solid": ("Frontend", "SolidJS", [r"solid-js"]),
+        "tailwindcss": ("Frontend", "Tailwind CSS", [r"tailwindcss", r"tailwind\.config", r"@tailwind"]),
+        "bootstrap": ("Frontend", "Bootstrap", [r"bootstrap(?:\.min)?\.(?:css|js)", r"['\"]bootstrap['\"]\s*:"]),
     }
 
     DATABASE_SIGNATURES = {
-        "postgresql": [r"psycopg2", r"postgres://", r"postgresql://", r"pg_", r"npgsql"],
-        "mysql": [r"mysqlclient", r"pymysql", r"mysql://", r"mysql2"],
-        "mongodb": [r"pymongo", r"mongodb(?:\+srv)?://", r"mongoose"],
-        "redis": [r"redis://", r"redis\.", r"ioredis"],
-        "sqlite": [r"sqlite3", r"\.sqlite3?$"],
-        "cassandra": [r"cassandra-driver", r"gocql"],
+        "postgresql": ("PostgreSQL", [r"psycopg2", r"postgres://", r"postgresql://", r"pg_", r"npgsql", r"@prisma/client.*postgres"]),
+        "mysql": ("MySQL", [r"mysqlclient", r"pymysql", r"mysql://", r"mysql2", r"mysql-connector"]),
+        "mongodb": ("MongoDB", [r"pymongo", r"mongodb(?:\+srv)?://", r"mongoose", r"mongo-client"]),
+        "redis": ("Redis", [r"redis://", r"redis\.", r"ioredis", r"go-redis"]),
+        "sqlite": ("SQLite", [r"sqlite3", r"\.sqlite3?$", r"sqlite:"]),
+        "cassandra": ("Cassandra", [r"cassandra-driver", r"gocql"]),
+        "dynamodb": ("DynamoDB", [r"dynamodb", r"boto3.*dynamodb"]),
+        "elasticsearch": ("Elasticsearch", [r"elasticsearch", r"opensearch"]),
+    }
+
+    INFRA_SIGNATURES = {
+        "docker": ("Docker", [r"Dockerfile", r"docker-compose\.ya?ml$", r"\.dockerignore$"]),
+        "kubernetes": ("Kubernetes", [r"k8s.*\.ya?ml$", r"deployment.*\.ya?ml$", r"Chart\.ya?ml$"]),
+        "terraform": ("Terraform", [r"\.tf$", r"\.tfvars$"]),
+        "cloudformation": ("CloudFormation", [r"template\.ya?ml$", r"template\.json$", r"cloudformation.*\.ya?ml$"]),
+        "serverless": ("Serverless", [r"serverless\.ya?ml$", r"sam\.ya?ml$"]),
+        "github_actions": ("GitHub Actions", [r"\.github/workflows/.*\.ya?ml$"]),
+        "gitlab_ci": ("GitLab CI", [r"\.gitlab-ci\.yml$"]),
+        "jenkins": ("Jenkins", [r"Jenkinsfile"]),
     }
 
     @classmethod
     def detect(cls, target_path: str) -> Dict[str, Any]:
         detected_languages = set()
         detected_frameworks = set()
+        detected_frontend = set()
+        detected_backend = set()
         detected_servers = set()
+        detected_servers_display = set()
         detected_databases = set()
+        detected_databases_display = set()
         detected_infra = set()
+        detected_infra_display = set()
         file_count_by_ext = {}
         total_files = 0
 
@@ -170,11 +197,15 @@ class TechStackDetector:
             return {
                 "languages": [],
                 "frameworks": [],
+                "frontend": [],
+                "backend": [],
                 "servers": [],
                 "databases": [],
                 "infra": [],
                 "file_counts": {},
-                "primary_language": "Unknown"
+                "total_files": 0,
+                "primary_language": "Unknown",
+                "app_type": "Unknown"
             }
 
         for root, dirs, files in os.walk(target_path):
@@ -190,69 +221,144 @@ class TechStackDetector:
                     for p in pats:
                         if re.search(p, rel, re.IGNORECASE):
                             if lang in ("docker", "kubernetes", "terraform", "cloudformation", "serverless", "github_actions", "gitlab_ci"):
-                                detected_infra.add(lang)
+                                pass  # handled in infra signatures
                             else:
                                 detected_languages.add(lang)
                             break
 
-                # Server detection
-                for srv, pats in cls.SERVER_PATTERNS.items():
+                # Infra detection
+                for inf_key, (inf_name, pats) in cls.INFRA_SIGNATURES.items():
                     for p in pats:
                         if re.search(p, rel, re.IGNORECASE):
-                            detected_servers.add(srv)
+                            detected_infra.add(inf_key)
+                            detected_infra_display.add(inf_name)
+                            break
+
+                # Server detection
+                for srv_key, (srv_name, pats) in cls.SERVER_PATTERNS.items():
+                    for p in pats:
+                        if re.search(p, rel, re.IGNORECASE):
+                            detected_servers.add(srv_key)
+                            detected_servers_display.add(srv_name)
                             break
 
                 # Database detection by file name / extension
-                for db, pats in cls.DATABASE_SIGNATURES.items():
+                for db_key, (db_name, pats) in cls.DATABASE_SIGNATURES.items():
                     for p in pats:
                         if re.search(p, rel, re.IGNORECASE):
-                            detected_databases.add(db)
+                            detected_databases.add(db_key)
+                            detected_databases_display.add(db_name)
                             break
 
                 # Framework and code-level database inspection
-                if ext in (".py", ".js", ".ts", ".java", ".php", ".cs", ".go", ".rb", ".rs", ".yml", ".yaml", ".txt", ".json"):
+                if ext in (".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".php", ".cs", ".go", ".rb", ".rs", ".yml", ".yaml", ".txt", ".json", ".cpp", ".h"):
                     try:
                         fpath = os.path.join(root, f)
-                        if os.path.getsize(fpath) < 120000:
+                        if os.path.getsize(fpath) < 150000:
                             with open(fpath, "r", encoding="utf-8", errors="ignore") as fl:
-                                header = fl.read(6000)
-                                for fw_name, (parent_lang, fw_pats) in cls.FRAMEWORK_SIGNATURES.items():
+                                header = fl.read(8000)
+                                for fw_key, (category, fw_name, fw_pats) in cls.FRAMEWORK_SIGNATURES.items():
                                     for pat in fw_pats:
                                         if re.search(pat, header) or re.search(pat, rel):
-                                            detected_frameworks.add(fw_name)
-                                for db, pats in cls.DATABASE_SIGNATURES.items():
+                                            detected_frameworks.add(fw_key)
+                                            if category == "Frontend":
+                                                detected_frontend.add(fw_name)
+                                            elif category == "Backend":
+                                                detected_backend.add(fw_name)
+                                            break
+                                for db_key, (db_name, pats) in cls.DATABASE_SIGNATURES.items():
                                     for pat in pats:
                                         if re.search(pat, header):
-                                            detected_databases.add(db)
+                                            detected_databases.add(db_key)
+                                            detected_databases_display.add(db_name)
                                             break
                     except Exception:
                         pass
 
-        primary = "Python" if "python" in detected_languages else (
-            "JavaScript/TypeScript" if ("javascript" in detected_languages or "typescript" in detected_languages) else (
-                "Java" if "java" in detected_languages else (
-                    "PHP" if "php" in detected_languages else (
-                        "Go" if "go" in detected_languages else (
-                            "C#" if "csharp" in detected_languages else (
-                                "Ruby" if "ruby" in detected_languages else (
-                                    "Rust" if "rust" in detected_languages else "Multi-Language"
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
+        # Primary language resolution based on dominant file count
+        lang_ext_map = {
+            "go": [".go"],
+            "python": [".py"],
+            "typescript": [".ts", ".tsx"],
+            "javascript": [".js", ".jsx", ".mjs"],
+            "java": [".java"],
+            "kotlin": [".kt", ".kts"],
+            "csharp": [".cs"],
+            "ruby": [".rb"],
+            "rust": [".rs"],
+            "php": [".php"],
+            "c_cpp": [".c", ".cpp", ".cc", ".cxx", ".h", ".hpp"],
+            "swift": [".swift"],
+        }
+        display_name_map = {
+            "python": "Python",
+            "typescript": "TypeScript",
+            "javascript": "JavaScript",
+            "go": "Go",
+            "java": "Java",
+            "kotlin": "Kotlin",
+            "csharp": "C#",
+            "ruby": "Ruby",
+            "rust": "Rust",
+            "php": "PHP",
+            "c_cpp": "C/C++",
+            "swift": "Swift",
+        }
+
+        lang_counts = {}
+        for l in detected_languages:
+            exts = lang_ext_map.get(l, [])
+            lang_counts[l] = sum(file_count_by_ext.get(e, 0) for e in exts)
+
+        if lang_counts and any(v > 0 for v in lang_counts.values()):
+            top_lang = max(lang_counts.items(), key=lambda x: x[1])[0]
+            primary = display_name_map.get(top_lang, top_lang.capitalize())
+        else:
+            primary = "Multi-Language"
+
+        # Infer backend / frontend if not explicitly picked up by framework signatures
+        if not detected_backend:
+            if primary in ("Python", "Go", "Java", "PHP", "C#", "Ruby", "Rust", "C/C++"):
+                detected_backend.add(primary)
+            elif "javascript" in detected_languages or "typescript" in detected_languages:
+                if any(ext in file_count_by_ext for ext in (".js", ".ts", ".mjs")):
+                    detected_backend.add("Node.js Runtime")
+
+        if not detected_frontend:
+            if any(ext in file_count_by_ext for ext in (".jsx", ".tsx", ".html", ".css", ".scss", ".vue", ".svelte")):
+                if "react" in detected_frameworks or any("react" in x.lower() for x in detected_frameworks):
+                    detected_frontend.add("React UI")
+                elif "vue" in detected_frameworks:
+                    detected_frontend.add("Vue UI")
+                elif any(ext in file_count_by_ext for ext in (".html", ".css")):
+                    detected_frontend.add("HTML5 / CSS3")
+
+        # Determine architecture classification
+        is_fullstack = bool(detected_frontend and detected_backend)
+        if is_fullstack:
+            app_type = "Full-Stack Application"
+        elif detected_frontend:
+            app_type = "Frontend Web / Mobile Application"
+        elif detected_backend:
+            app_type = "Backend API & Microservice"
+        else:
+            app_type = f"{primary} Service"
 
         return {
             "languages": sorted(list(detected_languages)),
             "frameworks": sorted(list(detected_frameworks)),
+            "frontend": sorted(list(detected_frontend)),
+            "backend": sorted(list(detected_backend)),
             "servers": sorted(list(detected_servers)),
             "databases": sorted(list(detected_databases)),
             "infra": sorted(list(detected_infra)),
+            "servers_display": sorted(list(detected_servers_display)),
+            "databases_display": sorted(list(detected_databases_display)),
+            "infra_display": sorted(list(detected_infra_display)),
             "file_counts": file_count_by_ext,
             "total_files": total_files,
-            "primary_language": primary
+            "primary_language": primary,
+            "app_type": app_type,
         }
 
 
@@ -550,6 +656,7 @@ class UniversalMultiTechScanner:
         "migrations", "static", "media", "public", "assets",
         ".tox", "eggs", ".eggs", "bower_components", "jspm_packages",
         ".yarn", "stubs", "typings", ".cache", "tmp", ".turbo",
+        ".qt", ".gradle", ".m2", ".cargo", ".rustup", ".nuget",
     })
 
     @classmethod

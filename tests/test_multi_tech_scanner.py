@@ -173,6 +173,21 @@ openssl = "0.10.45"
         self.assertIn("celery", profile.get("frameworks", []))
         self.assertIn("postgresql", profile.get("databases", []))
 
+    def test_tech_stack_architecture_split(self):
+        # Create full-stack project mockup
+        with open(os.path.join(self.tmp, "App.tsx"), "w") as f:
+            f.write("import React from 'react'; export default function App() { return <div>Hello</div>; }\n")
+        with open(os.path.join(self.tmp, "main.py"), "w") as f:
+            f.write("from fastapi import FastAPI\napp = FastAPI()\n")
+        with open(os.path.join(self.tmp, "docker-compose.yml"), "w") as f:
+            f.write("version: '3'\nservices:\n  redis:\n    image: redis:alpine\n")
+
+        profile = TechStackDetector.detect(self.tmp)
+        self.assertIn("React", profile.get("frontend", []))
+        self.assertIn("FastAPI", profile.get("backend", []))
+        self.assertIn("Docker", profile.get("infra_display", []))
+        self.assertEqual(profile.get("app_type"), "Full-Stack Application")
+
 
 if __name__ == "__main__":
     unittest.main()
