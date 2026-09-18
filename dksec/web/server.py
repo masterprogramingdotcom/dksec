@@ -72,6 +72,52 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
         elif path == "/api/metadata":
             self._serve_json(STAGE_METADATA)
+        elif path == "/api/browse":
+            query = urllib.parse.parse_qs(parsed.query)
+            req_path = query.get("path", [""])[0].strip()
+            
+            if not req_path or req_path == ".":
+                req_path = os.getcwd()
+            else:
+                req_path = os.path.expanduser(req_path)
+                req_path = os.path.abspath(req_path)
+
+            if not os.path.exists(req_path) or not os.path.isdir(req_path):
+                req_path = os.getcwd()
+
+            parent_path = os.path.dirname(req_path) if req_path != "/" else None
+
+            entries = []
+            try:
+                with os.scandir(req_path) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                is_hidden = entry.name.startswith(".")
+                                entries.append({
+                                    "name": entry.name,
+                                    "path": os.path.abspath(entry.path),
+                                    "hidden": is_hidden
+                                })
+                        except (PermissionError, OSError):
+                            continue
+            except (PermissionError, OSError):
+                pass
+
+            entries.sort(key=lambda x: (x["hidden"], x["name"].lower()))
+
+            home_dir = os.path.expanduser("~")
+            cwd_dir = os.getcwd()
+
+            resp = {
+                "current_path": req_path,
+                "parent_path": parent_path,
+                "home_path": home_dir,
+                "cwd_path": cwd_dir,
+                "directories": entries
+            }
+            self._serve_json(resp)
+
         elif path == "/api/scan/stream":
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
@@ -497,6 +543,199 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     .dl-btn:hover {{ background: var(--card-hover); border-color: var(--accent); }}
     
     .test-result-box {{ margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-family: monospace; }}
+    /* Folder Picker Modal */
+    .folder-modal-overlay {{
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }}
+    .folder-modal-box {{
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      max-height: 85vh;
+      overflow: hidden;
+      animation: modalFadeIn 0.15s ease-out;
+    }}
+    @keyframes modalFadeIn {{
+      from {{ opacity: 0; transform: scale(0.97); }}
+      to {{ opacity: 1; transform: scale(1); }}
+    }}
+    .folder-modal-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }}
+    .folder-modal-close {{
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      line-height: 1;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }}
+    .folder-modal-close:hover {{
+      color: var(--heading);
+      background: var(--card-inner);
+    }}
+    .folder-shortcuts {{
+      display: flex;
+      gap: 8px;
+      padding: 10px 20px;
+      background: var(--card-inner);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      align-items: center;
+    }}
+    .shortcut-pill {{
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--heading);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }}
+    .shortcut-pill:hover {{
+      border-color: var(--accent);
+      color: var(--accent);
+    }}
+    .folder-path-bar {{
+      display: flex;
+      gap: 8px;
+      padding: 12px 20px 6px 20px;
+      align-items: center;
+    }}
+    .path-nav-btn {{
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      color: var(--heading);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }}
+    .path-nav-btn:hover:not(:disabled) {{
+      border-color: var(--accent);
+      background: var(--card-hover);
+    }}
+    .path-nav-btn:disabled {{
+      opacity: 0.4;
+      cursor: not-allowed;
+    }}
+    .folder-path-input {{
+      flex: 1;
+      font-family: monospace;
+      font-size: 12px;
+      padding: 6px 10px;
+    }}
+    .folder-list-container {{
+      flex: 1;
+      overflow-y: auto;
+      min-height: 280px;
+      max-height: 380px;
+      padding: 4px 20px 12px 20px;
+    }}
+    .folder-item-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.12s;
+      margin-bottom: 4px;
+    }}
+    .folder-item-row:hover {{
+      background: var(--card-inner);
+      border-color: var(--border);
+    }}
+    .folder-item-row.selected {{
+      background: var(--card-selected);
+      border-color: var(--accent);
+    }}
+    .folder-item-left {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .folder-icon {{
+      font-size: 16px;
+      color: #eab308;
+    }}
+    .folder-name {{
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--heading);
+    }}
+    .folder-item-actions {{
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }}
+    .folder-action-btn {{
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--heading);
+      cursor: pointer;
+    }}
+    .folder-action-btn:hover {{
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+    }}
+    .folder-modal-footer {{
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-inner);
+      flex-wrap: wrap;
+      gap: 10px;
+    }}
+    .folder-selected-preview {{
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      max-width: 360px;
+      overflow: hidden;
+    }}
+    .folder-selected-path {{
+      font-size: 12px;
+      font-family: monospace;
+      font-weight: 600;
+      color: var(--heading);
+      text-overflow: ellipsis;
+      overflow: hidden;
+      white-space: nowrap;
+    }}
+
   </style>
 </head>
 <body>
@@ -824,8 +1063,13 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         <!-- Target Code Path -->
         <div class="field-card">
           <label class="field-label" for="codeTargetPath">1. Source Code Repository Directory <span class="required">*</span></label>
-          <input type="text" id="codeTargetPath" class="text-input" placeholder=". or samples/app or /path/to/project" value="." />
-          <span class="field-hint">Specify relative (e.g. `.` or `samples/app`) or absolute path to your repository.</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="codeTargetPath" class="text-input" style="flex: 1;" placeholder=". or samples/app or /path/to/project" value="." />
+            <button type="button" class="btn btn-secondary" onclick="openFolderPicker('codeTargetPath')" style="white-space: nowrap; display: flex; align-items: center; gap: 6px; padding: 10px 14px; font-weight: 600;">
+              📁 Choose Folder
+            </button>
+          </div>
+          <span class="field-hint">Select a local directory on your machine or enter a relative/absolute path.</span>
         </div>
 
         <!-- Code Scope Selection -->
@@ -962,7 +1206,12 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
           </div>
           <div class="form-group">
             <label>Source Code Directory Path <span class="field-hint">(Leave empty for live URL scans)</span></label>
-            <input type="text" id="targetPath" class="text-input" placeholder="e.g. . or samples/app (optional)" value="" />
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="targetPath" class="text-input" style="flex: 1;" placeholder="e.g. . or samples/app (optional)" value="" />
+              <button type="button" class="btn btn-secondary" onclick="openFolderPicker('targetPath')" style="white-space: nowrap; display: flex; align-items: center; gap: 6px; padding: 10px 14px; font-weight: 600;">
+                📁 Choose Folder
+              </button>
+            </div>
           </div>
         </div>
         <div class="form-row">
@@ -1197,8 +1446,13 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       const llm = getLLMConfig();
       const targetUrl = document.getElementById('urlTargetUrl') ? document.getElementById('urlTargetUrl').value : '';
 
+      const codeTargetPath = document.getElementById('codeTargetPath') ? document.getElementById('codeTargetPath').value.trim() : '';
+      const targetPath = document.getElementById('targetPath') ? document.getElementById('targetPath').value.trim() : '';
+
       const configToSave = {{
         target_url: targetUrl,
+        code_target_path: codeTargetPath,
+        target_path: targetPath,
         auth: auth,
         llm: llm
       }};
@@ -1268,9 +1522,15 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
           selectFlow(flow, true);
         }}
 
-        // 2. Restore Target URL
+        // 2. Restore Target URL and Paths
         if (cfg.target_url && document.getElementById('urlTargetUrl')) {{
           document.getElementById('urlTargetUrl').value = cfg.target_url;
+        }}
+        if (cfg.code_target_path && document.getElementById('codeTargetPath')) {{
+          document.getElementById('codeTargetPath').value = cfg.code_target_path;
+        }}
+        if (cfg.target_path && document.getElementById('targetPath')) {{
+          document.getElementById('targetPath').value = cfg.target_path;
         }}
 
         // 3. Restore Auth Settings
@@ -1340,12 +1600,12 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
     // Real-time auto-saving as user edits any form fields
     document.addEventListener('input', (e) => {{
-      if (e.target && (e.target.id.startsWith('auth') || e.target.id.startsWith('llm') || e.target.id === 'urlTargetUrl')) {{
+      if (e.target && (e.target.id.startsWith('auth') || e.target.id.startsWith('llm') || e.target.id === 'urlTargetUrl' || e.target.id === 'codeTargetPath' || e.target.id === 'targetPath')) {{
         saveCredentials('auto');
       }}
     }});
     document.addEventListener('change', (e) => {{
-      if (e.target && (e.target.id.startsWith('auth') || e.target.id.startsWith('llm') || e.target.id === 'urlTargetUrl')) {{
+      if (e.target && (e.target.id.startsWith('auth') || e.target.id.startsWith('llm') || e.target.id === 'urlTargetUrl' || e.target.id === 'codeTargetPath' || e.target.id === 'targetPath')) {{
         saveCredentials('auto');
       }}
     }});
@@ -1730,7 +1990,200 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         }}
       }});
     }}
+
+    /* Directory Browser Modal Logic */
+    let currentPickerTargetInputId = 'codeTargetPath';
+    let pickerCurrentPath = '';
+    let pickerParentPath = null;
+    let pickerCwdPath = '';
+    let pickerHomePath = '';
+    let pickerDirectories = [];
+
+    function openFolderPicker(targetInputId) {{
+      currentPickerTargetInputId = targetInputId || 'codeTargetPath';
+      const currentVal = document.getElementById(currentPickerTargetInputId) ? document.getElementById(currentPickerTargetInputId).value.trim() : '';
+      document.getElementById('folderPickerModal').style.display = 'flex';
+      browseToPath(currentVal || '');
+    }}
+
+    function closeFolderPicker() {{
+      document.getElementById('folderPickerModal').style.display = 'none';
+    }}
+
+    function handleModalBackdropClick(event) {{
+      if (event.target && event.target.id === 'folderPickerModal') {{
+        closeFolderPicker();
+      }}
+    }}
+
+    function browseToPath(targetPath) {{
+      let fetchPath = targetPath;
+      if (targetPath === '__cwd__') fetchPath = pickerCwdPath || '.';
+      else if (targetPath === '__home__') fetchPath = pickerHomePath || '~';
+
+      const container = document.getElementById('folderListContainer');
+      container.innerHTML = '<div style="text-align: center; color: var(--muted); padding: 30px;">📂 Loading directories...</div>';
+
+      fetch('/api/browse?path=' + encodeURIComponent(fetchPath || ''))
+        .then(res => res.json())
+        .then(data => {{
+          pickerCurrentPath = data.current_path;
+          pickerParentPath = data.parent_path;
+          pickerCwdPath = data.cwd_path;
+          pickerHomePath = data.home_path;
+          pickerDirectories = data.directories || [];
+
+          document.getElementById('pickerPathInput').value = pickerCurrentPath;
+          document.getElementById('selectedFolderPathDisplay').innerText = pickerCurrentPath;
+          document.getElementById('selectedFolderPathDisplay').title = pickerCurrentPath;
+
+          const btnParent = document.getElementById('btnParentDir');
+          if (btnParent) {{
+            btnParent.disabled = !pickerParentPath || pickerParentPath === pickerCurrentPath;
+          }}
+
+          renderDirectoryList(pickerDirectories);
+        }})
+        .catch(err => {{
+          container.innerHTML = `<div style="color: #ef4444; padding: 20px; text-align: center;">Error loading folder: ${{err.message}}</div>`;
+        }});
+    }}
+
+    function browseToParent() {{
+      if (pickerParentPath) {{
+        browseToPath(pickerParentPath);
+      }}
+    }}
+
+    function renderDirectoryList(dirs) {{
+      const container = document.getElementById('folderListContainer');
+      if (!dirs || dirs.length === 0) {{
+        container.innerHTML = '<div style="text-align: center; color: var(--muted); padding: 30px; font-size: 13px;">No subdirectories found in this folder.<br><small style="color: var(--muted);">Click "Use Selected Directory" below to choose this directory.</small></div>';
+        return;
+      }}
+
+      let html = '';
+      dirs.forEach(d => {{
+        const safePath = d.path.replace(/'/g, "\\'");
+        const safeName = d.name.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const hiddenStyle = d.hidden ? 'opacity: 0.6;' : '';
+        html += `
+          <div class="folder-item-row" style="${{hiddenStyle}}" onclick="browseToPath('${{safePath}}')">
+            <div class="folder-item-left">
+              <span class="folder-icon">📁</span>
+              <span class="folder-name">${{safeName}}</span>
+            </div>
+            <div class="folder-item-actions">
+              <button type="button" class="folder-action-btn" onclick="event.stopPropagation(); selectSpecificPath('${{safePath}}')">Select</button>
+              <span style="font-size: 12px; color: var(--muted);">➔</span>
+            </div>
+          </div>
+        `;
+      }});
+      container.innerHTML = html;
+    }}
+
+    function filterDirectoryList(query) {{
+      const q = (query || '').toLowerCase().trim();
+      if (!q) {{
+        renderDirectoryList(pickerDirectories);
+        return;
+      }}
+      const filtered = pickerDirectories.filter(d => d.name.toLowerCase().includes(q));
+      renderDirectoryList(filtered);
+    }}
+
+    function selectSpecificPath(path) {{
+      const target = document.getElementById(currentPickerTargetInputId);
+      if (target) {{
+        target.value = path;
+        target.dispatchEvent(new Event('input'));
+        target.dispatchEvent(new Event('change'));
+      }}
+      closeFolderPicker();
+    }}
+
+    function confirmFolderSelection() {{
+      if (pickerCurrentPath) {{
+        selectSpecificPath(pickerCurrentPath);
+      }} else {{
+        closeFolderPicker();
+      }}
+    }}
+
+    function handleNativeDirectoryPick(input) {{
+      if (input.files && input.files.length > 0) {{
+        const firstRelPath = input.files[0].webkitRelativePath || '';
+        const folderName = firstRelPath.split('/')[0];
+        if (folderName) {{
+          const target = document.getElementById(currentPickerTargetInputId);
+          if (target) {{
+            target.value = folderName;
+            target.dispatchEvent(new Event('input'));
+            target.dispatchEvent(new Event('change'));
+          }}
+        }}
+        closeFolderPicker();
+      }}
+    }}
+
   </script>
+  <!-- Folder Picker Modal -->
+  <div id="folderPickerModal" class="folder-modal-overlay" style="display: none;" onclick="handleModalBackdropClick(event)">
+    <div class="folder-modal-box">
+      <div class="folder-modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 20px;">📁</span>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--heading);">Select Directory</h3>
+            <span style="font-size: 11px; color: var(--muted);">Browse filesystem on this host machine</span>
+          </div>
+        </div>
+        <button type="button" class="folder-modal-close" onclick="closeFolderPicker()">&times;</button>
+      </div>
+
+      <!-- Quick Shortcuts -->
+      <div class="folder-shortcuts">
+        <button type="button" class="shortcut-pill" onclick="browseToPath('__cwd__')">📍 Workspace (.)</button>
+        <button type="button" class="shortcut-pill" onclick="browseToPath('__home__')">🏠 Home (~)</button>
+        <button type="button" class="shortcut-pill" onclick="browseToPath('/')">💻 Root (/)</button>
+        <label class="shortcut-pill" style="cursor: pointer; margin-left: auto;">
+          🌐 Upload / Browser Picker
+          <input type="file" webkitdirectory directory style="display: none;" onchange="handleNativeDirectoryPick(this)" />
+        </label>
+      </div>
+
+      <!-- Path Bar -->
+      <div class="folder-path-bar">
+        <button type="button" id="btnParentDir" class="path-nav-btn" onclick="browseToParent()" title="Go to parent directory">⬆ Up</button>
+        <input type="text" id="pickerPathInput" class="text-input folder-path-input" placeholder="/path/to/directory" onkeydown="if(event.key==='Enter') browseToPath(this.value)" />
+        <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="browseToPath(document.getElementById('pickerPathInput').value)">Go</button>
+      </div>
+
+      <!-- Search Filter -->
+      <div style="padding: 6px 20px 8px 20px;">
+        <input type="text" id="folderFilterInput" class="text-input" style="padding: 6px 12px; font-size: 12px; width: 100%; box-sizing: border-box;" placeholder="🔍 Filter subdirectories..." oninput="filterDirectoryList(this.value)" />
+      </div>
+
+      <!-- Directory List Container -->
+      <div id="folderListContainer" class="folder-list-container">
+        <div style="text-align: center; color: var(--muted); padding: 30px;">Loading directories...</div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="folder-modal-footer">
+        <div class="folder-selected-preview">
+          <span style="font-size: 11px; color: var(--muted);">Selected:</span>
+          <span id="selectedFolderPathDisplay" class="folder-selected-path">-</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="closeFolderPicker()">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="confirmFolderSelection()">Use Selected Directory</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
         """
