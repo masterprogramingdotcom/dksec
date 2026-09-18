@@ -180,6 +180,17 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
             session_mgr = DKSecSessionManager(auth_cfg, base_url=target_url)
             status = session_mgr.test_connection(target_url)
+            
+            # If the user attempted to authenticate but the login failed
+            if auth_cfg.auth_type != "none":
+                if not session_mgr.is_authenticated:
+                    status["success"] = False
+                    status["message"] = f"Login Failed: {session_mgr.login_error or 'Invalid credentials or token not found.'}"
+                elif status.get("status_code") in (401, 403):
+                    status["success"] = False
+                    session_mgr.is_authenticated = False
+                    status["message"] = f"Login succeeded but target URL returned HTTP {status.get('status_code')} (Unauthorized/Forbidden)"
+
             status["is_authenticated"] = session_mgr.is_authenticated
             status["auth_method"] = session_mgr.auth_method
             status["token_found"] = bool(session_mgr.captured_token)
