@@ -16,6 +16,93 @@ from dksec.config import STAGE_METADATA
 
 class HtmlReporter:
     @staticmethod
+    def _render_markdown(md_text: str) -> str:
+        if not md_text:
+            return ""
+        lines = md_text.strip().split("\n")
+        out = []
+        in_table = False
+        table_rows = []
+        in_list = False
+
+        def close_table():
+            nonlocal in_table, table_rows
+            if in_table:
+                if table_rows:
+                    html = ['<div style="overflow-x:auto; margin: 12px 0;"><table class="data-table ai-table" style="margin:0; width:100%;">']
+                    html.append('<thead><tr>')
+                    for c in table_rows[0]:
+                        html.append(f'<th style="padding: 8px 12px; background: #e0e7ff; color: #3730a3; font-weight: 700; border: 1px solid #c7d2fe;">{c.strip()}</th>')
+                    html.append('</tr></thead><tbody>')
+                    for row in table_rows[1:]:
+                        html.append('<tr>')
+                        for c in row:
+                            html.append(f'<td style="padding: 8px 12px; border: 1px solid var(--border); font-size: 13px;">{c.strip()}</td>')
+                        html.append('</tr>')
+                    html.append('</tbody></table></div>')
+                    out.append(''.join(html))
+                table_rows = []
+                in_table = False
+
+        def close_list():
+            nonlocal in_list
+            if in_list:
+                out.append('</ul>')
+                in_list = False
+
+        for line in lines:
+            raw = line.strip()
+            if not raw:
+                close_table()
+                close_list()
+                continue
+
+            # Markdown Table row
+            if raw.startswith('|') and raw.endswith('|'):
+                close_list()
+                cells = [c for c in raw.split('|')[1:-1]]
+                if all(re.match(r'^[\s\-:]+$', c) for c in cells):
+                    in_table = True
+                    continue
+                table_rows.append(cells)
+                in_table = True
+                continue
+            else:
+                close_table()
+
+            # Unordered List item
+            if raw.startswith(('- ', '* ')):
+                if not in_list:
+                    out.append('<ul style="margin: 6px 0 10px 22px; padding: 0; line-height: 1.5;">')
+                    in_list = True
+                item_text = raw[2:].strip()
+                out.append(f'<li style="margin-bottom: 5px; font-size: 13px; color: var(--text-main);">{item_text}</li>')
+                continue
+            else:
+                close_list()
+
+            # Headers
+            if raw.startswith('#### '):
+                out.append(f'<h5 style="font-size: 13px; font-weight: 700; color: var(--text-heading); margin: 10px 0 4px 0;">{raw[5:]}</h5>')
+            elif raw.startswith('### '):
+                out.append(f'<h4 style="font-size: 14px; font-weight: 700; color: var(--text-heading); margin: 12px 0 6px 0;">{raw[4:]}</h4>')
+            elif raw.startswith('## '):
+                out.append(f'<h3 style="font-size: 16px; font-weight: 800; color: #4338ca; margin: 16px 0 8px 0; border-bottom: 1px solid #e0e7ff; padding-bottom: 4px;">{raw[3:]}</h3>')
+            elif raw.startswith('# '):
+                out.append(f'<h2 style="font-size: 18px; font-weight: 800; color: #3730a3; margin: 18px 0 10px 0; border-bottom: 2px solid #c7d2fe; padding-bottom: 6px;">{raw[2:]}</h2>')
+            else:
+                out.append(f'<p style="font-size: 13.5px; line-height: 1.6; margin-bottom: 10px; color: var(--text-main);">{raw}</p>')
+
+        close_table()
+        close_list()
+        res = "\n".join(out)
+        res = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', res)
+        res = re.sub(r'\*(.+?)\*', r'<em>\1</em>', res)
+        res = re.sub(r'`(.+?)`', r'<code style="background: #eef2ff; color: #4338ca; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; border: 1px solid #c7d2fe;">\1</code>', res)
+        return res
+
+
+    @staticmethod
     def generate(report: DKSecReport, output_path: str) -> str:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         report_data_json = json.dumps(report.to_dict())
@@ -84,16 +171,7 @@ class HtmlReporter:
         # AI Executive Briefing HTML
         ai_briefing_html = ""
         if report.ai_executive_summary:
-            paragraphs = report.ai_executive_summary.strip().split("\n\n")
-            body_parts = []
-            for p in paragraphs:
-                p = p.strip()
-                if p.startswith("### "):
-                    body_parts.append(f'<h3 style="font-size: 15px; color: var(--text-heading); margin: 14px 0 6px 0; font-weight: 700;">{p[4:]}</h3>')
-                elif p:
-                    p_html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', p)
-                    body_parts.append(f'<p style="margin-bottom: 10px; line-height: 1.6; font-size: 13.5px; color: var(--text-main);">{p_html}</p>')
-            formatted_html = "\n".join(body_parts)
+            formatted_html = HtmlReporter._render_markdown(report.ai_executive_summary)
             ai_briefing_html = f"""
     <!-- AI Executive Security Briefing -->
     <div class="ai-briefing-card">
@@ -770,11 +848,31 @@ class HtmlReporter:
     }}
     .profile-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 16px;
     }}
-    .profile-item strong {{ display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px; }}
-    .profile-item span {{ font-size: 13px; font-weight: 700; color: var(--text-heading); }}
+    .profile-item {{
+      min-width: 0;
+      overflow: hidden;
+    }}
+    .profile-item strong {{
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }}
+    .profile-item span {{
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-heading);
+      word-break: break-all;
+      overflow-wrap: anywhere;
+      display: block;
+      line-height: 1.4;
+    }}
 
     /* KPI Summary Row */
     .kpi-grid {{
@@ -806,6 +904,19 @@ class HtmlReporter:
       margin-bottom: 24px;
       box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15);
     }}
+    .ai-briefing-card h2 {{ font-size: 18px; font-weight: 800; color: var(--text-heading); margin: 16px 0 8px 0; border-bottom: 2px solid #e0e7ff; padding-bottom: 4px; }}
+    .ai-briefing-card h3 {{ font-size: 15px; font-weight: 800; color: #4338ca; margin: 16px 0 8px 0; border-bottom: 1px solid #e0e7ff; padding-bottom: 4px; }}
+    .ai-briefing-card h4 {{ font-size: 14px; font-weight: 700; color: var(--text-heading); margin: 12px 0 6px 0; }}
+    .ai-briefing-card p {{ font-size: 13.5px; line-height: 1.6; margin-bottom: 10px; color: var(--text-main); }}
+    .ai-briefing-card ul {{ margin: 6px 0 12px 20px; }}
+    .ai-briefing-card li {{ font-size: 13px; line-height: 1.5; margin-bottom: 4px; color: var(--text-main); }}
+    .ai-briefing-card code {{ background: var(--bg-card-inner, #eef2ff); color: #4338ca; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; border: 1px solid rgba(99, 102, 241, 0.2); }}
+    .ai-briefing-card table {{ width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12.5px; }}
+    .ai-briefing-card th {{ background: #e0e7ff; color: #3730a3; padding: 8px 12px; text-align: left; font-weight: 700; border: 1px solid #c7d2fe; }}
+    .ai-briefing-card td {{ padding: 8px 12px; border: 1px solid var(--border); }}
+    [data-theme="dark"] .ai-briefing-card h3 {{ color: #a5b4fc; border-color: #312e81; }}
+    [data-theme="dark"] .ai-briefing-card th {{ background: #1e1b4b; color: #c7d2fe; border-color: #312e81; }}
+    [data-theme="dark"] .ai-briefing-card code {{ background: #1e1b4b; color: #a5b4fc; border-color: #3730a3; }}
     .ai-briefing-header {{ display: flex; align-items: center; gap: 10px; }}
     .ai-tag {{ background: #6366f1; color: #fff; font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 6px; }}
     .ai-analysis-box {{ background: var(--bg-card-inner); border-left: 3px solid #6366f1; padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 13px; color: var(--text-heading); margin: 8px 0 10px 0; line-height: 1.5; }}
@@ -1016,10 +1127,18 @@ class HtmlReporter:
     .panel-box h3 {{ font-size: 16px; font-weight: 700; color: var(--text-heading); margin-bottom: 6px; }}
     .panel-box p {{ font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }}
 
+    @page {{
+      size: A4 portrait;
+      margin: 10mm 12mm;
+    }}
     @media print {{
+      * {{
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }}
       body, .container {{
-        background: white !important;
-        color: black !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
         width: 100% !important;
         max-width: 100% !important;
         margin: 0 !important;
@@ -1029,36 +1148,119 @@ class HtmlReporter:
       header {{
         position: relative !important;
         box-shadow: none !important;
-        border-bottom: 2px solid #ccc !important;
-        padding: 10px 0 !important;
+        border-bottom: 2px solid #0f172a !important;
+        padding: 6px 0 !important;
+        margin-bottom: 10px !important;
         background: white !important;
         page-break-after: avoid;
+        break-after: avoid;
       }}
-      .header-actions, .tab-bar, .filter-bar, .btn {{
+      header h1 {{ font-size: 18px !important; margin: 0 !important; }}
+      .header-actions, .tab-bar, .filter-bar, .btn, #themeToggleBtn {{
         display: none !important;
-      }}
-      .tab-content {{
-        display: block !important;
-        page-break-before: always;
-        opacity: 1 !important;
-        visibility: visible !important;
-      }}
-      #tab-all-stages {{
-        page-break-before: avoid;
-      }}
-      .finding-card, .panel-box, .kpi-card, .pipeline-card {{
-        page-break-inside: avoid;
-        box-shadow: none !important;
-        border: 1px solid #ccc !important;
-        background: white !important;
       }}
       .gate-banner {{
         page-break-inside: avoid;
+        break-inside: avoid;
         border: 2px solid #000 !important;
-        color: black !important;
-        background: white !important;
+        color: #000 !important;
+        background: #f8fafc !important;
+        box-shadow: none !important;
+        padding: 10px 14px !important;
+        margin-bottom: 10px !important;
+        border-radius: 6px !important;
+      }}
+      .profile-card {{
+        padding: 8px 12px !important;
+        margin-bottom: 10px !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }}
+      .profile-grid {{
+        gap: 8px !important;
+      }}
+      .profile-item strong {{ font-size: 9px !important; margin-bottom: 1px !important; }}
+      .profile-item span {{ font-size: 11px !important; }}
+      .kpi-grid {{
+        gap: 8px !important;
+        margin-bottom: 10px !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }}
+      .kpi-card {{
+        padding: 6px 10px !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
         box-shadow: none !important;
       }}
+      .kpi-label {{ font-size: 9px !important; }}
+      .kpi-val {{ font-size: 18px !important; margin: 2px 0 !important; }}
+      .kpi-sub {{ font-size: 9px !important; }}
+      .ai-briefing-card {{
+        padding: 10px 14px !important;
+        margin-bottom: 10px !important;
+        border: 1.5px solid #6366f1 !important;
+        border-radius: 6px !important;
+        page-break-inside: auto;
+      }}
+      .ai-briefing-card p, .ai-briefing-card li {{
+        font-size: 11.5px !important;
+        line-height: 1.4 !important;
+        margin-bottom: 4px !important;
+      }}
+      .ai-briefing-card h3 {{ font-size: 13px !important; margin: 8px 0 4px 0 !important; }}
+      .ai-briefing-card h4 {{ font-size: 12px !important; margin: 6px 0 2px 0 !important; }}
+      .pipeline-grid {{
+        gap: 6px !important;
+        margin-bottom: 10px !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }}
+      .pipeline-card {{
+        padding: 6px 8px !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+        box-shadow: none !important;
+      }}
+      .stage-title {{ font-size: 12px !important; }}
+      .stage-desc {{ font-size: 10px !important; margin-bottom: 4px !important; }}
+      .tab-content {{
+        display: block !important;
+        page-break-before: auto !important;
+        break-before: auto !important;
+        margin-bottom: 14px !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }}
+      .tab-content::before {{
+        content: attr(data-tab-title);
+        display: block;
+        font-size: 14px;
+        font-weight: 800;
+        color: #0f172a;
+        border-bottom: 1.5px solid #0f172a;
+        padding-bottom: 3px;
+        margin: 14px 0 8px 0;
+        page-break-after: avoid;
+        break-after: avoid;
+      }}
+      .finding-card {{
+        page-break-inside: avoid;
+        break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+        background: white !important;
+        padding: 8px 12px !important;
+        margin-bottom: 8px !important;
+      }}
+      .finding-title {{ font-size: 13px !important; }}
+      .finding-meta {{ gap: 6px !important; font-size: 10px !important; margin-bottom: 4px !important; }}
+      .finding-desc {{ font-size: 11px !important; line-height: 1.35 !important; margin-bottom: 4px !important; }}
       pre {{
         white-space: pre-wrap !important;
         word-break: break-all !important;
@@ -1066,22 +1268,32 @@ class HtmlReporter:
         overflow: visible !important;
         background: #f8fafc !important;
         color: black !important;
-        border: 1px solid #ccc !important;
+        border: 1px solid #cbd5e1 !important;
+        padding: 6px !important;
+        font-size: 10px !important;
+        margin: 4px 0 !important;
       }}
       .data-table-container {{
         max-height: none !important;
         overflow: visible !important;
+        margin: 6px 0 !important;
+      }}
+      .data-table {{
+        font-size: 10.5px !important;
+        margin: 0 !important;
+      }}
+      .data-table th, .data-table td {{
+        padding: 4px 8px !important;
       }}
       .data-table th {{
         background: #f1f5f9 !important;
         color: black !important;
+        font-weight: 700 !important;
       }}
       .badge {{
-        border: 1px solid #999 !important;
-      }}
-      * {{
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+        border: 1px solid #94a3b8 !important;
+        padding: 1px 6px !important;
+        font-size: 9px !important;
       }}
     }}
   </style>
@@ -1263,7 +1475,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 0: ALL STAGES COMPLETE AUDIT & MATRIX -->
-    <div id="tab-all-stages" class="tab-content active">
+    <div id="tab-all-stages" class="tab-content active" data-tab-title="Stage Pipeline Overview">
       <div class="panel-box">
         <h3>📋 9-Stage Product Security Lifecycle Matrix</h3>
         <p>Comprehensive audit status, tooling, duration, and findings across all 9 DevSecOps lifecycle stages.</p>
@@ -1292,7 +1504,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 1: FINDINGS -->
-    <div id="tab-findings" class="tab-content">
+    <div id="tab-findings" class="tab-content" data-tab-title="Vulnerability Findings Details">
       <div class="filter-bar">
         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; width: 100%;">
           <span style="font-size: 12px; color: var(--text-muted); font-weight: 700;">SEVERITY:</span>
@@ -1326,7 +1538,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 2: THREAT MODEL (STRIDE & DFD) -->
-    <div id="tab-stride" class="tab-content">
+    <div id="tab-stride" class="tab-content" data-tab-title="Stage 1: Architecture & STRIDE Threat Model">
       <div class="panel-box">
         <h3>Target Architecture Elements &amp; Trust Boundaries</h3>
         <p>Discovered architectural components, trust zones, and data flow channels.</p>
@@ -1376,7 +1588,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 3: ASVS CHECKLIST -->
-    <div id="tab-asvs" class="tab-content">
+    <div id="tab-asvs" class="tab-content" data-tab-title="Stage 2: OWASP ASVS Security Requirements">
       <div class="panel-box">
         <h3>OWASP ASVS v4.0.3 Security Requirements Matrix</h3>
         <p>Verification standard requirements across Levels 1-3 auditing application security controls.</p>
@@ -1401,7 +1613,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 4: SBOM INVENTORY -->
-    <div id="tab-sbom" class="tab-content">
+    <div id="tab-sbom" class="tab-content" data-tab-title="Stage 3: CycloneDX 1.5 Software Bill of Materials (SBOM)">
       <div class="panel-box">
         <h3>CycloneDX v1.5 Software Bill of Materials (SBOM)</h3>
         <p>Catalog of open-source dependencies, licenses, and detected CVE security advisories.</p>
@@ -1425,7 +1637,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 5: DAST & LIVE API SECURITY (PREVIOUSLY MISSING!) -->
-    <div id="tab-dast" class="tab-content">
+    <div id="tab-dast" class="tab-content" data-tab-title="Stage 4: Dynamic & API Security Testing">
       <div class="panel-box">
         <h3>HTTP Security Headers Audit</h3>
         <p>Verification of defensive security response headers according to OWASP Secure Headers Project.</p>
@@ -1484,7 +1696,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 6: WSTG PENTEST CHECKLIST -->
-    <div id="tab-wstg" class="tab-content">
+    <div id="tab-wstg" class="tab-content" data-tab-title="Stage 5: OWASP WSTG Manual Security Review">
       <div class="panel-box">
         <h3>OWASP Web Security Testing Guide (WSTG v4.2) Verification</h3>
         <p>Standardized manual &amp; heuristic testing checklist across all 12 core testing categories.</p>
@@ -1506,7 +1718,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 7: PENETRATION TEST & RECON (PREVIOUSLY MISSING!) -->
-    <div id="tab-vapt" class="tab-content">
+    <div id="tab-vapt" class="tab-content" data-tab-title="Stage 6: Penetration Testing & Attack Surface">
       <div class="panel-box">
         <h3>Network Port Reconnaissance &amp; Attack Surface Discovery</h3>
         <p>Port discovery scan identifying open network listeners and externally accessible daemons.</p>
@@ -1582,7 +1794,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 8: DEFECTDOJO SLA -->
-    <div id="tab-dojo" class="tab-content">
+    <div id="tab-dojo" class="tab-content" data-tab-title="Stage 7: Vulnerability Remediation & Retesting">
       <div class="panel-box">
         <h3>OWASP DefectDojo Remediation Schedule &amp; SLA Tracker</h3>
         <p>Lifecycle vulnerability management plan with enterprise remediation deadlines.</p>
@@ -1605,7 +1817,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 9: OPENSSF 18-CHECKS SCORECARD -->
-    <div id="tab-scorecard" class="tab-content">
+    <div id="tab-scorecard" class="tab-content" data-tab-title="Stage 8: Security Signoff & OpenSSF Scorecard">
       <div class="panel-box">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
           <div>
@@ -1633,7 +1845,7 @@ class HtmlReporter:
     </div>
 
     <!-- TAB 10: WAZUH & SIGMA -->
-    <div id="tab-wazuh" class="tab-content">
+    <div id="tab-wazuh" class="tab-content" data-tab-title="Stage 9: Wazuh SIEM & Sigma Rules">
       <div class="panel-box">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <h3>Generated Wazuh local_rules.xml</h3>
