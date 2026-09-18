@@ -221,6 +221,7 @@ class DKSecReport:
     gate_verdict: GateVerdict
     sbom_components: List[SBOMComponent] = field(default_factory=list)
     ai_executive_summary: Optional[str] = None
+    tech_profile: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -234,9 +235,11 @@ class DKSecReport:
             "severity_counts": self.severity_counts,
             "gate_verdict": self.gate_verdict.to_dict(),
             "ai_executive_summary": self.ai_executive_summary,
+            "tech_profile": self.tech_profile,
             "stage_results": {k: v.to_dict() for k, v in self.stage_results.items()},
             "total_findings": len(self.all_findings),
             "findings": [f.to_dict() for f in self.all_findings],
             "sbom_components": [asdict(c) for c in self.sbom_components]
         }
+
 

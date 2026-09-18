@@ -137,8 +137,9 @@ class Stage3SastScaSecrets(BaseStage):
 
         tools_executed.append("DKSec Universal Multi-Tech Engine")
 
-        # Pass SBOM to context for reporter
+        # Pass SBOM and Tech Profile to context for reporter
         context["sbom_components"] = sbom_components
+        context["tech_profile"] = tech_summary.get("tech_profile", {})
 
         # Calculate rich metrics
         sec_cnt = sum(1 for f in findings if f.tool in ("Gitleaks", "Gitleaks (Engine)", "DKSec Deep Secret Scanner") or "Secret" in f.title)

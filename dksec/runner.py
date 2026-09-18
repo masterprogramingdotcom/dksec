@@ -120,6 +120,7 @@ class DKSecRunner:
             )
 
         sbom_components = self.context.get("sbom_components", [])
+        tech_profile = self.context.get("tech_profile", {})
 
         # Execute Smart LLM Analysis if enabled
         ai_summary = None
@@ -152,7 +153,8 @@ class DKSecRunner:
                         severity_counts=counts,
                         overall_score=round(overall_score, 1),
                         gate_verdict=verdict,
-                        sbom_components=sbom_components
+                        sbom_components=sbom_components,
+                        tech_profile=tech_profile
                     )
                     ai_summary = assistant.generate_executive_summary(temp_rep)
                 self.emit("llm_completed")
@@ -172,8 +174,10 @@ class DKSecRunner:
             overall_score=round(overall_score, 1),
             gate_verdict=verdict,
             sbom_components=sbom_components,
-            ai_executive_summary=ai_summary
+            ai_executive_summary=ai_summary,
+            tech_profile=tech_profile
         )
+
 
         self.emit("run_completed", total_findings=len(deduped), overall_score=report.overall_score)
         return report

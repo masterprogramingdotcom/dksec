@@ -95,6 +95,85 @@ class TestMultiTechScanner(unittest.TestCase):
         self.assertTrue(any("latest" in f.title for f in findings))
         self.assertTrue(any("AWS Access Key" in f.title for f in findings))
 
+    def test_web_server_nginx_and_apache(self):
+        with open(os.path.join(self.tmp, "nginx.conf"), "w") as f:
+            f.write("""
+server {
+    listen 443 ssl;
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+    autoindex on;
+    add_header Access-Control-Allow-Origin $http_origin;
+}
+""")
+        with open(os.path.join(self.tmp, ".htaccess"), "w") as f:
+            f.write("Options +Indexes\nAllowOverride All\n")
+
+        findings, comps, summary = self.scanner.scan_all(self.tmp)
+        self.assertTrue(any("Nginx Insecure Legacy TLS/SSL" in f.title for f in findings))
+        self.assertTrue(any("Nginx Insecure CORS Header" in f.title for f in findings))
+        self.assertTrue(any("Nginx Directory Listing Enabled" in f.title for f in findings))
+        self.assertTrue(any("Apache Directory Indexing" in f.title for f in findings))
+
+    def test_web_server_iis_caddy_haproxy(self):
+        with open(os.path.join(self.tmp, "web.config"), "w") as f:
+            f.write('<configuration><system.web><customErrors mode="Off"/><compilation debug="true"/></system.web></configuration>')
+        with open(os.path.join(self.tmp, "Caddyfile"), "w") as f:
+            f.write("{\n    admin 0.0.0.0:2019\n}\nlocalhost:8080 {\n    reverse_proxy 127.0.0.1:8000\n}\n")
+        with open(os.path.join(self.tmp, "haproxy.cfg"), "w") as f:
+            f.write("listen stats\n    bind :9000\n    stats enable\n    stats uri /\n")
+
+        findings, comps, summary = self.scanner.scan_all(self.tmp)
+        self.assertTrue(any("IIS ASP.NET Custom Errors" in f.title for f in findings))
+        self.assertTrue(any("Caddy Admin API Exposed" in f.title for f in findings))
+        self.assertTrue(any("HAProxy Statistics Dashboard" in f.title for f in findings))
+
+    def test_rust_cargo_and_sast(self):
+        with open(os.path.join(self.tmp, "Cargo.toml"), "w") as f:
+            f.write("""[package]
+name = "myrustapp"
+version = "0.1.0"
+[dependencies]
+openssl = "0.10.45"
+""")
+        with open(os.path.join(self.tmp, "main.rs"), "w") as f:
+            f.write("fn main() { unsafe { let x: u32 = std::mem::transmute(1.0f32); } }\n")
+
+        findings, comps, summary = self.scanner.scan_all(self.tmp)
+        self.assertTrue(len(comps) >= 1)
+        self.assertTrue(any("transmute" in f.title for f in findings))
+        self.assertTrue(any(c.ecosystem == "cargo" for c in comps))
+
+
+    def test_dotnet_csproj_and_sast(self):
+        with open(os.path.join(self.tmp, "App.csproj"), "w") as f:
+            f.write("""<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
+  </ItemGroup>
+</Project>
+""")
+        with open(os.path.join(self.tmp, "Program.cs"), "w") as f:
+            f.write("using System.Xml;\nclass P { void X() { var doc = new XmlDocument(); doc.LoadXml(\"<test/>\"); } }\n")
+
+        findings, comps, summary = self.scanner.scan_all(self.tmp)
+        self.assertTrue(any("Newtonsoft.Json" in f.title or "newtonsoft" in f.title.lower() for f in findings))
+        self.assertTrue(any("XmlDocument" in f.title for f in findings))
+        self.assertTrue(any(c.ecosystem == "nuget" for c in comps))
+
+    def test_tech_stack_detector_extended(self):
+        with open(os.path.join(self.tmp, "nginx.conf"), "w") as f:
+            f.write("events {}\n")
+        with open(os.path.join(self.tmp, "tasks.py"), "w") as f:
+            f.write("from celery import Celery\napp = Celery('tasks')\n")
+        with open(os.path.join(self.tmp, "db.py"), "w") as f:
+            f.write("import psycopg2\nconn = psycopg2.connect('postgres://localhost/db')\n")
+
+        profile = TechStackDetector.detect(self.tmp)
+        self.assertIn("nginx", profile.get("servers", []))
+        self.assertIn("celery", profile.get("frameworks", []))
+        self.assertIn("postgresql", profile.get("databases", []))
+
 
 if __name__ == "__main__":
     unittest.main()
+

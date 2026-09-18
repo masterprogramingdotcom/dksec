@@ -73,9 +73,11 @@ def _is_version_vulnerable(installed: str, max_vuln: str) -> bool:
 # =============================================================================
 # 1. TECHNOLOGY STACK DETECTOR
 # =============================================================================
+# 1. TECHNOLOGY STACK DETECTOR
+# =============================================================================
 
 class TechStackDetector:
-    """Detects languages, frameworks, databases, and infrastructure in a project."""
+    """Detects languages, frameworks, web servers, databases, and infrastructure in a project."""
 
     TECH_PATTERNS = {
         "python": [r"\.py$", r"requirements\.txt$", r"Pipfile", r"pyproject\.toml$"],
@@ -83,40 +85,84 @@ class TechStackDetector:
         "typescript": [r"\.tsx?$", r"tsconfig\.json$"],
         "java": [r"\.java$", r"pom\.xml$", r"build\.gradle"],
         "kotlin": [r"\.kt$", r"\.kts$"],
+        "scala": [r"\.scala$", r"build\.sbt$"],
         "php": [r"\.php$", r"composer\.json$"],
         "csharp": [r"\.cs$", r"\.csproj$", r"packages\.config$"],
         "go": [r"\.go$", r"go\.mod$"],
         "ruby": [r"\.rb$", r"Gemfile$"],
         "rust": [r"\.rs$", r"Cargo\.toml$"],
         "c_cpp": [r"\.(?:c|cpp|cc|cxx|h|hpp)$", r"CMakeLists\.txt$"],
+        "swift": [r"\.swift$", r"Package\.swift$"],
         "shell": [r"\.(?:sh|bash|zsh)$"],
         "docker": [r"Dockerfile", r"docker-compose\.ya?ml$"],
-        "kubernetes": [r"k8s.*\.ya?ml$", r"deployment.*\.ya?ml$"],
+        "kubernetes": [r"k8s.*\.ya?ml$", r"deployment.*\.ya?ml$", r"Chart\.ya?ml$"],
         "terraform": [r"\.tf$", r"\.tfvars$"],
+        "cloudformation": [r"template\.ya?ml$", r"template\.json$", r"cloudformation.*\.ya?ml$"],
+        "serverless": [r"serverless\.ya?ml$", r"sam\.ya?ml$"],
         "github_actions": [r"\.github/workflows/.*\.ya?ml$"],
         "gitlab_ci": [r"\.gitlab-ci\.yml$"],
+    }
+
+    SERVER_PATTERNS = {
+        "nginx": [r"nginx.*\.conf$", r"sites-available", r"sites-enabled", r"conf\.d/.*\.conf$"],
+        "apache": [r"\.htaccess$", r"httpd\.conf$", r"apache2?\.conf$"],
+        "caddy": [r"Caddyfile$"],
+        "iis": [r"web\.config$"],
+        "envoy": [r"envoy.*\.ya?ml$", r"envoy.*\.json$"],
+        "haproxy": [r"haproxy.*\.cfg$"],
+        "traefik": [r"traefik.*\.ya?ml$", r"traefik.*\.toml$"],
+        "gunicorn": [r"gunicorn\.conf\.py$", r"Procfile"],
+        "supervisord": [r"supervisord\.conf$"],
     }
 
     FRAMEWORK_SIGNATURES = {
         "django": ("Python", [r"django\.", r"manage\.py", r"settings\.py", r"urls\.py"]),
         "flask": ("Python", [r"from\s+flask\s+import", r"Flask\(__name__\)"]),
         "fastapi": ("Python", [r"from\s+fastapi\s+import", r"FastAPI\(\)"]),
+        "celery": ("Python", [r"from\s+celery\s+import", r"Celery\(", r"@shared_task"]),
+        "tornado": ("Python", [r"tornado\.web", r"tornado\.ioloop"]),
         "express": ("Node.js", [r"require\(['\"]express['\"]\)", r"from\s+['\"]express['\"]"]),
         "react": ("Frontend", [r"from\s+['\"]react['\"]", r"require\(['\"]react['\"]\)"]),
         "vue": ("Frontend", [r"from\s+['\"]vue['\"]", r"\.vue$"]),
+        "angular": ("Frontend", [r"@angular/core", r"angular\.json"]),
+        "svelte": ("Frontend", [r"\.svelte$", r"@sveltejs"]),
         "nextjs": ("Node.js", [r"from\s+['\"]next/", r"next\.config\.js"]),
+        "nuxt": ("Node.js", [r"nuxt\.config", r"@nuxt"]),
         "nestjs": ("Node.js", [r"@nestjs/core", r"@nestjs/common"]),
+        "fastify": ("Node.js", [r"fastify\(", r"require\(['\"]fastify['\"]\)"]),
+        "koa": ("Node.js", [r"require\(['\"]koa['\"]\)"]),
         "spring_boot": ("Java", [r"@SpringBootApplication", r"org\.springframework"]),
+        "quarkus": ("Java", [r"io\.quarkus", r"@QuarkusTest"]),
+        "micronaut": ("Java", [r"io\.micronaut", r"@Controller"]),
         "laravel": ("PHP", [r"Illuminate\\", r"artisan", r"app/Http/Controllers"]),
+        "symfony": ("PHP", [r"Symfony\\", r"bin/console"]),
+        "wordpress": ("PHP", [r"wp-config\.php", r"wp-content", r"add_action\("]),
         "rails": ("Ruby", [r"Rails\.application", r"config/routes\.rb"]),
         "aspnet_core": (".NET", [r"Microsoft\.AspNetCore", r"Program\.cs"]),
         "gin": ("Go", [r"github\.com/gin-gonic/gin"]),
+        "echo": ("Go", [r"github\.com/labstack/echo"]),
+        "fiber": ("Go", [r"github\.com/gofiber/fiber"]),
+        "actix": ("Rust", [r"actix_web", r"actix-web"]),
+        "rocket": ("Rust", [r"rocket::", r"#\[launch\]"]),
+        "axum": ("Rust", [r"axum::", r"axum"]),
+    }
+
+    DATABASE_SIGNATURES = {
+        "postgresql": [r"psycopg2", r"postgres://", r"postgresql://", r"pg_", r"npgsql"],
+        "mysql": [r"mysqlclient", r"pymysql", r"mysql://", r"mysql2"],
+        "mongodb": [r"pymongo", r"mongodb(?:\+srv)?://", r"mongoose"],
+        "redis": [r"redis://", r"redis\.", r"ioredis"],
+        "sqlite": [r"sqlite3", r"\.sqlite3?$"],
+        "cassandra": [r"cassandra-driver", r"gocql"],
     }
 
     @classmethod
     def detect(cls, target_path: str) -> Dict[str, Any]:
         detected_languages = set()
         detected_frameworks = set()
+        detected_servers = set()
+        detected_databases = set()
+        detected_infra = set()
         file_count_by_ext = {}
         total_files = 0
 
@@ -124,34 +170,63 @@ class TechStackDetector:
             return {
                 "languages": [],
                 "frameworks": [],
+                "servers": [],
+                "databases": [],
+                "infra": [],
                 "file_counts": {},
                 "primary_language": "Unknown"
             }
 
+        skip_dirs = {".git", "node_modules", "venv", ".venv", "__pycache__", "target", "bin", "obj", "vendor", ".pg_local", "build", "dist", ".tox"}
+
         for root, dirs, files in os.walk(target_path):
-            dirs[:] = [d for d in dirs if d not in [".git", "node_modules", "venv", ".venv", "__pycache__", "target", "bin", "obj", "vendor"]]
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
             for f in files:
                 total_files += 1
                 rel = os.path.relpath(os.path.join(root, f), target_path)
                 ext = os.path.splitext(f)[1].lower() or f
                 file_count_by_ext[ext] = file_count_by_ext.get(ext, 0) + 1
 
+                # Language detection
                 for lang, pats in cls.TECH_PATTERNS.items():
                     for p in pats:
                         if re.search(p, rel, re.IGNORECASE):
-                            detected_languages.add(lang)
+                            if lang in ("docker", "kubernetes", "terraform", "cloudformation", "serverless", "github_actions", "gitlab_ci"):
+                                detected_infra.add(lang)
+                            else:
+                                detected_languages.add(lang)
                             break
 
-                if ext in (".py", ".js", ".ts", ".java", ".php", ".cs", ".go", ".rb"):
+                # Server detection
+                for srv, pats in cls.SERVER_PATTERNS.items():
+                    for p in pats:
+                        if re.search(p, rel, re.IGNORECASE):
+                            detected_servers.add(srv)
+                            break
+
+                # Database detection by file name / extension
+                for db, pats in cls.DATABASE_SIGNATURES.items():
+                    for p in pats:
+                        if re.search(p, rel, re.IGNORECASE):
+                            detected_databases.add(db)
+                            break
+
+                # Framework and code-level database inspection
+                if ext in (".py", ".js", ".ts", ".java", ".php", ".cs", ".go", ".rb", ".rs", ".yml", ".yaml", ".txt", ".json"):
                     try:
                         fpath = os.path.join(root, f)
-                        if os.path.getsize(fpath) < 100000:
+                        if os.path.getsize(fpath) < 120000:
                             with open(fpath, "r", encoding="utf-8", errors="ignore") as fl:
-                                header = fl.read(4000)
+                                header = fl.read(6000)
                                 for fw_name, (parent_lang, fw_pats) in cls.FRAMEWORK_SIGNATURES.items():
                                     for pat in fw_pats:
                                         if re.search(pat, header) or re.search(pat, rel):
                                             detected_frameworks.add(fw_name)
+                                for db, pats in cls.DATABASE_SIGNATURES.items():
+                                    for pat in pats:
+                                        if re.search(pat, header):
+                                            detected_databases.add(db)
+                                            break
                     except Exception:
                         pass
 
@@ -161,7 +236,9 @@ class TechStackDetector:
                     "PHP" if "php" in detected_languages else (
                         "Go" if "go" in detected_languages else (
                             "C#" if "csharp" in detected_languages else (
-                                "Ruby" if "ruby" in detected_languages else "Multi-Language"
+                                "Ruby" if "ruby" in detected_languages else (
+                                    "Rust" if "rust" in detected_languages else "Multi-Language"
+                                )
                             )
                         )
                     )
@@ -172,10 +249,14 @@ class TechStackDetector:
         return {
             "languages": sorted(list(detected_languages)),
             "frameworks": sorted(list(detected_frameworks)),
+            "servers": sorted(list(detected_servers)),
+            "databases": sorted(list(detected_databases)),
+            "infra": sorted(list(detected_infra)),
             "file_counts": file_count_by_ext,
             "total_files": total_files,
             "primary_language": primary
         }
+
 
 
 # =============================================================================
@@ -260,7 +341,37 @@ MULTI_LANG_RULES = [
     # CI/CD WORKFLOWS
     ("cicd-untrusted-script-injection", r"run:\s*.*(?:\$\{\{\s*github\.event\.issue\.(?:title|body)\s*\}\}|\$\{\{\s*github\.event\.pull_request\.(?:title|body)\s*\}\})", "GitHub Actions Workflow Script Injection via Untrusted Context", Severity.CRITICAL, "CWE-78", "OWASP A03:2021-Injection", "Set untrusted contexts as environment variables first, then reference in script ($TITLE).", "T1190"),
     ("cicd-write-all-permissions", r"permissions:\s*write-all\b", "Excessive Permissions: write-all Granted to GITHUB_TOKEN", Severity.HIGH, "CWE-250", "OWASP A01:2021-Broken Access Control", "Explicitly specify required read/write permissions (e.g. contents: read, issues: write).", "T1078"),
+    ("cicd-pull-request-target", r"on:\s*.*pull_request_target\b", "Insecure pull_request_target Trigger with Potential Code Checkout", Severity.HIGH, "CWE-829", "OWASP A08:2021-Software and Data Integrity Failures", "Avoid checking out PR head ref in pull_request_target workflows to prevent PwnRequest exploits.", "T1195"),
+
+    # RUST
+    ("rust-unsafe-transmute", r"mem::transmute\s*(?::<|[(])", "Unchecked Type Transmutation via std::mem::transmute", Severity.HIGH, "CWE-843", "OWASP A08:2021-Software and Data Integrity Failures", "Avoid std::mem::transmute unless strictly verified; prefer safe casting or bytemuck.", "T1190"),
+    ("rust-raw-ptr-deref", r"unsafe\s*\{[^}]*\*(?:const|mut)\s+", "Unsafe Raw Pointer Dereference in Rust Code Block", Severity.HIGH, "CWE-119", "OWASP A08:2021-Software and Data Integrity Failures", "Validate pointer non-null and alignment before dereferencing, or use safe abstractions.", "T1190"),
+
+    # ADDITIONAL GO RULES
+    ("go-path-traversal", r"os\.Open\s*\(\s*(?:r\.URL\.Query|r\.FormValue|c\.Query|c\.Param)", "Path Traversal via Direct Request Parameter in os.Open", Severity.HIGH, "CWE-22", "OWASP A01:2021-Broken Access Control", "Sanitize path and ensure filepath.Clean resolves strictly within target base directory.", "T1190"),
+    ("go-ssrf-http-get", r"http\.Get\s*\(\s*(?:r\.URL\.Query|r\.FormValue|c\.Query|c\.Param)", "Server-Side Request Forgery (SSRF) via Unvalidated http.Get", Severity.HIGH, "CWE-918", "OWASP A10:2021-Server-Side Request Forgery (SSRF)", "Validate host against strict destination allowlist before performing outbound HTTP requests.", "T1190"),
+
+    # ADDITIONAL JAVA / SPRING RULES
+    ("java-ssrf-url-open", r"new\s+URL\s*\([^)]*(?:request\.getParameter|req\.getParam|@RequestParam)[^)]*\)\.(?:openStream|openConnection)", "SSRF via new URL().openConnection() with User Input", Severity.HIGH, "CWE-918", "OWASP A10:2021-Server-Side Request Forgery (SSRF)", "Enforce strict URL allowlists and block internal IP addresses (RFC 1918 / 169.254.169.254).", "T1190"),
+    ("java-path-traversal", r"new\s+File\s*\([^,)]*,\s*(?:request\.getParameter|req\.getParam)", "Path Traversal via new File() with Request Parameter", Severity.HIGH, "CWE-22", "OWASP A01:2021-Broken Access Control", "Verify canonical path starts with authorized base directory using getCanonicalPath().", "T1190"),
+
+    # ADDITIONAL PHP RULES
+    ("php-ssrf-curl", r"curl_setopt\s*\([^,]+,\s*CURLOPT_URL,\s*\$_(?:GET|POST|REQUEST)", "Server-Side Request Forgery (SSRF) via CURLOPT_URL in PHP", Severity.HIGH, "CWE-918", "OWASP A10:2021-Server-Side Request Forgery (SSRF)", "Validate user-supplied URLs against an allowlist and block private IP address ranges.", "T1190"),
+    ("php-path-traversal-read", r"(?:file_get_contents|readfile|fopen)\s*\(\s*\$_(?:GET|POST|REQUEST)", "Arbitrary File Read / Path Traversal via PHP File Function", Severity.HIGH, "CWE-22", "OWASP A01:2021-Broken Access Control", "Use basename() and validate file paths against a strict allowlist of static assets.", "T1190"),
+
+    # ADDITIONAL NODE.JS RULES
+    ("js-path-traversal-fs", r"fs\.(?:readFile|readFileSync|createReadStream)\s*\([^,)]*(?:req\.params|req\.query|req\.body)", "Path Traversal via fs file operation with User Input", Severity.HIGH, "CWE-22", "OWASP A01:2021-Broken Access Control", "Normalize path with path.normalize() and verify it resides within the safe root directory.", "T1190"),
+    ("js-ssrf-axios-fetch", r"(?:axios|fetch|got)\.(?:get|post)\s*\(\s*(?:req\.query|req\.body|req\.params)", "Server-Side Request Forgery (SSRF) via Outbound HTTP Request", Severity.HIGH, "CWE-918", "OWASP A10:2021-Server-Side Request Forgery (SSRF)", "Validate URL scheme, host, and port against an approved outbound destination allowlist.", "T1190"),
+
+    # ADDITIONAL PYTHON RULES
+    ("py-open-redirect", r"(?:HttpResponseRedirect|redirect)\s*\(\s*request\.(?:GET|POST)\.get\s*\(\s*['\"](?:next|url|redirect|target)['\"]", "Open Redirect via Unvalidated User-Supplied URL", Severity.MEDIUM, "CWE-601", "OWASP A01:2021-Broken Access Control", "Validate redirect target with url_has_allowed_host_and_scheme() before redirecting.", "T1190"),
+    ("py-path-traversal-open", r"open\s*\(\s*(?:os\.path\.join\([^)]*)?request\.(?:GET|POST|query_params)", "Path Traversal via open() with Request Input", Severity.HIGH, "CWE-22", "OWASP A01:2021-Broken Access Control", "Sanitize path and ensure os.path.realpath() stays within authorized folder.", "T1190"),
+
+    # ADDITIONAL C# / .NET RULES
+    ("dotnet-xxe-xml-document", r"XmlDocument\s*\(\s*\).*LoadXml\s*\(", "XML External Entity (XXE) Injection in .NET XmlDocument", Severity.HIGH, "CWE-611", "OWASP A05:2021-Security Misconfiguration", "Set XmlResolver = null or use safe XmlReader with DtdProcessing.Prohibit.", "T1190"),
+    ("dotnet-path-traversal", r"File\.(?:OpenRead|ReadAllText|ReadAllBytes)\s*\([^)]*(?:Request\.Query|Request\.Form)", "Path Traversal via File access with Request Parameters", Severity.HIGH, "CWE-22", "OWASP A01:2021-Broken Access Control", "Use Path.GetFullPath() and check Path.GetDirectoryName() matches safe base.", "T1190"),
 ]
+
 
 
 # =============================================================================
@@ -415,17 +526,23 @@ class UniversalMultiTechScanner:
         secret_findings = self._scan_deep_secrets(target_path)
         all_findings.extend(secret_findings)
 
+        # 6. Web Server & Reverse Proxy Configuration scan
+        server_findings = self._scan_web_servers_and_configs(target_path)
+        all_findings.extend(server_findings)
+
         summary = {
             "tech_profile": tech_profile,
             "sast_count": len(sast_findings),
             "sca_count": len(sca_findings),
             "iac_count": len(iac_findings),
             "secrets_count": len(secret_findings),
+            "server_configs_count": len(server_findings),
             "total_components": len(all_components),
             "total_findings": len(all_findings),
         }
 
         return all_findings, all_components, summary
+
 
     def _scan_sast_multi_lang(self, target_path: str) -> List[Finding]:
         findings = []
@@ -584,7 +701,98 @@ class UniversalMultiTechScanner:
             except Exception:
                 pass
 
+        # Parser 7: Rust Cargo.toml
+        cargo_file = os.path.join(target_path, "Cargo.toml")
+        if os.path.exists(cargo_file):
+            try:
+                with open(cargo_file, "r", errors="ignore") as f:
+                    in_deps = False
+                    for line_no, line in enumerate(f, 1):
+                        raw = line.strip()
+                        if raw.startswith("[dependencies]") or raw.startswith("[dev-dependencies]"):
+                            in_deps = True
+                            continue
+                        elif raw.startswith("[") and in_deps:
+                            in_deps = False
+                        if in_deps and raw and not raw.startswith("#"):
+                            m = re.search(r"^([a-zA-Z0-9_\-]+)\s*=\s*(?:['\"]([^'\"]+)['\"]|\{\s*version\s*=\s*['\"]([^'\"]+)['\"])", raw)
+                            if m:
+                                pkg = m.group(1).lower()
+                                ver_raw = m.group(2) or m.group(3) or "1.0.0"
+                                clean_ver = re.sub(r"[\^~>=<\s]", "", ver_raw)
+                                purl = f"pkg:cargo/{pkg}@{clean_ver}"
+                                components.append(SBOMComponent(name=pkg, version=clean_ver, purl=purl, ecosystem="cargo", license="MIT"))
+                                self._check_advisory("cargo", pkg, clean_ver, "Cargo.toml", line_no, raw, findings)
+            except Exception:
+                pass
+
+        # Parser 8: .NET / C# (*.csproj & packages.config)
+        for root_p, _, fls in os.walk(target_path):
+            fls[:] = [f for f in fls if f.endswith(".csproj") or f == "packages.config"]
+            for fl_name in fls:
+                fpath = os.path.join(root_p, fl_name)
+                rel_fpath = os.path.relpath(fpath, target_path)
+                try:
+                    with open(fpath, "r", errors="ignore") as fl:
+                        content = fl.read()
+                    # PackageReference in csproj
+                    refs = re.findall(r'<PackageReference\s+Include=["\']([^"\']+)["\'](?:\s+Version=["\']([^"\']+)["\'])?', content)
+                    for pkg_name, ver_val in refs:
+                        clean_ver = re.sub(r"[\^~>=<\s]", "", ver_val or "1.0.0")
+                        purl = f"pkg:nuget/{pkg_name.lower()}@{clean_ver}"
+                        components.append(SBOMComponent(name=pkg_name, version=clean_ver, purl=purl, ecosystem="nuget", license="MIT"))
+                        self._check_advisory("nuget", pkg_name, clean_ver, rel_fpath, 0, f'<PackageReference Include="{pkg_name}" Version="{ver_val}"/>', findings)
+                    # packages.config
+                    p_refs = re.findall(r'<package\s+id=["\']([^"\']+)["\']\s+version=["\']([^"\']+)["\']', content)
+                    for pkg_name, ver_val in p_refs:
+                        clean_ver = re.sub(r"[\^~>=<\s]", "", ver_val or "1.0.0")
+                        purl = f"pkg:nuget/{pkg_name.lower()}@{clean_ver}"
+                        components.append(SBOMComponent(name=pkg_name, version=clean_ver, purl=purl, ecosystem="nuget", license="MIT"))
+                        self._check_advisory("nuget", pkg_name, clean_ver, rel_fpath, 0, f'<package id="{pkg_name}" version="{ver_val}"/>', findings)
+                except Exception:
+                    pass
+
+        # Parser 9: Python Pipfile & pyproject.toml
+        pipfile = os.path.join(target_path, "Pipfile")
+        if os.path.exists(pipfile):
+            try:
+                with open(pipfile, "r", errors="ignore") as f:
+                    in_packages = False
+                    for line_no, line in enumerate(f, 1):
+                        raw = line.strip()
+                        if raw in ("[packages]", "[dev-packages]"):
+                            in_packages = True
+                            continue
+                        elif raw.startswith("["):
+                            in_packages = False
+                        if in_packages and raw and not raw.startswith("#"):
+                            m = re.search(r"^([a-zA-Z0-9_\-]+)\s*=\s*['\"]([^'\"]+)['\"]", raw)
+                            if m:
+                                pkg = m.group(1).lower()
+                                ver = re.sub(r"[\^~>=<\s]", "", m.group(2)) or "1.0.0"
+                                purl = f"pkg:pypi/{pkg}@{ver}"
+                                components.append(SBOMComponent(name=pkg, version=ver, purl=purl, ecosystem="pypi", license="MIT"))
+                                self._check_advisory("pypi", pkg, ver, "Pipfile", line_no, raw, findings)
+            except Exception:
+                pass
+
+        pyproject = os.path.join(target_path, "pyproject.toml")
+        if os.path.exists(pyproject):
+            try:
+                with open(pyproject, "r", errors="ignore") as f:
+                    for line_no, line in enumerate(f, 1):
+                        m = re.search(r'["\']([a-zA-Z0-9_\-]+)(?:==|>=|<=|~=)([0-9a-zA-Z.\-_+]+)["\']', line)
+                        if m:
+                            pkg = m.group(1).lower()
+                            ver = m.group(2)
+                            purl = f"pkg:pypi/{pkg}@{ver}"
+                            components.append(SBOMComponent(name=pkg, version=ver, purl=purl, ecosystem="pypi", license="MIT"))
+                            self._check_advisory("pypi", pkg, ver, "pyproject.toml", line_no, line.strip(), findings)
+            except Exception:
+                pass
+
         return findings, components
+
 
     def _check_advisory(self, ecosystem: str, pkg: str, ver: str, file_path: str, line_no: int, snippet: str, findings: List[Finding]):
         db = EXTENDED_CVE_DATABASE.get(ecosystem, {})
@@ -716,3 +924,236 @@ class UniversalMultiTechScanner:
                 except Exception:
                     pass
         return findings
+
+    def _scan_web_servers_and_configs(self, target_path: str) -> List[Finding]:
+        """Audits web server, reverse proxy, and environment configurations for security misconfigurations."""
+        findings = []
+        skip_dirs = {".git", "node_modules", "venv", ".venv", "__pycache__", "target", "bin", "obj", "vendor", ".pg_local", "build", "dist"}
+
+        for root, dirs, files in os.walk(target_path):
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            for f in files:
+                fpath = os.path.join(root, f)
+                rel_path = os.path.relpath(fpath, target_path)
+                f_lower = f.lower()
+
+                # --- 1. Nginx Configuration Audit ---
+                if "nginx" in f_lower or f_lower.endswith(".conf") or "sites-available" in root or "sites-enabled" in root or "conf.d" in root:
+                    try:
+                        with open(fpath, "r", errors="ignore") as fl:
+                            content = fl.read()
+
+                        # Insecure SSL protocols
+                        if re.search(r"ssl_protocols\s+[^;]*(?:SSLv2|SSLv3|TLSv1\b|TLSv1\.1\b)", content, re.IGNORECASE):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-NGINX-SSL-{len(findings)+1:03d}",
+                                title="Nginx Insecure Legacy TLS/SSL Protocols Enabled",
+                                severity=Severity.HIGH,
+                                description="Nginx configuration enables obsolete SSLv3, TLSv1.0, or TLSv1.1 protocols vulnerable to POODLE and BEAST attacks.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                code_snippet=re.search(r"ssl_protocols\s+[^;]+;", content).group(0) if re.search(r"ssl_protocols\s+[^;]+;", content) else "ssl_protocols",
+                                cwe="CWE-326",
+                                owasp="OWASP A02:2021-Cryptographic Failures",
+                                remediation="Configure 'ssl_protocols TLSv1.2 TLSv1.3;' to only allow modern secure ciphers.",
+                                status=FindingStatus.OPEN,
+                                references=["https://ssl-config.mozilla.org/"]
+                            ))
+
+                        # Insecure CORS header reflection
+                        if re.search(r"add_header\s+['\"]?Access-Control-Allow-Origin['\"]?\s+\$http_origin", content, re.IGNORECASE):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-NGINX-CORS-{len(findings)+1:03d}",
+                                title="Nginx Insecure CORS Header Reflection ($http_origin)",
+                                severity=Severity.HIGH,
+                                description="Nginx dynamically echoes incoming Origin headers without allowlist verification, allowing cross-origin data exfiltration.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                code_snippet="add_header 'Access-Control-Allow-Origin' $http_origin;",
+                                cwe="CWE-942",
+                                owasp="OWASP A01:2021-Broken Access Control",
+                                remediation="Validate origin against an explicit map allowlist before setting Access-Control-Allow-Origin.",
+                                status=FindingStatus.OPEN,
+                                references=["https://portswigger.net/web-security/cors"]
+                            ))
+
+                        # Autoindex / Directory Listing enabled
+                        if re.search(r"\bautoindex\s+on\b", content, re.IGNORECASE):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-NGINX-AUTOINDEX-{len(findings)+1:03d}",
+                                title="Nginx Directory Listing Enabled (autoindex on)",
+                                severity=Severity.MEDIUM,
+                                description="Directory indexing is explicitly turned on, exposing server files and folder structures to unauthenticated visitors.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                code_snippet="autoindex on;",
+                                cwe="CWE-548",
+                                owasp="OWASP A05:2021-Security Misconfiguration",
+                                remediation="Set 'autoindex off;' in all server and location blocks.",
+                                status=FindingStatus.OPEN,
+                                references=["https://owasp.org/www-project-web-security-testing-guide/v42/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/02-Test_Application_Server_Configuration"]
+                            ))
+
+                        # Off-by-slash reverse proxy traversal
+                        if re.search(r"location\s+/[a-zA-Z0-9_\-]+[^\s/{]*\s*\{[^}]*proxy_pass\s+http[s]?://[^/;\s]+/[^;]*;", content):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-NGINX-SLASH-{len(findings)+1:03d}",
+                                title="Nginx Reverse Proxy Off-by-Slash Path Traversal Risk",
+                                severity=Severity.HIGH,
+                                description="Nginx location directive missing trailing slash while proxy_pass specifies a trailing slash, enabling path traversal to upstream services.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                cwe="CWE-22",
+                                owasp="OWASP A01:2021-Broken Access Control",
+                                remediation="Ensure both location and proxy_pass directives either consistently have a trailing slash or neither has one.",
+                                status=FindingStatus.OPEN,
+                                references=["https://www.acunetix.com/vulnerabilities/web/nginx-alias-traversal/"]
+                            ))
+                    except Exception:
+                        pass
+
+                # --- 2. Apache HTTP Server Configuration Audit ---
+                if f_lower in ("httpd.conf", "apache2.conf", ".htaccess") or f_lower.endswith(".htaccess"):
+                    try:
+                        with open(fpath, "r", errors="ignore") as fl:
+                            content = fl.read()
+
+                        if re.search(r"Options\s+.*(?:\+)?Indexes\b", content, re.IGNORECASE) and not re.search(r"Options\s+.*-Indexes\b", content, re.IGNORECASE):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-APACHE-INDEX-{len(findings)+1:03d}",
+                                title="Apache Directory Indexing (Indexes) Enabled",
+                                severity=Severity.MEDIUM,
+                                description="Apache Options directive enables directory indexing, exposing raw file structures to visitors.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                cwe="CWE-548",
+                                owasp="OWASP A05:2021-Security Misconfiguration",
+                                remediation="Specify 'Options -Indexes' in httpd.conf or .htaccess.",
+                                status=FindingStatus.OPEN
+                            ))
+
+                        if re.search(r"AllowOverride\s+All\b", content, re.IGNORECASE):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-APACHE-OVERRIDE-{len(findings)+1:03d}",
+                                title="Overly Permissive Apache AllowOverride All",
+                                severity=Severity.LOW,
+                                description="AllowOverride All allows local .htaccess files to override any server directive, increasing attack surface.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                cwe="CWE-284",
+                                owasp="OWASP A05:2021-Security Misconfiguration",
+                                remediation="Restrict AllowOverride to specific directives (e.g. 'AllowOverride None' or 'AllowOverride AuthConfig').",
+                                status=FindingStatus.OPEN
+                            ))
+                    except Exception:
+                        pass
+
+                # --- 3. IIS web.config Audit ---
+                if f_lower == "web.config":
+                    try:
+                        with open(fpath, "r", errors="ignore") as fl:
+                            content = fl.read()
+                        if re.search(r"customErrors\s+mode\s*=\s*['\"]Off['\"]", content, re.IGNORECASE):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-IIS-ERRORS-{len(findings)+1:03d}",
+                                title="IIS ASP.NET Custom Errors Disabled (mode='Off')",
+                                severity=Severity.HIGH,
+                                description="Disabling customErrors reveals detailed stack traces, system paths, and source lines to remote attackers.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                cwe="CWE-209",
+                                owasp="OWASP A05:2021-Security Misconfiguration",
+                                remediation="Set <customErrors mode='On'/> or mode='RemoteOnly' in web.config.",
+                                status=FindingStatus.OPEN
+                            ))
+                        if re.search(r"compilation\s+debug\s*=\s*['\"]true['\"]", content, re.IGNORECASE):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-IIS-DEBUG-{len(findings)+1:03d}",
+                                title="IIS ASP.NET Production Compilation Debug Enabled",
+                                severity=Severity.MEDIUM,
+                                description="Running with debug='true' degrades performance and exposes internal execution metadata.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                cwe="CWE-489",
+                                owasp="OWASP A05:2021-Security Misconfiguration",
+                                remediation="Set <compilation debug='false'/> in production web.config.",
+                                status=FindingStatus.OPEN
+                            ))
+                    except Exception:
+                        pass
+
+                # --- 4. Caddyfile Audit ---
+                if f_lower == "caddyfile":
+                    try:
+                        with open(fpath, "r", errors="ignore") as fl:
+                            content = fl.read()
+                        if re.search(r"admin\s+(?:0\.0\.0\.0(?::\d+)?|:\d+)", content, re.IGNORECASE):
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-CADDY-ADMIN-{len(findings)+1:03d}",
+                                title="Caddy Admin API Exposed to Non-Loopback Network",
+                                severity=Severity.HIGH,
+                                description="Caddy administration endpoint configured on public IP address without loopback binding, allowing remote reconfiguration.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                cwe="CWE-306",
+                                owasp="OWASP A05:2021-Security Misconfiguration",
+                                remediation="Bind Caddy admin API exclusively to localhost (admin localhost:2019) or disable if unused.",
+                                status=FindingStatus.OPEN
+                            ))
+                    except Exception:
+                        pass
+
+                # --- 5. HAProxy / Envoy / Supervisord Audit ---
+                if f_lower == "haproxy.cfg":
+                    try:
+                        with open(fpath, "r", errors="ignore") as fl:
+                            content = fl.read()
+                        if "stats enable" in content and "stats auth" not in content:
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-HAPROXY-STATS-{len(findings)+1:03d}",
+                                title="HAProxy Statistics Dashboard Exposed Without Authentication",
+                                severity=Severity.HIGH,
+                                description="HAProxy 'stats enable' is active without 'stats auth <user>:<pass>', allowing unauthenticated telemetry reconnaissance.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                cwe="CWE-306",
+                                owasp="OWASP A07:2021-Identification and Authentication Failures",
+                                remediation="Add 'stats auth <username>:<password>' to haproxy.cfg stats block.",
+                                status=FindingStatus.OPEN
+                            ))
+                    except Exception:
+                        pass
+
+                if f_lower == "supervisord.conf":
+                    try:
+                        with open(fpath, "r", errors="ignore") as fl:
+                            content = fl.read()
+                        if "[inet_http_server]" in content and "username" not in content:
+                            findings.append(self.parent.create_finding(
+                                finding_id=f"CONF-SUPERVISORD-AUTH-{len(findings)+1:03d}",
+                                title="Supervisord HTTP Server Configured Without Authentication",
+                                severity=Severity.CRITICAL,
+                                description="Supervisord inet_http_server allows unauthenticated process execution and arbitrary host restart.",
+                                tool="DKSec Web Server Auditor",
+                                file_path=rel_path,
+                                line_number=1,
+                                cwe="CWE-306",
+                                owasp="OWASP A07:2021-Identification and Authentication Failures",
+                                remediation="Require strong username and password under [inet_http_server] or use unix_http_server.",
+                                status=FindingStatus.OPEN
+                            ))
+                    except Exception:
+                        pass
+
+        return findings
+

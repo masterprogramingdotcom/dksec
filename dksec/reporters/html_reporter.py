@@ -164,6 +164,32 @@ class HtmlReporter:
         open_ports = recon_data.get("open_ports", [])
         open_ports_str = ", ".join(str(p) for p in open_ports) if open_ports else ("80, 443 (Web)" if report.target_url else "N/A")
 
+        # Multi-technology, framework, and server profile
+        tp = getattr(report, "tech_profile", {}) or {}
+        if not tp and 3 in report.stage_results:
+            tp = report.stage_results[3].details.get("tech_profile", {})
+
+        fws = tp.get("frameworks", [])
+        srvs = tp.get("servers", [])
+        dbs = tp.get("databases", [])
+        infra = tp.get("infra", [])
+
+        if server_banner == "N/A" and srvs:
+            server_banner = ", ".join(s.capitalize() for s in srvs) + " (Code Config)"
+
+        tech_stack_parts = []
+        if tp.get("primary_language") and tp.get("primary_language") != "Unknown":
+            tech_stack_parts.append(tp["primary_language"])
+        if fws:
+            tech_stack_parts.extend(f.capitalize() for f in fws[:2])
+        if dbs:
+            tech_stack_parts.extend(d.capitalize() for d in dbs[:1])
+        if infra:
+            tech_stack_parts.extend(i.capitalize() for i in infra[:1])
+
+        tech_stack_summary = " • ".join(tech_stack_parts) if tech_stack_parts else (tp.get("primary_language") or "Full-Stack Application")
+
+
         # Score & Grade
         score = round(report.overall_score, 1)
         score_grade = "A" if score >= 85 else ("B" if score >= 70 else ("C" if score >= 50 else "F"))
@@ -1349,6 +1375,10 @@ class HtmlReporter:
           <span>{report.target_path}</span>
         </div>
         <div class="profile-item">
+          <strong>Tech &amp; Frameworks</strong>
+          <span title="{tech_stack_summary}">{tech_stack_summary}</span>
+        </div>
+        <div class="profile-item">
           <strong>Authentication Mode</strong>
           <span>{auth_status_text}</span>
         </div>
@@ -1366,6 +1396,7 @@ class HtmlReporter:
         </div>
       </div>
     </div>
+
 
     {ai_briefing_html}
 
