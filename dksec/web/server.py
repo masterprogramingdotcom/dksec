@@ -280,6 +280,16 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
 
+        existing_cfg = {}
+        if os.path.exists("dksec.yml"):
+            try:
+                from dksec import yaml_compat as yaml
+                with open("dksec.yml", "r", encoding="utf-8") as f:
+                    existing_cfg = yaml.safe_load(f) or {}
+            except Exception:
+                existing_cfg = {}
+        initial_server_json = json.dumps(existing_cfg)
+
         stages_html = ""
         for s_id, meta in sorted(STAGE_METADATA.items()):
             stages_html += f"""
@@ -597,7 +607,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         </div>
 
         <!-- Authentication Accordion (Optional) -->
-        <details class="accordion">
+        <details class="accordion" id="accordionAuth">
           <summary class="accordion-summary">
             <span>🔐 Target Authentication (Optional — unauthenticated public scan by default)</span>
             <span class="accordion-subtext">Configure login form, JWT token, or session cookie ▾</span>
@@ -741,7 +751,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         </details>
 
         <!-- Dynamic AI Accordion (Optional) -->
-        <details class="accordion">
+        <details class="accordion" id="accordionLlmUrl">
           <summary class="accordion-summary">
             <span>🤖 Dynamic AI Smart Triage (Optional)</span>
             <span class="accordion-subtext">Enable LLM false-positive filtering & CISO summary ▾</span>
@@ -1080,6 +1090,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
   </div>
 
   <script>
+    const SERVER_CONFIG = {initial_server_json};
     let poll = null;
 
     function setTheme(t) {{
@@ -1106,11 +1117,15 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
     /* Tab Switcher */
     
-    function selectFlow(flowType) {{
+    function selectFlow(flowType, skipScroll) {{
+      try {{
+        localStorage.setItem('dksec_active_flow', flowType);
+      }} catch(e) {{}}
+
       // Highlight the selected card
       document.querySelectorAll('#step1Container .option-card').forEach(c => {{
         c.classList.remove('selected', 'flow-active');
-        c.style.borderColor = ''; // clear any inline styles just in case
+        c.style.borderColor = '';
       }});
       let card = document.getElementById('flowCard' + flowType.charAt(0).toUpperCase() + flowType.slice(1));
       if (card) {{
@@ -1122,14 +1137,16 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       const targetPane = document.getElementById('tabContent' + flowType.charAt(0).toUpperCase() + flowType.slice(1));
       if (targetPane) {{
         targetPane.classList.add('active');
-        // Scroll to it smoothly
-        setTimeout(() => targetPane.scrollIntoView({{ behavior: 'smooth', block: 'start' }}), 100);
+        if (!skipScroll) {{
+          setTimeout(() => targetPane.scrollIntoView({{ behavior: 'smooth', block: 'start' }}), 100);
+        }}
       }}
     }}
     
-    // Hide all tab panes on initial load so the user *must* pick Step 1
+    // On initial load, restore previous flow and saved credentials
     window.addEventListener('DOMContentLoaded', () => {{
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      restoreSavedConfig();
     }});
 
     function switchTab(tabId) {{
@@ -1231,23 +1248,52 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
     function restoreSavedConfig() {{
       try {{
-        const raw = localStorage.getItem('dksec_saved_config');
-        if (!raw) return;
-        const cfg = JSON.parse(raw);
+        let cfg = {{}};
+        try {{
+          const raw = localStorage.getItem('dksec_saved_config');
+          if (raw) cfg = JSON.parse(raw);
+        }} catch(e) {{}}
 
+        // Fallback to server dksec.yml if localStorage is empty
+        if (typeof SERVER_CONFIG === 'object' && SERVER_CONFIG) {{
+          if (!cfg.target_url && SERVER_CONFIG.target_url) cfg.target_url = SERVER_CONFIG.target_url;
+          if (!cfg.auth && SERVER_CONFIG.auth) cfg.auth = SERVER_CONFIG.auth;
+          if (!cfg.llm && SERVER_CONFIG.llm) cfg.llm = SERVER_CONFIG.llm;
+        }}
+
+        // 1. Restore active flow
+        let flow = localStorage.getItem('dksec_active_flow');
+        if (!flow && cfg.target_url) flow = 'url';
+        if (flow) {{
+          selectFlow(flow, true);
+        }}
+
+        // 2. Restore Target URL
         if (cfg.target_url && document.getElementById('urlTargetUrl')) {{
           document.getElementById('urlTargetUrl').value = cfg.target_url;
         }}
 
-        if (cfg.auth && cfg.auth.enabled && cfg.auth.auth_type) {{
+        // 3. Restore Auth Settings
+        if (cfg.auth) {{
           const a = cfg.auth;
+          const aType = a.auth_type || 'none';
           if (document.getElementById('authType')) {{
-            document.getElementById('authType').value = a.auth_type;
+            document.getElementById('authType').value = aType;
             onAuthTypeChange();
           }}
+          if (aType !== 'none') {{
+            const accAuth = document.getElementById('accordionAuth');
+            if (accAuth) accAuth.open = true;
+          }}
           if (a.login_url && document.getElementById('authLoginUrl')) document.getElementById('authLoginUrl').value = a.login_url;
-          if (a.username && document.getElementById('authUsername')) document.getElementById('authUsername').value = a.username;
-          if (a.password && document.getElementById('authPassword')) document.getElementById('authPassword').value = a.password;
+          if (a.username) {{
+            if (document.getElementById('authUsername')) document.getElementById('authUsername').value = a.username;
+            if (document.getElementById('authBasicUsername')) document.getElementById('authBasicUsername').value = a.username;
+          }}
+          if (a.password) {{
+            if (document.getElementById('authPassword')) document.getElementById('authPassword').value = a.password;
+            if (document.getElementById('authBasicPassword')) document.getElementById('authBasicPassword').value = a.password;
+          }}
           if (a.payload_type && document.getElementById('authPayloadType')) document.getElementById('authPayloadType').value = a.payload_type;
           if (a.bearer_token && document.getElementById('authBearer')) document.getElementById('authBearer').value = a.bearer_token;
           if (a.cookies && document.getElementById('authCookie')) document.getElementById('authCookie').value = a.cookies;
@@ -1259,32 +1305,50 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
           if (a.api_key_name && document.getElementById('authApiKeyName')) document.getElementById('authApiKeyName').value = a.api_key_name;
           if (a.api_key_value && document.getElementById('authApiKeyValue')) document.getElementById('authApiKeyValue').value = a.api_key_value;
           if (a.api_key_in && document.getElementById('authApiKeyIn')) document.getElementById('authApiKeyIn').value = a.api_key_in;
-          if (a.username && document.getElementById('authBasicUsername')) document.getElementById('authBasicUsername').value = a.username;
-          if (a.password && document.getElementById('authBasicPassword')) document.getElementById('authBasicPassword').value = a.password;
         }}
 
+        // 4. Restore LLM Settings
         if (cfg.llm) {{
           const l = cfg.llm;
           if (l.enabled) {{
             if (document.getElementById('llmEnabledUrl')) document.getElementById('llmEnabledUrl').checked = true;
+            if (document.getElementById('llmEnabledAdv')) document.getElementById('llmEnabledAdv').checked = true;
             syncLLM('url');
+            const accLlm = document.getElementById('accordionLlmUrl');
+            if (accLlm) accLlm.open = true;
           }}
-          if (l.provider && document.getElementById('llmProviderUrl')) {{
-            document.getElementById('llmProviderUrl').value = l.provider;
+          if (l.provider) {{
+            if (document.getElementById('llmProviderUrl')) document.getElementById('llmProviderUrl').value = l.provider;
+            if (document.getElementById('llmProviderAdv')) document.getElementById('llmProviderAdv').value = l.provider;
             onLLMProviderChange('url');
           }}
-          if (l.model && document.getElementById('llmModelUrl')) {{
-            document.getElementById('llmModelUrl').value = l.model;
+          if (l.model) {{
+            if (document.getElementById('llmModelUrl')) document.getElementById('llmModelUrl').value = l.model;
+            if (document.getElementById('llmModelAdv')) document.getElementById('llmModelAdv').value = l.model;
           }}
-          if (l.api_key && document.getElementById('llmApiKeyUrl')) {{
-            document.getElementById('llmApiKeyUrl').value = l.api_key;
+          if (l.api_key) {{
+            if (document.getElementById('llmApiKeyUrl')) document.getElementById('llmApiKeyUrl').value = l.api_key;
+            if (document.getElementById('llmApiKeyAdv')) document.getElementById('llmApiKeyAdv').value = l.api_key;
           }}
-          if (l.api_base_url && document.getElementById('llmBaseUrlUrl')) {{
-            document.getElementById('llmBaseUrlUrl').value = l.api_base_url;
+          if (l.api_base_url) {{
+            if (document.getElementById('llmBaseUrlUrl')) document.getElementById('llmBaseUrlUrl').value = l.api_base_url;
+            if (document.getElementById('llmBaseUrlAdv')) document.getElementById('llmBaseUrlAdv').value = l.api_base_url;
           }}
         }}
       }} catch(e) {{}}
     }}
+
+    // Real-time auto-saving as user edits any form fields
+    document.addEventListener('input', (e) => {{
+      if (e.target && (e.target.id.startsWith('auth') || e.target.id.startsWith('llm') || e.target.id === 'urlTargetUrl')) {{
+        saveCredentials('auto');
+      }}
+    }});
+    document.addEventListener('change', (e) => {{
+      if (e.target && (e.target.id.startsWith('auth') || e.target.id.startsWith('llm') || e.target.id === 'urlTargetUrl')) {{
+        saveCredentials('auto');
+      }}
+    }});
 
     /* Auth Handlers */
     function onAuthTypeChange() {{

@@ -9,6 +9,5 @@ build/
 # Generated reports and scan outputs
 reports/*
 !reports/demo/
-!reports/enterprise_demo/
-
-
+# Local configuration & credentials
+dksec.yml
