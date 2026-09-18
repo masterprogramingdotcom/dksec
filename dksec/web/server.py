@@ -180,16 +180,18 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
             session_mgr = DKSecSessionManager(auth_cfg, base_url=target_url)
             status = session_mgr.test_connection(target_url)
-            
-            # If the user attempted to authenticate but the login failed
+
+            # Strictly enforce authentication outcome
             if auth_cfg.auth_type != "none":
                 if not session_mgr.is_authenticated:
                     status["success"] = False
-                    status["message"] = f"Login Failed: {session_mgr.login_error or 'Invalid credentials or token not found.'}"
+                    status["message"] = session_mgr.login_error or "Authentication failed: credentials rejected or token not issued."
                 elif status.get("status_code") in (401, 403):
                     status["success"] = False
                     session_mgr.is_authenticated = False
-                    status["message"] = f"Login succeeded but target URL returned HTTP {status.get('status_code')} (Unauthorized/Forbidden)"
+                    status["message"] = f"Authenticated session was rejected by target URL (HTTP {status.get('status_code')} Unauthorized/Forbidden)."
+                else:
+                    status["success"] = True
 
             status["is_authenticated"] = session_mgr.is_authenticated
             status["auth_method"] = session_mgr.auth_method
@@ -576,12 +578,14 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
                 <label>Authentication Mode</label>
                 <select id="authType" onchange="onAuthTypeChange()">
                   <option value="none" selected>None (Public Unauthenticated Scan)</option>
-                  <option value="login">Automated Login URL (JSON / Form POST)</option>
+                  <option value="login">Automated Form / JSON Login (Django, Laravel, Rails, ASP.NET, Spring, Express, WordPress)</option>
+                  <option value="oauth2">OAuth2 Client Credentials (APIs, Microservices, Auth0, Okta, Azure AD)</option>
                   <option value="bearer">Bearer Token / JWT</option>
-                  <option value="cookie">Session Cookies</option>
-                  <option value="header">Custom Authorization Header</option>
+                  <option value="apikey">API Key (Header or Query Parameter)</option>
                   <option value="basic">HTTP Basic Authentication</option>
                   <option value="digest">HTTP Digest Authentication</option>
+                  <option value="cookie">Session Cookies (Paste Raw Session Cookies)</option>
+                  <option value="header">Custom Authorization Header</option>
                 </select>
               </div>
               <div class="form-group" style="display: flex; flex-direction: row; align-items: flex-end;">
@@ -589,15 +593,26 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
               </div>
             </div>
 
+            <!-- Login Form / JSON Group -->
             <div id="groupLogin" class="form-row" style="display: none;">
-              <div class="form-group">
-                <label>Login Endpoint URL</label>
-                <input type="text" id="authLoginUrl" class="text-input" placeholder="https://target.com/api/v1/login" value="" />
+              <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+                <div>
+                  <label>Login Endpoint URL</label>
+                  <input type="text" id="authLoginUrl" class="text-input" placeholder="https://target.com/login/" value="" />
+                </div>
+                <div>
+                  <label>Payload Format</label>
+                  <select id="authPayloadType" class="text-input" style="height: 42px;">
+                    <option value="auto" selected>Auto-Detect (Form/JSON)</option>
+                    <option value="form">HTML Form POST</option>
+                    <option value="json">REST JSON Payload</option>
+                  </select>
+                </div>
               </div>
               <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                 <div>
-                  <label>Username / Email</label>
-                  <input type="text" id="authUsername" class="text-input" placeholder="admin" value="" />
+                  <label>Username / Email / Identifier</label>
+                  <input type="text" id="authUsername" class="text-input" placeholder="admin or demo@domain.com" value="" />
                 </div>
                 <div>
                   <label>Password</label>
@@ -606,6 +621,52 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
               </div>
             </div>
 
+            <!-- OAuth2 Client Credentials Group -->
+            <div id="groupOAuth2" class="form-row" style="display: none;">
+              <div class="form-group" style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+                <div>
+                  <label>OAuth2 Token Endpoint URL</label>
+                  <input type="text" id="authOAuthTokenUrl" class="text-input" placeholder="https://auth.domain.com/oauth/token" value="" />
+                </div>
+                <div>
+                  <label>Scope (Optional)</label>
+                  <input type="text" id="authOAuthScope" class="text-input" placeholder="read:api write:api" value="" />
+                </div>
+              </div>
+              <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div>
+                  <label>Client ID</label>
+                  <input type="text" id="authOAuthClientId" class="text-input" placeholder="client_id_here" value="" />
+                </div>
+                <div>
+                  <label>Client Secret</label>
+                  <input type="password" id="authOAuthClientSecret" class="text-input" placeholder="••••••••" value="" />
+                </div>
+              </div>
+            </div>
+
+            <!-- API Key Group -->
+            <div id="groupApiKey" class="form-row" style="display: none;">
+              <div class="form-group" style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 8px;">
+                <div>
+                  <label>Key Name</label>
+                  <input type="text" id="authApiKeyName" class="text-input" placeholder="X-API-Key" value="X-API-Key" />
+                </div>
+                <div>
+                  <label>Key Value / Secret</label>
+                  <input type="password" id="authApiKeyValue" class="text-input" placeholder="sk_live_123456789..." value="" />
+                </div>
+                <div>
+                  <label>Pass Via</label>
+                  <select id="authApiKeyIn" class="text-input" style="height: 42px;">
+                    <option value="header" selected>HTTP Header</option>
+                    <option value="query">URL Query Parameter</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Basic / Digest Group -->
             <div id="groupBasic" class="form-row" style="display: none;">
               <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
                 <div>
@@ -619,19 +680,22 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
               </div>
             </div>
             
+            <!-- Bearer Token Group -->
             <div id="groupBearer" class="form-group" style="display: none; margin-bottom: 12px;">
               <label>Bearer Token / JWT</label>
               <input type="text" id="authBearer" class="text-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
             </div>
 
+            <!-- Cookie Group -->
             <div id="groupCookie" class="form-group" style="display: none; margin-bottom: 12px;">
               <label>Session Cookies (Key=Value; Key2=Value2)</label>
-              <input type="text" id="authCookie" class="text-input" placeholder="session=abc123xyz; role=admin" />
+              <input type="text" id="authCookie" class="text-input" placeholder="sessionid=abc123xyz; connect.sid=s%3A..." />
             </div>
 
+            <!-- Custom Header Group -->
             <div id="groupHeader" class="form-group" style="display: none; margin-bottom: 12px;">
               <label>Custom Header (Header-Name: Header-Value)</label>
-              <input type="text" id="authHeader" class="text-input" placeholder="X-API-Key: secret_production_token_123" />
+              <input type="text" id="authHeader" class="text-input" placeholder="Authorization: Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b" />
             </div>
 
             <div id="authTestResult" style="display: none;" class="test-result-box"></div>
@@ -1068,6 +1132,9 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     function onAuthTypeChange() {{
       const type = document.getElementById('authType').value;
       document.getElementById('groupLogin').style.display = (type === 'login') ? 'grid' : 'none';
+      document.getElementById('groupOAuth2').style.display = (type === 'oauth2') ? 'grid' : 'none';
+      document.getElementById('groupApiKey').style.display = (type === 'apikey') ? 'grid' : 'none';
+      document.getElementById('groupBasic').style.display = (type === 'basic' || type === 'digest') ? 'block' : 'none';
       document.getElementById('groupBearer').style.display = (type === 'bearer') ? 'block' : 'none';
       document.getElementById('groupCookie').style.display = (type === 'cookie') ? 'block' : 'none';
       document.getElementById('groupHeader').style.display = (type === 'header') ? 'block' : 'none';
@@ -1076,15 +1143,31 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     function getAuthConfig() {{
       const type = document.getElementById('authType').value;
       if (type === 'none') return {{ enabled: false, auth_type: 'none' }};
+
+      let uname = document.getElementById('authUsername') ? document.getElementById('authUsername').value : null;
+      let pwd = document.getElementById('authPassword') ? document.getElementById('authPassword').value : null;
+      if (type === 'basic' || type === 'digest') {{
+        uname = document.getElementById('authBasicUsername') ? document.getElementById('authBasicUsername').value : null;
+        pwd = document.getElementById('authBasicPassword') ? document.getElementById('authBasicPassword').value : null;
+      }}
+
       return {{
         enabled: true,
         auth_type: type,
-        login_url: document.getElementById('authLoginUrl').value || null,
-        username: document.getElementById('authUsername').value || null,
-        password: document.getElementById('authPassword').value || null,
-        bearer_token: document.getElementById('authBearer').value || null,
-        cookies: document.getElementById('authCookie').value || null,
-        custom_header: document.getElementById('authHeader').value || null
+        login_url: (document.getElementById('authLoginUrl') ? document.getElementById('authLoginUrl').value : null) || null,
+        username: uname || null,
+        password: pwd || null,
+        payload_type: (document.getElementById('authPayloadType') ? document.getElementById('authPayloadType').value : 'auto'),
+        bearer_token: (document.getElementById('authBearer') ? document.getElementById('authBearer').value : null) || null,
+        cookies: (document.getElementById('authCookie') ? document.getElementById('authCookie').value : null) || null,
+        custom_header: (document.getElementById('authHeader') ? document.getElementById('authHeader').value : null) || null,
+        oauth_token_url: (document.getElementById('authOAuthTokenUrl') ? document.getElementById('authOAuthTokenUrl').value : null) || null,
+        oauth_client_id: (document.getElementById('authOAuthClientId') ? document.getElementById('authOAuthClientId').value : null) || null,
+        oauth_client_secret: (document.getElementById('authOAuthClientSecret') ? document.getElementById('authOAuthClientSecret').value : null) || null,
+        oauth_scope: (document.getElementById('authOAuthScope') ? document.getElementById('authOAuthScope').value : null) || null,
+        api_key_name: (document.getElementById('authApiKeyName') ? document.getElementById('authApiKeyName').value : 'X-API-Key') || 'X-API-Key',
+        api_key_value: (document.getElementById('authApiKeyValue') ? document.getElementById('authApiKeyValue').value : null) || null,
+        api_key_in: (document.getElementById('authApiKeyIn') ? document.getElementById('authApiKeyIn').value : 'header') || 'header'
       }};
     }}
 

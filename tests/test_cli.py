@@ -10,7 +10,7 @@ import shutil
 
 class TestDKSecCLI(unittest.TestCase):
     def test_cli_list(self):
-        res = subprocess.run(["./dksec_cli.py", "list"], capture_output=True, text=True)
+        res = subprocess.run(["python3", "dksec.py", "list"], capture_output=True, text=True)
         self.assertEqual(res.returncode, 0)
         self.assertIn("Architecture & Threat Model", res.stdout)
         self.assertIn("Wazuh", res.stdout)
@@ -20,7 +20,7 @@ class TestDKSecCLI(unittest.TestCase):
         test_yml = "test_dksec.yml"
         if os.path.exists(test_yml):
             os.remove(test_yml)
-        res = subprocess.run(["./dksec_cli.py", "init"], capture_output=True, text=True)
+        res = subprocess.run(["python3", "dksec.py", "init"], capture_output=True, text=True)
         self.assertEqual(res.returncode, 0)
         self.assertTrue(os.path.exists("dksec.yml"))
 
@@ -29,7 +29,7 @@ class TestDKSecCLI(unittest.TestCase):
         if os.path.exists(out_dir):
             shutil.rmtree(out_dir)
         res = subprocess.run([
-            "./dksec_cli.py", "scan",
+            "python3", "dksec.py", "scan",
             "-p", "CLI Unit Test",
             "-t", "samples/app",
             "-s", "1,2",
@@ -45,7 +45,7 @@ class TestDKSecCLI(unittest.TestCase):
         if os.path.exists(out_dir):
             shutil.rmtree(out_dir)
         res = subprocess.run([
-            "./dksec_cli.py", "scan",
+            "python3", "dksec.py", "scan",
             "-p", "CLI LLM Test",
             "-t", "samples/app",
             "-s", "1,3",
@@ -63,7 +63,7 @@ class TestDKSecCLI(unittest.TestCase):
         if os.path.exists(out_dir):
             shutil.rmtree(out_dir)
         res = subprocess.run([
-            "./dksec_cli.py", "scan",
+            "python3", "dksec.py", "scan",
             "-p", "CLI VAPT Test",
             "-t", "samples/app",
             "-s", "vapt",
@@ -80,7 +80,7 @@ class TestDKSecCLI(unittest.TestCase):
         if os.path.exists(out_dir):
             shutil.rmtree(out_dir)
         res = subprocess.run([
-            "./dksec_cli.py", "scan",
+            "python3", "dksec.py", "scan",
             "-p", "CLI Multi Stage Test",
             "-t", "samples/app",
             "-s", "sast,vapt",
@@ -98,7 +98,7 @@ class TestDKSecCLI(unittest.TestCase):
         if os.path.exists(out_dir):
             shutil.rmtree(out_dir)
         res = subprocess.run([
-            "./dksec_cli.py", "scan",
+            "python3", "dksec.py", "scan",
             "-p", "CLI Preset Test",
             "-t", "samples/app",
             "--preset", "vapt",

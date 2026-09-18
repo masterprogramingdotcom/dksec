@@ -1,7 +1,17 @@
 """
 Enterprise Authentication & Live Session Management for DKSec.
-Supports Automated JSON/Form Login, Bearer Tokens (JWT), Session Cookies,
-Custom Headers, JWT Security Audits, and Multi-Role / BOLA Differential Testing.
+Supports all web technologies and authentication mechanisms:
+- Automated Form & JSON Login with Universal Framework CSRF Support
+  (Django, Laravel, Ruby on Rails, ASP.NET MVC/Core, Spring Security, Express, WordPress)
+- OAuth2 Client Credentials Grant Flow (REST APIs, Microservices, Auth0, Okta, Keycloak)
+- API Key Authentication (Header & Query Parameter modes)
+- Bearer Token / JWT with built-in JWT Security Auditing
+- HTTP Basic Authentication (RFC 7617)
+- HTTP Digest Authentication (RFC 7616)
+- Session Cookies Direct Injection
+- Custom Authorization Headers
+- Mutual TLS (mTLS) Client Certificates
+- Multi-Role / BOLA Differential Testing Support
 """
 
 import base64
@@ -11,27 +21,70 @@ import urllib.parse
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, Optional, List, Tuple
 import requests
+import requests.auth
 
 from dksec.models import Finding, Severity, FindingStatus
+
+
+# Common session cookies indicating an active authenticated session
+KNOWN_AUTH_COOKIE_NAMES = [
+    "sessionid", "session", "phpsessid", "jsessionid", "connect.sid",
+    "laravel_session", "remember_web_", "auth_token", "jwt", "token",
+    "_session_id", "asp.net_sessionid", ".aspnetcore.cookies",
+    ".aspnetcore.identity.application", "sid", "user_session",
+    "wordpress_logged_in_", "grafana_session", "gitlab_session",
+    "auth0", "next-auth.session-token", "__secure-next-auth.session-token"
+]
+
+# Common error keywords in login responses indicating failed credentials
+LOGIN_ERROR_KEYWORDS = [
+    "invalid username", "invalid password", "incorrect password",
+    "invalid credentials", "authentication failed", "login failed",
+    "wrong password", "user not found", "please enter a correct",
+    "access denied", "csrf verification failed", "unauthorized",
+    "could not be verified", "bad credentials", "invalid email or password"
+]
 
 
 @dataclass
 class AuthConfig:
     enabled: bool = False
-    auth_type: str = "none"  # "none", "login", "bearer", "cookie", "header"
+    auth_type: str = "none"  # "none", "login", "oauth2", "bearer", "apikey", "basic", "digest", "cookie", "header", "mtls"
     login_url: Optional[str] = None
     username: Optional[str] = None
     password: Optional[str] = None
-    payload_type: str = "json"  # "json" or "form"
+    payload_type: str = "auto"  # "auto", "form", "json"
     token_json_path: Optional[str] = None  # e.g., "token", "data.token", "access_token"
     token_header_name: str = "Authorization"
     token_header_prefix: str = "Bearer "
     bearer_token: Optional[str] = None
     cookies: Optional[str] = None  # e.g., "session=abc123; role=admin"
     custom_header: Optional[str] = None  # e.g., "X-API-Key: secret123"
-    secondary_username: Optional[str] = None  # For BOLA / IDOR differential testing
+    
+    # OAuth2 Client Credentials Flow
+    oauth_token_url: Optional[str] = None
+    oauth_client_id: Optional[str] = None
+    oauth_client_secret: Optional[str] = None
+    oauth_scope: Optional[str] = None
+    
+    # API Key Authentication
+    api_key_name: str = "X-API-Key"
+    api_key_value: Optional[str] = None
+    api_key_in: str = "header"  # "header" or "query"
+    
+    # Custom form field names (optional override, otherwise auto-detected)
+    username_field: Optional[str] = None
+    password_field: Optional[str] = None
+    csrf_token_name: Optional[str] = None
+    
+    # Mutual TLS (mTLS)
+    client_cert_file: Optional[str] = None
+    client_key_file: Optional[str] = None
+
+    # Multi-Role / BOLA Differential Testing
+    secondary_username: Optional[str] = None
     secondary_password: Optional[str] = None
-    timeout: int = 6
+    timeout: int = 10
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -46,16 +99,28 @@ class AuthConfig:
             login_url=data.get("login_url"),
             username=data.get("username"),
             password=data.get("password"),
-            payload_type=data.get("payload_type", "json"),
+            payload_type=data.get("payload_type", "auto"),
             token_json_path=data.get("token_json_path"),
             token_header_name=data.get("token_header_name", "Authorization"),
             token_header_prefix=data.get("token_header_prefix", "Bearer "),
             bearer_token=data.get("bearer_token", data.get("token")),
             cookies=data.get("cookies", data.get("cookie")),
             custom_header=data.get("custom_header", data.get("header")),
+            oauth_token_url=data.get("oauth_token_url", data.get("token_url")),
+            oauth_client_id=data.get("oauth_client_id", data.get("client_id")),
+            oauth_client_secret=data.get("oauth_client_secret", data.get("client_secret")),
+            oauth_scope=data.get("oauth_scope", data.get("scope")),
+            api_key_name=data.get("api_key_name", "X-API-Key"),
+            api_key_value=data.get("api_key_value", data.get("api_key")),
+            api_key_in=data.get("api_key_in", "header"),
+            username_field=data.get("username_field"),
+            password_field=data.get("password_field"),
+            csrf_token_name=data.get("csrf_token_name"),
+            client_cert_file=data.get("client_cert_file"),
+            client_key_file=data.get("client_key_file"),
             secondary_username=data.get("secondary_username"),
             secondary_password=data.get("secondary_password"),
-            timeout=data.get("timeout", 6)
+            timeout=data.get("timeout", 10)
         )
 
 
@@ -65,7 +130,7 @@ class DKSecSessionManager:
         self.base_url = base_url
         self.session = requests.Session()
         self.session.headers.update({
-            "User-Agent": "DKSec-Enterprise-Auditor/2.0 (Security Testing Platform; +https://github.com/dksec/dksec)"
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 DKSec-Enterprise-Auditor/2.0"
         })
         self.is_authenticated = False
         self.auth_method = "none"
@@ -80,7 +145,7 @@ class DKSecSessionManager:
             self._setup_session()
 
     def _setup_session(self):
-        auth_type = self.config.auth_type.lower() if self.config.auth_type else "none"
+        auth_type = (self.config.auth_type or "none").lower()
 
         # 1. Bearer Token direct configuration
         if auth_type == "bearer" or self.config.bearer_token:
@@ -111,22 +176,44 @@ class DKSecSessionManager:
             self.is_authenticated = True
             self.auth_method = "cookie"
 
-        # 4. Automated Login Request
-        if auth_type == "login" or (self.config.login_url and self.config.username):
-            self.perform_login(self.config.username or "", self.config.password or "")
-
-        # 5. HTTP Basic Authentication
-        import requests.auth
+        # 4. HTTP Basic Authentication
         if auth_type == "basic":
             self.session.auth = requests.auth.HTTPBasicAuth(self.config.username or "", self.config.password or "")
             self.is_authenticated = True
             self.auth_method = "basic"
 
-        # 6. HTTP Digest Authentication
+        # 5. HTTP Digest Authentication
         if auth_type == "digest":
             self.session.auth = requests.auth.HTTPDigestAuth(self.config.username or "", self.config.password or "")
             self.is_authenticated = True
-            self.auth_method = "digest" 
+            self.auth_method = "digest"
+
+        # 6. OAuth2 Client Credentials Flow
+        if auth_type in ("oauth2", "client_credentials"):
+            self.perform_oauth2()
+
+        # 7. API Key Authentication (Header or Query Parameter)
+        if auth_type in ("apikey", "api_key") or self.config.api_key_value:
+            key_name = self.config.api_key_name or "X-API-Key"
+            key_val = self.config.api_key_value or ""
+            if self.config.api_key_in == "query":
+                self.session.params = self.session.params or {}
+                self.session.params[key_name] = key_val
+            else:
+                self.session.headers[key_name] = key_val
+            self.is_authenticated = True
+            self.auth_method = "apikey"
+
+        # 8. Mutual TLS (mTLS)
+        if auth_type == "mtls" or (self.config.client_cert_file and self.config.client_key_file):
+            if self.config.client_cert_file and self.config.client_key_file:
+                self.session.cert = (self.config.client_cert_file, self.config.client_key_file)
+                self.is_authenticated = True
+                self.auth_method = "mtls"
+
+        # 9. Automated Login Request (Web Form / JSON / Multi-Framework CSRF)
+        if auth_type == "login" or (self.config.login_url and self.config.username):
+            self.perform_login(self.config.username or "", self.config.password or "")
 
     def _apply_cookie_string(self, cookie_str: str):
         for part in cookie_str.split(";"):
@@ -138,10 +225,76 @@ class DKSecSessionManager:
                     self.session.cookies.set(k, v)
                     self.captured_cookies[k] = v
 
+    def perform_oauth2(self) -> Tuple[bool, str]:
+        """Executes the OAuth2 Client Credentials Grant Flow."""
+        token_url = self.config.oauth_token_url
+        client_id = self.config.oauth_client_id
+        client_secret = self.config.oauth_client_secret
+        scope = self.config.oauth_scope
+
+        if not token_url or not client_id or not client_secret:
+            err = "OAuth2 requires Token URL, Client ID, and Client Secret."
+            self.login_error = err
+            return False, err
+
+        try:
+            payload = {
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret
+            }
+            if scope:
+                payload["scope"] = scope
+
+            # Try form post first (RFC 6749 standard)
+            r = self.session.post(token_url, data=payload, timeout=self.config.timeout, verify=False)
+            if r.status_code not in (200, 201):
+                # Fallback to JSON payload
+                r = self.session.post(token_url, json=payload, timeout=self.config.timeout, verify=False)
+
+            self.login_status_code = r.status_code
+            self.last_login_response = r
+
+            if r.status_code in (200, 201):
+                try:
+                    data = r.json()
+                except Exception:
+                    data = {}
+                token = self._extract_token_from_dict(data, self.config.token_json_path)
+                if token:
+                    self.captured_token = token
+                    token_type = data.get("token_type", "Bearer").strip()
+                    prefix = f"{token_type} " if not token_type.endswith(" ") else token_type
+                    self.session.headers["Authorization"] = f"{prefix}{token}"
+                    self.is_authenticated = True
+                    self.auth_method = "oauth2"
+                    return True, f"OAuth2 token issued successfully (HTTP {r.status_code})"
+                else:
+                    err = f"OAuth2 response HTTP {r.status_code} did not contain an access token."
+                    self.login_error = err
+                    return False, err
+            else:
+                err_msg = r.text[:120].strip().replace("\n", " ")
+                err = f"OAuth2 token request rejected (HTTP {r.status_code}): {err_msg}"
+                self.login_error = err
+                return False, err
+        except Exception as e:
+            err = f"OAuth2 connection error: {str(e)}"
+            self.login_error = err
+            return False, err
+
     def perform_login(self, username: str, password: str, is_secondary: bool = False) -> Tuple[bool, str]:
+        """
+        Universal Login Handler supporting all major web frameworks & technologies:
+        - Django, Laravel, Ruby on Rails, ASP.NET MVC/Core, Spring Security, Express, WordPress
+        - Automatic CSRF extraction across forms, cookies, and meta headers
+        - Dynamic form input discovery (username vs email vs login vs log)
+        - Preflight redirect resolution
+        - Strict false-positive filtering
+        """
         target_login = self.config.login_url
         if not target_login and self.base_url:
-            target_login = urllib.parse.urljoin(self.base_url, "/api/v1/login")
+            target_login = urllib.parse.urljoin(self.base_url, "/login")
 
         if not target_login:
             err = "Login URL not provided in auth configuration."
@@ -149,47 +302,165 @@ class DKSecSessionManager:
             return False, err
 
         try:
-            import re
-            # Preflight request to capture CSRF cookies and HTML tokens
-            preflight = self.session.get(target_login, timeout=self.config.timeout, verify=False)
-            csrf_token = None
-            if "csrftoken" in self.session.cookies:
-                csrf_token = self.session.cookies["csrftoken"]
-            elif "XSRF-TOKEN" in self.session.cookies:
-                csrf_token = self.session.cookies["XSRF-TOKEN"]
-                
-            if not csrf_token:
-                match = re.search(r'name="csrfmiddlewaretoken"\s+value="([^"]+)"', preflight.text)
-                if match:
-                    csrf_token = match.group(1)
-                else:
-                    match = re.search(r'name="_csrf"\s+value="([^"]+)"', preflight.text)
-                    if match:
-                        csrf_token = match.group(1)
-            
-            headers = {"Referer": target_login}
-            if csrf_token:
-                headers["X-CSRFToken"] = csrf_token
-                headers["X-XSRF-TOKEN"] = csrf_token
+            # 1. Preflight GET request to establish initial cookies and inspect HTML/API
+            preflight = self.session.get(
+                target_login,
+                timeout=self.config.timeout,
+                verify=False,
+                allow_redirects=True
+            )
+            actual_url = preflight.url or target_login
+            html_content = preflight.text or ""
 
-            if self.config.payload_type == "form":
-                payload = {"username": username, "password": password}
+            # Check if JSON endpoint (e.g. REST API)
+            is_json_endpoint = False
+            if self.config.payload_type == "json":
+                is_json_endpoint = True
+            elif self.config.payload_type == "form":
+                is_json_endpoint = False
+            elif "application/json" in preflight.headers.get("Content-Type", "").lower():
+                is_json_endpoint = True
+            elif any(p in target_login.lower() for p in ("/api/", "/v1/", "/v2/", "/auth/login", "/token")):
+                is_json_endpoint = True
+            elif "<form" not in html_content.lower():
+                is_json_endpoint = True
+
+            # 2. Extract CSRF token across all web frameworks
+            csrf_token = None
+            csrf_field_name = None
+
+            # 2a. Check Cookies: Django (csrftoken), Laravel (XSRF-TOKEN), Spring (XSRF-TOKEN), Express (_csrf)
+            for c_name in ("csrftoken", "XSRF-TOKEN", "_csrf", "csrf_token", "xsrf_token"):
+                if c_name in self.session.cookies:
+                    csrf_token = self.session.cookies[c_name]
+                    break
+
+            # 2b. Check HTML Form Inputs: Django, Laravel, Rails, ASP.NET, Spring, WordPress
+            csrf_field_candidates = [
+                ("csrfmiddlewaretoken", "csrfmiddlewaretoken"),
+                ("_token", "_token"),
+                ("authenticity_token", "authenticity_token"),
+                ("__RequestVerificationToken", "__RequestVerificationToken"),
+                ("_csrf", "_csrf"),
+                ("csrf-token", "csrf-token"),
+                ("csrf_token", "csrf_token"),
+            ]
+            for fname, mapped_name in csrf_field_candidates:
+                m = re.search(rf'<input[^>]*name=[\"\']{re.escape(fname)}[\"\'][^>]*value=[\"\']([^\"\']+)[\"\']', html_content, re.IGNORECASE)
+                if not m:
+                    m = re.search(rf'<input[^>]*value=[\"\']([^\"\']+)[\"\'][^>]*name=[\"\']{re.escape(fname)}[\"\']', html_content, re.IGNORECASE)
+                if m:
+                    csrf_token = m.group(1)
+                    csrf_field_name = mapped_name
+                    break
+
+            # 2c. Check HTML Meta Tags (standard in Rails, Laravel, SPA apps)
+            if not csrf_token:
+                meta_match = re.search(r"<meta\s+name=[\"\']csrf-token[\"\']\s+content=[\"\']([^\"\']+)[\"\']", html_content, re.IGNORECASE)
+                if meta_match:
+                    csrf_token = meta_match.group(1)
+
+            # 3. Dynamic Field Discovery (Username and Password inputs)
+            post_action_url = actual_url
+            uname_field = self.config.username_field or "username"
+            pword_field = self.config.password_field or "password"
+            extra_fields: Dict[str, str] = {}
+
+            if not is_json_endpoint and "<form" in html_content.lower():
+                # Extract form action if present
+                form_action_match = re.search(r"<form[^>]*action=[\"\']([^\"\']*)[\"\']", html_content, re.IGNORECASE)
+                if form_action_match and form_action_match.group(1):
+                    post_action_url = urllib.parse.urljoin(actual_url, form_action_match.group(1))
+
+                # Discover username input field name
+                if not self.config.username_field:
+                    uname_candidates = [
+                        "username", "email", "login", "user", "account",
+                        "user[email]", "user[login]", "user_login", "log",
+                        "identifier", "auth_user", "identity"
+                    ]
+                    for cand in uname_candidates:
+                        if re.search(rf"<input[^>]*name=[\"\']{re.escape(cand)}[\"\']", html_content, re.IGNORECASE):
+                            uname_field = cand
+                            break
+
+                # Discover password input field name
+                if not self.config.password_field:
+                    pwd_candidates = ["password", "pass", "pwd", "user[password]", "user_pass", "auth_pass"]
+                    for cand in pwd_candidates:
+                        if re.search(rf"<input[^>]*name=[\"\']{re.escape(cand)}[\"\']", html_content, re.IGNORECASE):
+                            pword_field = cand
+                            break
+
+                # Extract other hidden inputs (e.g. WordPress, OAuth redirects, nonces)
+                hidden_inputs = re.findall(r"<input[^>]*type=[\"\']hidden[\"\'][^>]*name=[\"\']([^\"\']+)[\"\'][^>]*value=[\"\']([^\"\']*)[\"\']", html_content, re.IGNORECASE)
+                for hname, hval in hidden_inputs:
+                    if hname not in (csrf_field_name or "", uname_field, pword_field):
+                        extra_fields[hname] = hval
+
+            # 4. Prepare Headers (inject CSRF tokens into framework-standard header names)
+            post_headers: Dict[str, str] = {
+                "Referer": actual_url,
+                "Origin": f"{urllib.parse.urlsplit(actual_url).scheme}://{urllib.parse.urlsplit(actual_url).netloc}"
+            }
+            if csrf_token:
+                post_headers["X-CSRFToken"] = csrf_token       # Django
+                post_headers["X-CSRF-TOKEN"] = csrf_token      # Laravel / Spring
+                post_headers["X-XSRF-TOKEN"] = csrf_token      # Angular / Spring / Axios
+                post_headers["RequestVerificationToken"] = csrf_token  # ASP.NET
+
+            # 5. Execute Authentication Request
+            if is_json_endpoint:
+                json_payload = {uname_field: username, pword_field: password}
                 if csrf_token:
-                    payload["csrfmiddlewaretoken"] = csrf_token
-                    payload["_csrf"] = csrf_token
-                r = self.session.post(target_login, data=payload, headers=headers, timeout=self.config.timeout, verify=False, allow_redirects=False)
+                    json_payload["csrf_token"] = csrf_token
+                r = self.session.post(
+                    post_action_url,
+                    json=json_payload,
+                    headers=post_headers,
+                    timeout=self.config.timeout,
+                    verify=False,
+                    allow_redirects=False
+                )
+                # Fallback to form post if server rejects JSON with 415 or 400
+                if r.status_code in (415, 400) and self.config.payload_type == "auto":
+                    form_data = {uname_field: username, pword_field: password}
+                    if csrf_token and csrf_field_name:
+                        form_data[csrf_field_name] = csrf_token
+                    form_data.update(extra_fields)
+                    r = self.session.post(
+                        post_action_url,
+                        data=form_data,
+                        headers=post_headers,
+                        timeout=self.config.timeout,
+                        verify=False,
+                        allow_redirects=False
+                    )
             else:
-                payload = {"username": username, "password": password}
-                r = self.session.post(target_login, json=payload, headers=headers, timeout=self.config.timeout, verify=False, allow_redirects=False)
+                form_data = {uname_field: username, pword_field: password}
+                if csrf_token and csrf_field_name:
+                    form_data[csrf_field_name] = csrf_token
+                elif csrf_token:
+                    form_data["csrfmiddlewaretoken"] = csrf_token
+                    form_data["_token"] = csrf_token
+                form_data.update(extra_fields)
+                r = self.session.post(
+                    post_action_url,
+                    data=form_data,
+                    headers=post_headers,
+                    timeout=self.config.timeout,
+                    verify=False,
+                    allow_redirects=False
+                )
 
             self.login_status_code = r.status_code
             self.last_login_response = r
 
-            # Check for Set-Cookie headers
+            # Update cookies cache
             for cookie in self.session.cookies:
                 self.captured_cookies[cookie.name] = cookie.value
 
-            # Extract Token if JSON response
+            # Extract Token if returned in response body
             token_found = None
             try:
                 data = r.json()
@@ -201,28 +472,61 @@ class DKSecSessionManager:
                 self.captured_token = token_found
                 self.session.headers[self.config.token_header_name] = f"{self.config.token_header_prefix}{token_found}"
 
-            # Strict success check to prevent false positives:
+            # 6. Deep Verification: Success vs Failure Analysis
+            resp_text = (r.text or "").strip()
+            resp_lower = resp_text.lower()
+
+            # Identify if an authenticated session cookie was set
+            has_auth_cookie = any(
+                any(c_pattern in c_name.lower() for c_pattern in KNOWN_AUTH_COOKIE_NAMES)
+                for c_name in self.session.cookies.keys()
+            )
+
+            # Check for explicitly detected error phrases
+            contains_error_msg = any(kw in resp_lower for kw in LOGIN_ERROR_KEYWORDS)
+
+            # Check for successful redirection (HTTP 301, 302, 303, 307, 308)
+            is_redirect_to_dashboard = False
+            if r.status_code in (301, 302, 303, 307, 308):
+                location = r.headers.get("Location", "")
+                # If redirected back to login or an error path, it is failed
+                if not any(k in location.lower() for k in ("login", "signin", "error", "auth/failed")):
+                    is_redirect_to_dashboard = True
+
+            # Evaluate overall authentication success
             auth_success = False
             if token_found:
                 auth_success = True
-            elif r.status_code in (302, 303, 301):
+            elif is_redirect_to_dashboard:
                 auth_success = True
-            elif any(c in self.session.cookies for c in ["sessionid", "PHPSESSID", "JSESSIONID", "connect.sid"]):
+            elif has_auth_cookie and not contains_error_msg:
                 auth_success = True
-            elif r.status_code in (200, 201) and "json" in r.headers.get("Content-Type", ""):
+            elif r.status_code in (200, 201) and "json" in r.headers.get("Content-Type", "").lower() and not contains_error_msg:
                 auth_success = True
 
             if auth_success:
                 if not is_secondary:
                     self.is_authenticated = True
                     self.auth_method = "login"
-                return True, f"Login successful (HTTP {r.status_code})"
+                cookie_summary = ", ".join([k for k in self.captured_cookies if k.lower() not in ("csrftoken", "xsrf-token")])
+                detail = f"Login successful (HTTP {r.status_code})"
+                if cookie_summary:
+                    detail += f". Captured Session: {cookie_summary}"
+                if token_found:
+                    detail += f". Token captured."
+                return True, detail
             else:
-                err_text = r.text.strip().replace('\n', ' ')
-                if "<html" in err_text.lower() or "<body" in err_text.lower():
-                    err = f"Login failed. Server returned HTTP {r.status_code} HTML page (No session token/cookie issued. Check credentials)."
+                # Provide clear diagnosis of why authentication was rejected
+                if contains_error_msg:
+                    err = f"Login rejected: Invalid credentials or account locked (HTTP {r.status_code} returned with error notification)."
+                elif r.status_code in (401, 403):
+                    err = f"Login rejected by server (HTTP {r.status_code} Unauthorized/Forbidden)."
+                elif "<form" in resp_lower:
+                    err = f"Login failed: Server returned HTTP {r.status_code} login form without issuing a valid session cookie or token."
                 else:
-                    err = f"Login failed (HTTP {r.status_code}): {err_text[:120]}"
+                    err_clean = resp_text[:120].replace("\n", " ")
+                    err = f"Login failed (HTTP {r.status_code}): {err_clean}"
+
                 self.login_error = err
                 return False, err
 
@@ -264,12 +568,20 @@ class DKSecSessionManager:
         return None
 
     def test_connection(self, test_url: Optional[str] = None) -> Dict[str, Any]:
+        """Tests live connectivity to the target using the active session credentials."""
         url = test_url or self.base_url or self.config.login_url
         if not url:
             return {"success": False, "message": "No test URL or base URL provided."}
 
         try:
             r = self.session.get(url, timeout=self.config.timeout, verify=False)
+            
+            # Auth cookies (exclude pure CSRF tokens)
+            auth_cookies = [
+                k for k in self.captured_cookies.keys()
+                if k.lower() not in ("csrftoken", "xsrf-token", "_csrf", "csrf_token")
+            ]
+
             return {
                 "success": True,
                 "status_code": r.status_code,
@@ -277,7 +589,8 @@ class DKSecSessionManager:
                 "auth_method": self.auth_method,
                 "has_token": bool(self.captured_token),
                 "cookie_count": len(self.captured_cookies),
-                "headers_sent": dict(self.session.headers),
+                "auth_cookies": auth_cookies,
+                "headers_sent": {k: v for k, v in self.session.headers.items() if k.lower() in ("authorization", "x-api-key", "cookie")},
                 "message": f"Connected to {url} (HTTP {r.status_code})"
             }
         except Exception as e:
@@ -294,7 +607,6 @@ class DKSecSessionManager:
         if not raw:
             return findings
 
-        # Check if JWT structure
         parts = raw.split(".")
         if len(parts) != 3:
             return findings
@@ -346,11 +658,11 @@ class DKSecSessionManager:
                 remediation="Prefer asymmetric key pairs (e.g. RS256, ES256) so verifying services do not possess the signing private key."
             ))
 
-        # 3. Check for Missing Expiration Claim ('exp')
+        # 3. Check for Missing Expiration Claim (exp)
         if "exp" not in payload:
             findings.append(Finding(
                 id="AUTH-JWT-NO-EXP",
-                title="Missing JWT Expiration Claim ('exp')",
+                title="Missing JWT Expiration Claim (exp)",
                 severity=Severity.MEDIUM,
                 description="The JWT does not contain an 'exp' (expiration) claim, granting the token perpetual validity if intercepted.",
                 stage_id=4,
@@ -447,7 +759,7 @@ class DKSecSessionManager:
         if not login_url:
             return findings
 
-        # 1. Audit Brute Force & Rate Limiting (Sends 5 invalid login attempts)
+        # 1. Audit Brute Force & Rate Limiting (Sends 5 rapid invalid attempts)
         responses = []
         for i in range(5):
             try:
