@@ -1015,7 +1015,77 @@ class HtmlReporter:
     }}
     .panel-box h3 {{ font-size: 16px; font-weight: 700; color: var(--text-heading); margin-bottom: 6px; }}
     .panel-box p {{ font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }}
+
+    @media print {{
+      body, .container {{
+        background: white !important;
+        color: black !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+      }}
+      header {{
+        position: relative !important;
+        box-shadow: none !important;
+        border-bottom: 2px solid #ccc !important;
+        padding: 10px 0 !important;
+        background: white !important;
+        page-break-after: avoid;
+      }}
+      .header-actions, .tab-bar, .filter-bar, .btn {{
+        display: none !important;
+      }}
+      .tab-content {{
+        display: block !important;
+        page-break-before: always;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }}
+      #tab-all-stages {{
+        page-break-before: avoid;
+      }}
+      .finding-card, .panel-box, .kpi-card, .pipeline-card {{
+        page-break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        background: white !important;
+      }}
+      .gate-banner {{
+        page-break-inside: avoid;
+        border: 2px solid #000 !important;
+        color: black !important;
+        background: white !important;
+        box-shadow: none !important;
+      }}
+      pre {{
+        white-space: pre-wrap !important;
+        word-break: break-all !important;
+        max-height: none !important;
+        overflow: visible !important;
+        background: #f8fafc !important;
+        color: black !important;
+        border: 1px solid #ccc !important;
+      }}
+      .data-table-container {{
+        max-height: none !important;
+        overflow: visible !important;
+      }}
+      .data-table th {{
+        background: #f1f5f9 !important;
+        color: black !important;
+      }}
+      .badge {{
+        border: 1px solid #999 !important;
+      }}
+      * {{
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }}
+    }}
   </style>
+
 </head>
 <body>
 
@@ -1029,7 +1099,7 @@ class HtmlReporter:
     </div>
     <div class="header-actions">
       <button id="themeToggleBtn" class="btn" onclick="toggleTheme()">☀️ Light</button>
-      <button class="btn" onclick="window.print()">🖨️ Print to PDF</button>
+      <button class="btn" onclick="printReport()">🖨️ Print to PDF</button>
       <button class="btn" onclick="downloadFile('dksec-results.sarif', 'application/json')">📥 SARIF v2.1.0</button>
       <button class="btn" onclick="downloadFile('cyclonedx-sbom.json', 'application/json')">📦 CycloneDX SBOM</button>
       <button class="btn btn-primary" onclick="downloadJSON()">💾 Export JSON</button>
@@ -1697,6 +1767,35 @@ class HtmlReporter:
           card.style.display = 'none';
         }}
       }});
+    }}
+
+
+    function printReport() {{
+      // Ensure all details are expanded for the PDF
+      document.querySelectorAll('details').forEach(el => {{
+        el.setAttribute('data-was-closed', !el.hasAttribute('open'));
+        el.setAttribute('open', 'true');
+      }});
+      
+      // Ensure all findings are visible regardless of current filter
+      const prevSev = currentSeverity;
+      const prevStage = currentStage;
+      currentSeverity = 'ALL';
+      currentStage = 'ALL';
+      applyFilters();
+
+      window.print();
+      
+      // Cleanup and restore state after print dialog closes
+      setTimeout(() => {{
+        document.querySelectorAll('details[data-was-closed="true"]').forEach(el => {{
+          el.removeAttribute('open');
+          el.removeAttribute('data-was-closed');
+        }});
+        currentSeverity = prevSev;
+        currentStage = prevStage;
+        applyFilters();
+      }}, 1000);
     }}
 
     function copyText(id) {{
