@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import os
 import json
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 import urllib.parse
 from dksec.config import DKSecConfig, STAGE_METADATA
 from dksec.auth import AuthConfig, DKSecSessionManager
@@ -69,8 +69,35 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             self._serve_dashboard()
         elif path == "/api/status":
             self._serve_json(CURRENT_RUN)
+
         elif path == "/api/metadata":
             self._serve_json(STAGE_METADATA)
+        elif path == "/api/scan/stream":
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Connection', 'keep-alive')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+
+            last_log_idx = 0
+            import time
+            while True:
+                if len(CURRENT_RUN["logs"]) > last_log_idx:
+                    for i in range(last_log_idx, len(CURRENT_RUN["logs"])):
+                        log = CURRENT_RUN["logs"][i]
+                        self.wfile.write(f"data: {json.dumps(log)}\n\n".encode("utf-8"))
+                        self.wfile.flush()
+                    last_log_idx = len(CURRENT_RUN["logs"])
+                
+                if not CURRENT_RUN["running"] and last_log_idx == len(CURRENT_RUN["logs"]):
+                    self.wfile.write(f"data: {json.dumps({'event': 'completed'})}\n\n".encode("utf-8"))
+                    self.wfile.flush()
+                    break
+                
+                time.sleep(1)
+            return
+
         elif path.startswith("/download/"):
             fname = os.path.basename(path.replace("/download/", ""))
             # Search in current report_dir first, then fallback dirs
@@ -1461,7 +1488,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
 
 def start_server(port: int = 8080, host: str = "127.0.0.1"):
-    server = HTTPServer((host, port), DKSecWebHandler)
+    server = ThreadingHTTPServer((host, port), DKSecWebHandler)
     print(f"\n=======================================================")
     print(f"🛡️  DKSec Web Dashboard active at: http://{host}:{port}")
     print(f"=======================================================\n")

@@ -63,7 +63,11 @@ class BaseStage(abc.ABC):
         cvss_score: Optional[float] = None,
         remediation: str = "",
         status: FindingStatus = FindingStatus.OPEN,
-        references: Optional[List[str]] = None
+        references: Optional[List[str]] = None,
+        remediation_diff: Optional[str] = None,
+        curl_command: Optional[str] = None,
+        raw_request: Optional[str] = None,
+        raw_response: Optional[str] = None
     ) -> Finding:
         # Default SLA based on severity
         sla_map = {
@@ -89,6 +93,10 @@ class BaseStage(abc.ABC):
             owasp=owasp,
             cvss_score=cvss_score,
             remediation=remediation,
+            remediation_diff=remediation_diff,
+            curl_command=curl_command,
+            raw_request=raw_request,
+            raw_response=raw_response,
             status=status,
             sla_days=sla_map.get(severity, 30),
             references=references or []

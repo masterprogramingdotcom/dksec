@@ -73,6 +73,9 @@ class Finding:
     mitre_attack: Optional[str] = None  # e.g., T1190, T1078
     remediation: str = ""
     remediation_diff: Optional[str] = None  # Unified diff patch suggestion
+    curl_command: Optional[str] = None  # Reproducible cURL PoC
+    raw_request: Optional[str] = None   # Raw HTTP request evidence
+    raw_response: Optional[str] = None  # Raw HTTP response evidence
     status: FindingStatus = FindingStatus.OPEN
     sla_days: int = 30
     discovered_at: str = field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
