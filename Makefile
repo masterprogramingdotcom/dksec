@@ -84,21 +84,47 @@ help:
 # ------------------------------------------------------------------------------
 # 2. Setup & Virtual Environment
 # ------------------------------------------------------------------------------
-setup: install
-	@chmod +x dksec-cli dksec.py dksec_cli.py
+# OS detection
+ifeq ($(OS),Windows_NT)
+    DETECTED_OS := Windows
+else
+    DETECTED_OS := $(shell uname -s)
+endif
+
+setup:
+	@echo "$(BOLD)Setting up DKSec for $(DETECTED_OS)...$(RESET)"
+ifeq ($(DETECTED_OS),Linux)
+	@echo "Detected Linux. Please ensure python3, python3-pip, and python3-venv are installed."
+	@echo "If not, run: sudo apt-get install python3 python3-pip python3-venv"
+	@$(MAKE) venv
+else ifeq ($(DETECTED_OS),Darwin)
+	@echo "Detected macOS. Please ensure python3 is installed via Homebrew (brew install python3)."
+	@$(MAKE) venv
+else ifeq ($(DETECTED_OS),Windows)
+	@echo "Detected Windows. Setting up..."
+	@python -m venv .venv
+	@.venv\Scripts\pip install --upgrade pip
+	@.venv\Scripts\pip install -r requirements.txt
+	@.venv\Scripts\pip install -e .
+	@echo "$(GREEN)✔ Windows setup complete. Activate with: .venv\Scripts\activate$(RESET)"
+else
+	@echo "Unknown OS. Attempting standard generic setup..."
+	@$(MAKE) venv
+endif
 	@echo ""
 	@echo "$(GREEN)$(BOLD)✔ DKSec setup successfully completed!$(RESET)"
+	@echo "  Activate your environment:"
+	@echo "    Linux/macOS: $(CYAN)source .venv/bin/activate$(RESET)"
+	@echo "    Windows:     $(CYAN).venv\Scripts\activate$(RESET)"
 	@echo "  You can now run:"
-	@echo "    • $(CYAN)./dksec-cli wizard$(RESET)     (Interactive terminal wizard)"
-	@echo "    • $(CYAN)make vapt$(RESET)                 (Run VAPT & attack surface discovery)"
-	@echo "    • $(CYAN)make sast$(RESET)                 (Run SAST & secret scanning)"
+	@echo "    • $(CYAN)python3 dksec.py wizard$(RESET)     (Interactive terminal wizard)"
 	@echo "    • $(CYAN)make ui$(RESET)                   (Browser GUI on http://127.0.0.1:8080)"
 	@echo ""
 
 install:
 	@echo "$(BOLD)Installing DKSec dependencies...$(RESET)"
-	@$(PYTHON) -m pip install -r requirements.txt || $(PIP) install -r requirements.txt || pip3 install -r requirements.txt || true
-	@$(PYTHON) -m pip install -e . || $(PIP) install -e . || pip3 install -e . || true
+	@$(PYTHON) -m pip install -r requirements.txt || true
+	@$(PYTHON) -m pip install -e . || true
 
 venv:
 	@echo "$(BOLD)Setting up Python virtual environment in .venv...$(RESET)"
@@ -107,23 +133,22 @@ venv:
 	@.venv/bin/pip install -r requirements.txt
 	@.venv/bin/pip install -e .
 	@echo "$(GREEN)✔ Virtual environment created. Activate with: source .venv/bin/activate$(RESET)"
-
 # ------------------------------------------------------------------------------
 # 3. Interactive Tools & Demonstration
 # ------------------------------------------------------------------------------
 quickstart: demo
 
 demo:
-	@$(PYTHON) ./dksec-cli demo
+	@$(PYTHON) python3 dksec.py demo
 
 wizard:
-	@$(PYTHON) ./dksec-cli wizard
+	@$(PYTHON) python3 dksec.py wizard
 
 interactive: wizard
 
 ui:
 	@echo "$(GREEN)$(BOLD)Starting DKSec Web Dashboard on port $(PORT)...$(RESET)"
-	@$(PYTHON) ./dksec-cli ui --port $(PORT)
+	@$(PYTHON) python3 dksec.py ui --port $(PORT)
 
 dashboard: ui
 
@@ -132,7 +157,7 @@ live-scan:
 	@$(PYTHON) samples/app/server.py & SERVER_PID=$$!; \
 	sleep 1; \
 	echo "$(GREEN)✔ Service online. Launching authenticated DKSec audit...$(RESET)"; \
-	$(PYTHON) ./dksec-cli scan \
+	$(PYTHON) python3 dksec.py scan \
 		-p "Live Authenticated Scan" \
 		-t samples/app \
 		-u http://127.0.0.1:5000 \
@@ -148,7 +173,7 @@ live-scan:
 # ------------------------------------------------------------------------------
 vapt pentest:
 	@echo "$(BOLD)🎯 Executing Stage 6: Penetration Testing & Attack Surface Discovery...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -157,7 +182,7 @@ vapt pentest:
 
 sast:
 	@echo "$(BOLD)🔍 Executing Stage 3: SAST, SCA & Secret Scanning...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s sast \
@@ -165,7 +190,7 @@ sast:
 
 threat threat-model:
 	@echo "$(BOLD)📐 Executing Stage 1: Architecture & STRIDE Threat Modeling...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s threat \
@@ -173,7 +198,7 @@ threat threat-model:
 
 asvs:
 	@echo "$(BOLD)📋 Executing Stage 2: OWASP ASVS 4.0.3 Security Requirements & Verification...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s asvs \
@@ -181,7 +206,7 @@ asvs:
 
 dast:
 	@echo "$(BOLD)⚡ Executing Stage 4: DAST & API Security Fuzzing...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -190,7 +215,7 @@ dast:
 
 wstg:
 	@echo "$(BOLD)📑 Executing Stage 5: OWASP Web Security Testing Guide (WSTG v4.2)...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -199,7 +224,7 @@ wstg:
 
 defectdojo dojo:
 	@echo "$(BOLD)🎯 Executing Stage 7: DefectDojo Vulnerability Tracking & Retest Sync...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s defectdojo \
@@ -207,7 +232,7 @@ defectdojo dojo:
 
 signoff scorecard:
 	@echo "$(BOLD)🛡️ Executing Stage 8: OpenSSF Scorecard & Cryptographic Release Gate...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s signoff \
@@ -215,7 +240,7 @@ signoff scorecard:
 
 wazuh siem:
 	@echo "$(BOLD)🚨 Executing Stage 9: Wazuh SIEM XML Rules & Sigma Detection Engine...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		-s wazuh \
@@ -225,7 +250,7 @@ wazuh siem:
 # 5. Multi-Stage Combinations & Workflows
 # ------------------------------------------------------------------------------
 scan:
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -234,11 +259,11 @@ scan:
 
 code-audit:
 	@echo "$(BOLD)🔍 Running Code & Architecture Audit (Threat Model + SAST + Secrets)...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan -p $(PROJECT) -t $(TARGET) -s "1,3" -o $(OUTPUT) $(EXTRA_ARGS)
+	@$(PYTHON) python3 dksec.py scan -p $(PROJECT) -t $(TARGET) -s "1,3" -o $(OUTPUT) $(EXTRA_ARGS)
 
 api-audit:
 	@echo "$(BOLD)⚡ Running Dynamic Web & API Penetration Audit (DAST + WSTG + VAPT)...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan \
+	@$(PYTHON) python3 dksec.py scan \
 		-p $(PROJECT) \
 		-t $(TARGET) \
 		$$(if [ -n "$(URL)" ]; then echo "-u $(URL)"; fi) \
@@ -247,11 +272,11 @@ api-audit:
 
 supply-chain:
 	@echo "$(BOLD)📦 Running Supply Chain & Compliance Audit (ASVS + SBOM + OpenSSF)...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan -p $(PROJECT) -t $(TARGET) -s "2,3,8" -o $(OUTPUT) $(EXTRA_ARGS)
+	@$(PYTHON) python3 dksec.py scan -p $(PROJECT) -t $(TARGET) -s "2,3,8" -o $(OUTPUT) $(EXTRA_ARGS)
 
 pr-check:
 	@echo "$(BOLD)Executing Fast Pull Request Security Gate (Stages 1, 3, 8)...$(RESET)"
-	@$(PYTHON) ./dksec-cli scan -t $(TARGET) --preset pr --fail-on-gate -o reports/pr_gate $(EXTRA_ARGS)
+	@$(PYTHON) python3 dksec.py scan -t $(TARGET) --preset pr --fail-on-gate -o reports/pr_gate $(EXTRA_ARGS)
 
 # ------------------------------------------------------------------------------
 # 6. Testing & Quality Assurance

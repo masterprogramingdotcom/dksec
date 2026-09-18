@@ -25,10 +25,25 @@ We've added a powerful suite of 7 massive enterprise-grade features to automate 
 
 ## ⚡ Quick Start (Up & Running in 30 Seconds)
 
-### 1. One-Command Setup
+### 1. OS-Aware Setup
+DKSec ships with an intelligent setup script that automatically detects your OS (Linux, macOS, or Windows) and configures the environment.
+
+**Linux & macOS:**
 ```bash
-# Clone and configure everything with a single command
+# This will automatically create a .venv and install dependencies
 make setup
+
+# Activate the virtual environment
+source .venv/bin/activate
+```
+
+**Windows:**
+If you have `make` installed (via MSYS2/Git Bash), you can run `make setup`. Otherwise, set up the environment natively:
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
 ```
 
 ### 2. Choose How You Want to Use DKSec
