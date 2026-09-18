@@ -460,6 +460,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       <div style="display: flex; align-items: center; gap: 10px;">
         <button id="themeToggleBtn" onclick="toggleTheme()" class="btn btn-secondary">☀️ Theme: Light</button>
         <a id="btnOpenReportTop" href="/report" target="_blank" class="btn btn-success" style="display: none;">📄 Open Interactive Report</a>
+        <button id="btnNewScanTop" onclick="location.reload()" class="btn btn-primary" style="display: none; background: #2563eb; color: white; border: none;">🔄 New Scan</button>
       </div>
     </header>
 
@@ -1334,6 +1335,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
           document.getElementById('statusBadge').style.background = '#10b981';
           document.getElementById('statusMessage').innerText = '🎉 Pipeline completed! Full artifacts available below.';
           document.getElementById('btnOpenReportTop').style.display = 'inline-flex';
+          document.getElementById('btnNewScanTop').style.display = 'inline-flex';
           document.getElementById('downloadSection').style.display = 'block';
 
           if (d.report_summary) {{

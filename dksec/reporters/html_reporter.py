@@ -1098,6 +1098,7 @@ class HtmlReporter:
       </div>
     </div>
     <div class="header-actions">
+      <a href="/" class="btn" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; background: #2563eb; color: white; font-weight: 600;">⬅️ Back to Scanner</a>
       <button id="themeToggleBtn" class="btn" onclick="toggleTheme()">☀️ Light</button>
       <button class="btn" onclick="printReport()">🖨️ Print to PDF</button>
       <button class="btn" onclick="downloadFile('dksec-results.sarif', 'application/json')">📥 SARIF v2.1.0</button>
