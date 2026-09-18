@@ -21,6 +21,12 @@ class Stage1ThreatModel(BaseStage):
         self.log("Initializing Advanced OWASP Threat Dragon & STRIDE/LINDDUN Threat Engine")
 
         target_path = config.target_path or ""
+        if target_path:
+            from dksec.config import resolve_target_path
+            resolved = resolve_target_path(target_path)
+            if resolved and os.path.exists(resolved):
+                target_path = resolved
+                config.target_path = resolved
 
         # 1. Inspect target architecture and discover components & trust boundaries
         components, boundaries, data_flows = self._discover_architecture(target_path)

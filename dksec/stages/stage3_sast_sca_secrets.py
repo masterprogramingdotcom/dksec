@@ -103,26 +103,55 @@ class Stage3SastScaSecrets(BaseStage):
         supply_chain_findings = self._scan_for_supply_chain_risks(target)
         findings.extend(supply_chain_findings)
 
+        # 5. Universal Multi-Technology Security Scanning (All Tech Stacks)
+        from dksec.multi_tech_scanner import UniversalMultiTechScanner
+        tech_scanner = UniversalMultiTechScanner(self)
+        tech_findings, tech_components, tech_summary = tech_scanner.scan_all(target)
+
+        # Merge findings with deduplication
+        seen_keys = {(f.title, f.file_path, f.line_number) for f in findings}
+        for tf in tech_findings:
+            key = (tf.title, tf.file_path, tf.line_number)
+            if key not in seen_keys:
+                findings.append(tf)
+                seen_keys.add(key)
+
+        # Merge SBOM components
+        seen_purls = {c.purl for c in sbom_components}
+        for tc in tech_components:
+            if tc.purl not in seen_purls:
+                sbom_components.append(tc)
+                seen_purls.add(tc.purl)
+
+        tools_executed.append("DKSec Universal Multi-Tech Engine")
+
         # Pass SBOM to context for reporter
         context["sbom_components"] = sbom_components
 
+        # Calculate rich metrics
+        sec_cnt = sum(1 for f in findings if f.tool in ("Gitleaks", "Gitleaks (Engine)", "DKSec Deep Secret Scanner") or "Secret" in f.title)
+        sast_cnt = sum(1 for f in findings if "SAST" in f.id or "DKSec Universal SAST Engine" in f.tool or "Semgrep" in f.tool)
+        sca_cnt = sum(1 for f in findings if "SCA" in f.id or "Dependency" in f.title)
+
         metrics = {
             "tools_used": tools_executed,
-            "secret_leaks_count": len(secret_findings),
-            "sast_vulnerabilities_count": len(sast_findings),
-            "sca_vulnerabilities_count": len(sca_findings),
+            "secret_leaks_count": max(sec_cnt, len(secret_findings)),
+            "sast_vulnerabilities_count": max(sast_cnt, len(sast_findings)),
+            "sca_vulnerabilities_count": max(sca_cnt, len(sca_findings)),
             "supply_chain_risks": len(supply_chain_findings),
             "total_dependencies_inventoried": len(sbom_components),
-            "total_stage_findings": len(findings)
+            "total_stage_findings": len(findings),
+            "tech_profile": tech_summary.get("tech_profile", {})
         }
 
         details = {
-            "secrets": len(secret_findings),
-            "sast": len(sast_findings),
-            "sca": len(sca_findings),
+            "secrets": metrics["secret_leaks_count"],
+            "sast": metrics["sast_vulnerabilities_count"],
+            "sca": metrics["sca_vulnerabilities_count"],
             "supply_chain": len(supply_chain_findings),
-            "sbom_summary": f"Cataloged {len(sbom_components)} packages for CycloneDX SBOM",
-            "components": [c.to_cyclonedx() for c in sbom_components]
+            "sbom_summary": f"Cataloged {len(sbom_components)} packages for CycloneDX SBOM across all ecosystems",
+            "components": [c.to_cyclonedx() for c in sbom_components],
+            "tech_profile": tech_summary.get("tech_profile", {})
         }
 
         return findings, metrics, details
