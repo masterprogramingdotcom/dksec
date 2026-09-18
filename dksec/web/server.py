@@ -1316,6 +1316,9 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
           <span class="pill pill-info" id="pillInfo">Info: 0</span>
         </div>
 
+        <!-- Tech Stack + SBOM row — populated by JS after scan -->
+        <div id="verdictTechRow"></div>
+
         <div style="margin-top: 14px;">
           <a id="btnOpenReportCard" href="/report" target="_blank" class="btn btn-success" style="font-size: 14px; padding: 10px 20px;">📄 Open Full Interactive HTML Report ➔</a>
         </div>
@@ -2000,6 +2003,23 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             document.getElementById('pillMed').innerText = `Medium: ${{rep.medium || 0}}`;
             document.getElementById('pillLow').innerText = `Low: ${{rep.low || 0}}`;
             document.getElementById('pillInfo').innerText = `Info: ${{rep.info || 0}}`;
+
+            // Tech stack + SBOM row
+            const techRow = document.getElementById('verdictTechRow');
+            if (techRow) {{
+              const techLabel = rep.tech_stack || '';
+              const sbomCount = rep.sbom_count || 0;
+              const fws = (rep.frameworks || []).slice(0, 4).map(f => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,0.12);color:#6366f1;font-size:11px;font-weight:600;">${{f}}</span>`).join('');
+              const srvs = (rep.servers || []).slice(0, 3).map(s => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:10px;background:rgba(16,185,129,0.12);color:#059669;font-size:11px;font-weight:600;">${{s}}</span>`).join('');
+              const dbs = (rep.databases || []).slice(0, 2).map(d => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.12);color:#d97706;font-size:11px;font-weight:600;">${{d}}</span>`).join('');
+              const infras = (rep.infra || []).slice(0, 2).map(i => `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;border-radius:10px;background:rgba(14,165,233,0.12);color:#0284c7;font-size:11px;font-weight:600;">${{i}}</span>`).join('');
+              techRow.innerHTML = `
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.15);">
+                  <span style="font-size:11px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.05em;">🔬 Tech Stack Detected:</span>
+                  <div style="margin-top:5px;">${{fws}}${{srvs}}${{dbs}}${{infras}}</div>
+                  <div style="margin-top:6px;font-size:12px;opacity:0.85;">📦 <strong>${{sbomCount}}</strong> SBOM Dependencies Inventoried (CycloneDX 1.5)</div>
+                </div>`;
+            }}
           }}
         }}
       }});
@@ -2327,6 +2347,19 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             grade = "A" if score >= 85 else ("B" if score >= 70 else ("C" if score >= 50 else "F"))
             verdict_str = report.gate_verdict.status if report.gate_verdict else "APPROVED"
 
+            # Enrich with tech profile and SBOM count for UI display
+            tp = getattr(report, "tech_profile", {}) or {}
+            if not tp and 3 in report.stage_results:
+                tp = report.stage_results[3].details.get("tech_profile", {}) or {}
+            sbom_count = len(getattr(report, "sbom_components", []))
+            tech_parts = []
+            if tp.get("primary_language") and tp.get("primary_language") != "Unknown":
+                tech_parts.append(tp["primary_language"])
+            tech_parts.extend(f.capitalize() for f in (tp.get("frameworks") or [])[:2])
+            tech_parts.extend(d.capitalize() for d in (tp.get("databases") or [])[:1])
+            tech_parts.extend(s.capitalize() for s in (tp.get("servers") or [])[:1])
+            tech_stack_label = " \u2022 ".join(tech_parts) if tech_parts else "Application"
+
             CURRENT_RUN["report_summary"] = {
                 "verdict": verdict_str,
                 "score": score,
@@ -2338,6 +2371,13 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
                 "low": low,
                 "info": info,
                 "reasons": report.gate_verdict.reasons if report.gate_verdict else [],
+                "sbom_count": sbom_count,
+                "tech_stack": tech_stack_label,
+                "primary_language": tp.get("primary_language", ""),
+                "frameworks": tp.get("frameworks", []),
+                "servers": tp.get("servers", []),
+                "databases": tp.get("databases", []),
+                "infra": tp.get("infra", []),
             }
 
             CURRENT_RUN["logs"].append(f"[DONE] Security Score: {score}/100 | Gate: {verdict_str}")
