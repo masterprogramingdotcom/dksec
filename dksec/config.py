@@ -86,6 +86,54 @@ class StageConfig:
     params: Dict[str, Any] = field(default_factory=dict)
 
 
+def resolve_target_path(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+    p = str(path).strip()
+    if not p:
+        return None
+
+    # Expand user home ~
+    p = os.path.expanduser(p)
+
+    # 1. Direct match (absolute or relative to current working directory)
+    if os.path.exists(p):
+        return os.path.abspath(p)
+
+    cwd_candidate = os.path.abspath(os.path.join(os.getcwd(), p))
+    if os.path.exists(cwd_candidate):
+        return cwd_candidate
+
+    # 2. Sibling directory relative to cwd (e.g. ../python-genievrse-integration-hub)
+    parent_dir = os.path.dirname(os.getcwd())
+    sibling_candidate = os.path.abspath(os.path.join(parent_dir, p))
+    if os.path.exists(sibling_candidate):
+        return sibling_candidate
+
+    # 3. User Desktop directory and subdirectories
+    desktop = os.path.expanduser("~/Desktop")
+    if os.path.exists(desktop):
+        desktop_candidate = os.path.join(desktop, p)
+        if os.path.exists(desktop_candidate):
+            return desktop_candidate
+        try:
+            for root, dirs, _ in os.walk(desktop):
+                if p in dirs:
+                    return os.path.join(root, p)
+                if root.count(os.sep) - desktop.count(os.sep) >= 2:
+                    dirs.clear()
+        except Exception:
+            pass
+
+    # 4. User home directory
+    home = os.path.expanduser("~")
+    home_candidate = os.path.join(home, p)
+    if os.path.exists(home_candidate):
+        return home_candidate
+
+    return p
+
+
 @dataclass
 class DKSecConfig:
     project_name: str = "Application Security Review"
@@ -112,6 +160,10 @@ class DKSecConfig:
     wazuh_api_password: Optional[str] = None
 
     def __post_init__(self):
+        # Resolve target_path if specified
+        if self.target_path:
+            self.target_path = resolve_target_path(self.target_path)
+
         # Initialize default stages if not set
         for stage_id in range(1, 10):
             if stage_id not in self.stages:

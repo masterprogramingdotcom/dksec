@@ -74,6 +74,18 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             self._serve_json(STAGE_METADATA)
         elif path == "/api/browse":
             query = urllib.parse.parse_qs(parsed.query)
+            resolve_target = query.get("resolve", [""])[0].strip()
+            if resolve_target:
+                from dksec.config import resolve_target_path
+                resolved = resolve_target_path(resolve_target)
+                found = bool(resolved and os.path.exists(resolved) and os.path.isdir(resolved))
+                self._serve_json({
+                    "target": resolve_target,
+                    "resolved_path": resolved if found else None,
+                    "found": found
+                })
+                return
+
             req_path = query.get("path", [""])[0].strip()
             
             if not req_path or req_path == ".":
@@ -109,11 +121,13 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
             home_dir = os.path.expanduser("~")
             cwd_dir = os.getcwd()
 
+            parent_cwd_dir = os.path.dirname(cwd_dir)
             resp = {
                 "current_path": req_path,
                 "parent_path": parent_path,
                 "home_path": home_dir,
                 "cwd_path": cwd_dir,
+                "parent_cwd_path": parent_cwd_dir,
                 "directories": entries
             }
             self._serve_json(resp)
@@ -2016,9 +2030,12 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       }}
     }}
 
+    let pickerParentCwdPath = '';
+
     function browseToPath(targetPath) {{
       let fetchPath = targetPath;
       if (targetPath === '__cwd__') fetchPath = pickerCwdPath || '.';
+      else if (targetPath === '__parent_cwd__') fetchPath = pickerParentCwdPath || '..';
       else if (targetPath === '__home__') fetchPath = pickerHomePath || '~';
 
       const container = document.getElementById('folderListContainer');
@@ -2030,6 +2047,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
           pickerCurrentPath = data.current_path;
           pickerParentPath = data.parent_path;
           pickerCwdPath = data.cwd_path;
+          pickerParentCwdPath = data.parent_cwd_path || '';
           pickerHomePath = data.home_path;
           pickerDirectories = data.directories || [];
 
@@ -2116,12 +2134,24 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         const firstRelPath = input.files[0].webkitRelativePath || '';
         const folderName = firstRelPath.split('/')[0];
         if (folderName) {{
-          const target = document.getElementById(currentPickerTargetInputId);
-          if (target) {{
-            target.value = folderName;
-            target.dispatchEvent(new Event('input'));
-            target.dispatchEvent(new Event('change'));
-          }}
+          fetch('/api/browse?resolve=' + encodeURIComponent(folderName))
+            .then(res => res.json())
+            .then(data => {{
+              const target = document.getElementById(currentPickerTargetInputId);
+              if (target) {{
+                target.value = (data.found && data.resolved_path) ? data.resolved_path : folderName;
+                target.dispatchEvent(new Event('input'));
+                target.dispatchEvent(new Event('change'));
+              }}
+            }})
+            .catch(() => {{
+              const target = document.getElementById(currentPickerTargetInputId);
+              if (target) {{
+                target.value = folderName;
+                target.dispatchEvent(new Event('input'));
+                target.dispatchEvent(new Event('change'));
+              }}
+            }});
         }}
         closeFolderPicker();
       }}
@@ -2145,6 +2175,7 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       <!-- Quick Shortcuts -->
       <div class="folder-shortcuts">
         <button type="button" class="shortcut-pill" onclick="browseToPath('__cwd__')">📍 Workspace (.)</button>
+        <button type="button" class="shortcut-pill" onclick="browseToPath('__parent_cwd__')">📂 Sibling Projects (..)</button>
         <button type="button" class="shortcut-pill" onclick="browseToPath('__home__')">🏠 Home (~)</button>
         <button type="button" class="shortcut-pill" onclick="browseToPath('/')">💻 Root (/)</button>
         <label class="shortcut-pill" style="cursor: pointer; margin-left: auto;">
@@ -2212,6 +2243,17 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
                 target_path = None
             elif not target_path and not target_url:
                 target_path = "."
+
+            if target_path:
+                from dksec.config import resolve_target_path
+                resolved = resolve_target_path(target_path)
+                if resolved and os.path.exists(resolved):
+                    if resolved != target_path:
+                        CURRENT_RUN["logs"].append(f"[INFO] Resolved repository '{target_path}' -> '{resolved}'")
+                    target_path = resolved
+                    CURRENT_RUN["logs"].append(f"[INFO] Auditing repository directory: {target_path}")
+                else:
+                    CURRENT_RUN["logs"].append(f"[ERROR] Target directory '{target_path}' not found on filesystem!")
 
             cfg = DKSecConfig(
                 project_name=data.get("project_name", "Enterprise Security Audit"),

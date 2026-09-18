@@ -21,29 +21,63 @@ class Stage3SastScaSecrets(BaseStage):
 
     def run(self, config: DKSecConfig, context: Dict[str, Any]) -> Tuple[List[Finding], Dict[str, Any], Dict[str, Any]]:
         target = config.target_path
-        url_only = not target or not os.path.exists(str(target))
+        if target:
+            from dksec.config import resolve_target_path
+            resolved = resolve_target_path(target)
+            if resolved and os.path.exists(resolved):
+                target = resolved
+                config.target_path = resolved
 
-        if url_only:
-            if config.target_url:
+        exists = bool(target and os.path.exists(str(target)))
+
+        if not exists:
+            if config.target_url and not target:
                 self.log(f"URL-only mode — no source code path provided. Skipping SAST/SCA/Secrets; use -t <dir> to enable code scanning.")
+                return [], {
+                    "tools_used": ["Skipped (no source code target)"],
+                    "secret_leaks_count": 0,
+                    "sast_vulnerabilities_count": 0,
+                    "sca_vulnerabilities_count": 0,
+                    "total_dependencies_inventoried": 0,
+                    "total_stage_findings": 0,
+                    "note": "Pass -t <path> or set target_path in dksec.yml to enable SAST/SCA/Secret scanning."
+                }, {
+                    "secrets": 0,
+                    "sast": 0,
+                    "sca": 0,
+                    "sbom_summary": "No source code provided — SAST/SCA skipped (URL-only mode)",
+                    "components": [],
+                    "note": "To enable: dksec scan -u <url> -t <source_dir>"
+                }
             else:
-                self.log(f"No source code target found at '{target}'. Skipping SAST/SCA/Secrets.")
-            return [], {
-                "tools_used": ["Skipped (no source code target)"],
-                "secret_leaks_count": 0,
-                "sast_vulnerabilities_count": 0,
-                "sca_vulnerabilities_count": 0,
-                "total_dependencies_inventoried": 0,
-                "total_stage_findings": 0,
-                "note": "Pass -t <path> or set target_path in dksec.yml to enable SAST/SCA/Secret scanning."
-            }, {
-                "secrets": 0,
-                "sast": 0,
-                "sca": 0,
-                "sbom_summary": "No source code provided — SAST/SCA skipped (URL-only mode)",
-                "components": [],
-                "note": "To enable: dksec scan -u <url> -t <source_dir>"
-            }
+                self.log(f"[ERROR] Source code target not found at '{target}'. Cannot perform SAST/SCA/Secrets scan.")
+                err_finding = self.create_finding(
+                    finding_id="DKSEC-PATH-404",
+                    title=f"Source Code Target Directory Not Found: '{target}'",
+                    severity=Severity.HIGH,
+                    description=f"The specified target repository directory '{target}' does not exist on the filesystem. No code was analyzed.",
+                    tool="DKSec Validator",
+                    remediation=f"Verify that the directory '{target}' exists and provide an absolute path or relative path from the current workspace.",
+                    status=FindingStatus.OPEN,
+                    file_path=str(target) if target else "target_path",
+                    line_number=0
+                )
+                return [err_finding], {
+                    "tools_used": ["Target Not Found"],
+                    "secret_leaks_count": 0,
+                    "sast_vulnerabilities_count": 0,
+                    "sca_vulnerabilities_count": 0,
+                    "total_dependencies_inventoried": 0,
+                    "total_stage_findings": 1,
+                    "error": f"Target path '{target}' not found on filesystem."
+                }, {
+                    "secrets": 0,
+                    "sast": 0,
+                    "sca": 0,
+                    "sbom_summary": f"Directory '{target}' not found on filesystem",
+                    "components": [],
+                    "note": f"Directory '{target}' not found. Please provide an existing directory path."
+                }
 
         self.log(f"Starting Multi-Layer Code Security Audit on: {target}")
 

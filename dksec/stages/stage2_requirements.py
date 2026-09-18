@@ -23,6 +23,12 @@ class Stage2Requirements(BaseStage):
         self.log(f"Auditing {len(checklist)} verification requirements across Chapters V1 to V14.")
 
         target_path = config.target_path or ""
+        if target_path:
+            from dksec.config import resolve_target_path
+            resolved = resolve_target_path(target_path)
+            if resolved and os.path.exists(resolved):
+                target_path = resolved
+                config.target_path = resolved
         code_files = self._collect_code_files(target_path) if target_path and os.path.exists(target_path) else []
 
         findings: List[Finding] = []
