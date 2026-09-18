@@ -970,29 +970,29 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
 
     /* Tab Switcher */
     
-    function selectFlow(flowType) {
+    function selectFlow(flowType) {{
       // Highlight the selected card
       document.querySelectorAll('#step1Container .option-card').forEach(c => c.classList.remove('selected', 'flow-active'));
       let card = document.getElementById('flowCard' + flowType.charAt(0).toUpperCase() + flowType.slice(1));
-      if (card) {
+      if (card) {{
         card.classList.add('selected', 'flow-active');
         card.style.borderColor = 'var(--accent)';
-      }
+      }}
       
       // Hide all panels, then show the corresponding one as Step 2
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       const targetPane = document.getElementById('tabContent' + flowType.charAt(0).toUpperCase() + flowType.slice(1));
-      if (targetPane) {
+      if (targetPane) {{
         targetPane.classList.add('active');
         // Scroll to it smoothly
-        setTimeout(() => targetPane.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-      }
-    }
+        setTimeout(() => targetPane.scrollIntoView({{ behavior: 'smooth', block: 'start' }}), 100);
+      }}
+    }}
     
     // Hide all tab panes on initial load so the user *must* pick Step 1
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', () => {{
       document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    });
+    }});
 
     function switchTab(tabId) {{
       const tabs = ['url', 'code', 'presets', 'custom'];
