@@ -464,67 +464,65 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       </div>
     </header>
 
-    <!-- 3-Step Guide -->
-    <div class="guide-banner">
-      <div class="guide-step">
-        <div class="step-num">1</div>
-        <div class="step-content">
-          <strong>Choose What to Scan</strong>
-          <span>Live Website, Local Code, or 1-Click Preset</span>
-        </div>
+    <!-- Step 1: Audit Type -->
+    
+    <!-- STEP 1: Select Type -->
+    <div class="panel" id="step1Container">
+      <div class="section-title">
+        <h3>Step 1: What would you like to scan?</h3>
+        <p class="section-desc">Select an audit profile to begin. The form will dynamically update based on your selection.</p>
       </div>
-      <div class="guide-arrow">➔</div>
-      <div class="guide-step">
-        <div class="step-num">2</div>
-        <div class="step-content">
-          <strong>Enter Target</strong>
-          <span>URL (e.g. localhost:5000) or repo directory</span>
+      <div class="option-cards-grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="option-card" id="flowCardUrl" onclick="selectFlow('url')">
+          <div style="font-size: 28px; margin-right: 12px;">🌐</div>
+          <div class="opt-body">
+            <strong>Live Website / API Pentest</strong>
+            <p>Black-box security scans against a running application.</p>
+          </div>
         </div>
-      </div>
-      <div class="guide-arrow">➔</div>
-      <div class="guide-step">
-        <div class="step-num">3</div>
-        <div class="step-content">
-          <strong>Get Instant Verdict</strong>
-          <span>Pass/Fail gate, score, and complete HTML report</span>
+        <div class="option-card" id="flowCardCode" onclick="selectFlow('code')">
+          <div style="font-size: 28px; margin-right: 12px;">📂</div>
+          <div class="opt-body">
+            <strong>Source Code & Secret Scan</strong>
+            <p>Static code analysis, hardcoded secrets, and SBOM generation.</p>
+          </div>
+        </div>
+        <div class="option-card" id="flowCardPresets" onclick="selectFlow('presets')">
+          <div style="font-size: 28px; margin-right: 12px;">⚡</div>
+          <div class="opt-body">
+            <strong>1-Click Quick Presets</strong>
+            <p>Run pre-configured CI/CD workflows instantly.</p>
+          </div>
+        </div>
+        <div class="option-card" id="flowCardCustom" onclick="selectFlow('custom')">
+          <div style="font-size: 28px; margin-right: 12px;">⚙️</div>
+          <div class="opt-body">
+            <strong>Custom Pipeline & AI</strong>
+            <p>Select specific stages and attach AI triage models.</p>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Tab Navigation -->
-    <div class="tabs-nav">
-      <button class="tab-btn active" id="tabNavUrl" onclick="switchTab('url')">
-        🌐 Live Website / API Pentest
-      </button>
-      <button class="tab-btn" id="tabNavCode" onclick="switchTab('code')">
-        📂 Source Code & Secret Scan
-      </button>
-      <button class="tab-btn" id="tabNavPresets" onclick="switchTab('presets')">
-        ⚡ 1-Click Quick Presets
-      </button>
-      <button class="tab-btn" id="tabNavCustom" onclick="switchTab('custom')">
-        ⚙️ Custom Pipeline & AI (Advanced)
-      </button>
-    </div>
 
     <!-- TAB 1: Live Website / API Pentest -->
     <div class="tab-pane active" id="tabContentUrl">
       <div class="panel">
         <div class="section-title">
-          <h3>🌐 Test a Live Web Application or REST API</h3>
+          <h3>Step 2: Test a Live Web Application or REST API</h3>
           <p class="section-desc">Run black-box/gray-box security scans against a running web application, microservice, or REST API without needing source code.</p>
         </div>
 
         <!-- Target URL Field -->
         <div class="field-card">
-          <label class="field-label" for="urlTargetUrl">1. Target URL or API Base URL <span class="required">*</span></label>
+          <label class="field-label" for="urlTargetUrl">Target URL or API Base URL <span class="required">*</span></label>
           <input type="text" id="urlTargetUrl" class="text-input" placeholder="https://campaignmitra.com or http://127.0.0.1:5000" value="https://campaignmitra.com" />
           <span class="field-hint">Supports live production/staging URLs (e.g. https://campaignmitra.com) and localhost dev servers without needing source code.</span>
         </div>
 
         <!-- Scope Selection -->
         <div class="field-card">
-          <label class="field-label">2. Select Live Testing Scope</label>
+          <label class="field-label">Select Live Testing Scope</label>
           <div class="option-cards-grid">
             <div class="option-card selected" id="optUrlFull" onclick="selectUrlMode('full')">
               <div class="opt-radio"><input type="radio" name="urlScanMode" value="full" checked /></div>
@@ -971,6 +969,31 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
     }})();
 
     /* Tab Switcher */
+    
+    function selectFlow(flowType) {
+      // Highlight the selected card
+      document.querySelectorAll('#step1Container .option-card').forEach(c => c.classList.remove('selected', 'flow-active'));
+      let card = document.getElementById('flowCard' + flowType.charAt(0).toUpperCase() + flowType.slice(1));
+      if (card) {
+        card.classList.add('selected', 'flow-active');
+        card.style.borderColor = 'var(--accent)';
+      }
+      
+      // Hide all panels, then show the corresponding one as Step 2
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      const targetPane = document.getElementById('tabContent' + flowType.charAt(0).toUpperCase() + flowType.slice(1));
+      if (targetPane) {
+        targetPane.classList.add('active');
+        // Scroll to it smoothly
+        setTimeout(() => targetPane.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+      }
+    }
+    
+    // Hide all tab panes on initial load so the user *must* pick Step 1
+    window.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    });
+
     function switchTab(tabId) {{
       const tabs = ['url', 'code', 'presets', 'custom'];
       tabs.forEach(t => {{
