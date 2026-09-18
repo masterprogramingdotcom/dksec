@@ -1231,6 +1231,9 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       if (prov === 'ollama') {{
         document.getElementById('llmBaseUrlUrl').value = 'http://localhost:11434/v1';
         document.getElementById('llmBaseUrlAdv').value = 'http://localhost:11434/v1';
+      }} else {{
+        document.getElementById('llmBaseUrlUrl').value = '';
+        document.getElementById('llmBaseUrlAdv').value = '';
       }}
     }}
 
@@ -1239,7 +1242,10 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
       const prov = document.getElementById('llmProviderUrl').value;
       const model = document.getElementById('llmModelUrl').value;
       const key = document.getElementById('llmApiKeyUrl').value || document.getElementById('llmApiKeyAdv').value || null;
-      const base = document.getElementById('llmBaseUrlUrl').value || document.getElementById('llmBaseUrlAdv').value || null;
+      let base = document.getElementById('llmBaseUrlUrl').value || document.getElementById('llmBaseUrlAdv').value || null;
+      if (prov !== 'ollama' && prov !== 'custom' && base && (base.includes('11434') || base.includes('localhost'))) {{
+        base = null;
+      }}
       return {{
         enabled: enabled,
         provider: prov,

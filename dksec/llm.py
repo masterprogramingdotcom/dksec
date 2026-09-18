@@ -57,6 +57,7 @@ class LLMAssistant:
         self.provider = (self.config.provider or "openai").lower()
         self.api_key = self._resolve_api_key()
         self.base_url = self._resolve_base_url()
+        self.last_error: Optional[str] = None
 
     def _resolve_api_key(self) -> Optional[str]:
         if self.config.api_key:
@@ -73,7 +74,13 @@ class LLMAssistant:
 
     def _resolve_base_url(self) -> str:
         if self.config.api_base_url:
-            return self.config.api_base_url.rstrip("/")
+            raw_url = self.config.api_base_url.rstrip("/")
+            # If user selected a cloud provider (OpenAI, Gemini, Anthropic), do not accidentally route to local Ollama
+            if self.provider in ("openai", "gemini", "anthropic") and ("11434" in raw_url or "localhost" in raw_url):
+                pass
+            else:
+                return raw_url
+
         if self.provider == "openai":
             return "https://api.openai.com/v1"
         elif self.provider == "ollama":
@@ -87,6 +94,7 @@ class LLMAssistant:
     def test_connection(self) -> Dict[str, Any]:
         """Verify LLM endpoint reachability and credentials."""
         start = time.time()
+        self.last_error = None
         try:
             res = self._query_llm(
                 system_prompt="You are a security intelligence assistant. Respond in valid JSON.",
@@ -105,7 +113,7 @@ class LLMAssistant:
                 "success": False,
                 "provider": self.provider,
                 "model": self.config.model,
-                "message": f"No response from {self.provider} ({self.config.model}). Check API key or endpoint.",
+                "message": self.last_error or f"No response from {self.provider} ({self.config.model}). Check API key or endpoint.",
                 "latency_ms": latency
             }
         except Exception as e:
@@ -224,10 +232,13 @@ class LLMAssistant:
 
     def _query_llm(self, system_prompt: str, user_prompt: str) -> Optional[str]:
         """Internal HTTP dispatcher supporting OpenAI, Ollama, Gemini, and Anthropic."""
+        # Check API key presence
+        if self.provider in ("openai", "gemini", "anthropic") and not self.api_key:
+            self.last_error = f"API Key for {self.provider.upper()} was not provided. Enter it in the UI or export {self.provider.upper()}_API_KEY."
+            return None
+
         # 1. OpenAI / Ollama / OpenAI-Compatible (vLLM, LocalAI)
         if self.provider in ("openai", "ollama", "custom"):
-            if self.provider == "openai" and not self.api_key:
-                return None
             url = f"{self.base_url}/chat/completions"
             headers = {"Content-Type": "application/json"}
             if self.api_key and self.api_key != "ollama-local":
@@ -250,13 +261,22 @@ class LLMAssistant:
                     choices = data.get("choices", [])
                     if choices:
                         return choices[0].get("message", {}).get("content", "")
-            except Exception:
-                pass
+                else:
+                    try:
+                        err_json = r.json()
+                        err_msg = err_json.get("error", {}).get("message") or err_json.get("message") or r.text[:140]
+                    except Exception:
+                        err_msg = r.text[:140].strip()
+                    self.last_error = f"{self.provider.upper()} API returned HTTP {r.status_code}: {err_msg}"
+            except requests.exceptions.ConnectionError:
+                self.last_error = f"Cannot connect to {url} (Connection refused). If using cloud OpenAI, leave Custom Base URL empty!"
+            except requests.exceptions.Timeout:
+                self.last_error = f"Request to {url} timed out after {self.config.timeout}s."
+            except Exception as e:
+                self.last_error = f"Error querying {self.provider}: {str(e)}"
 
         # 2. Google Gemini API
         elif self.provider == "gemini":
-            if not self.api_key:
-                return None
             url = f"{self.base_url}/models/{self.config.model}:generateContent?key={self.api_key}"
             headers = {"Content-Type": "application/json"}
             payload = {
@@ -275,13 +295,22 @@ class LLMAssistant:
                         parts = candidates[0].get("content", {}).get("parts", [])
                         if parts:
                             return parts[0].get("text", "")
-            except Exception:
-                pass
+                else:
+                    try:
+                        err_json = r.json()
+                        err_msg = err_json.get("error", {}).get("message") or r.text[:140]
+                    except Exception:
+                        err_msg = r.text[:140].strip()
+                    self.last_error = f"Gemini API returned HTTP {r.status_code}: {err_msg}"
+            except requests.exceptions.ConnectionError:
+                self.last_error = f"Cannot connect to Gemini API endpoint ({url})."
+            except requests.exceptions.Timeout:
+                self.last_error = f"Gemini request timed out after {self.config.timeout}s."
+            except Exception as e:
+                self.last_error = f"Error querying Gemini: {str(e)}"
 
         # 3. Anthropic Claude API
         elif self.provider == "anthropic":
-            if not self.api_key:
-                return None
             url = f"{self.base_url}/messages"
             headers = {
                 "Content-Type": "application/json",
@@ -302,8 +331,19 @@ class LLMAssistant:
                     content = data.get("content", [])
                     if content and content[0].get("type") == "text":
                         return content[0].get("text", "")
-            except Exception:
-                pass
+                else:
+                    try:
+                        err_json = r.json()
+                        err_msg = err_json.get("error", {}).get("message") or r.text[:140]
+                    except Exception:
+                        err_msg = r.text[:140].strip()
+                    self.last_error = f"Anthropic API returned HTTP {r.status_code}: {err_msg}"
+            except requests.exceptions.ConnectionError:
+                self.last_error = f"Cannot connect to Anthropic API endpoint ({url})."
+            except requests.exceptions.Timeout:
+                self.last_error = f"Anthropic request timed out after {self.config.timeout}s."
+            except Exception as e:
+                self.last_error = f"Error querying Anthropic: {str(e)}"
 
         return None
 
