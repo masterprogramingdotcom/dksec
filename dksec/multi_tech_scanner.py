@@ -470,10 +470,50 @@ MULTI_LANG_RULES = [
     # ADDITIONAL PYTHON RULES
     ("py-open-redirect", r"(?:HttpResponseRedirect|redirect)\s*\(\s*request\.(?:GET|POST)\.get\s*\(\s*['\"](?:next|url|redirect|target)['\"]", "Open Redirect via Unvalidated User-Supplied URL", Severity.MEDIUM, "CWE-601", "OWASP A01:2021-Broken Access Control", "Validate redirect target with url_has_allowed_host_and_scheme() before redirecting.", "T1190"),
     ("py-path-traversal-open", r"open\s*\(\s*(?:os\.path\.join\([^)]*)?request\.(?:GET|POST|query_params)", "Path Traversal via open() with Request Input", Severity.HIGH, "CWE-22", "OWASP A01:2021-Broken Access Control", "Sanitize path and ensure os.path.realpath() stays within authorized folder.", "T1190"),
+    ("py-tempfile-mktemp", r"\btempfile\.mktemp\s*\(", "Insecure Temporary File Creation via tempfile.mktemp", Severity.MEDIUM, "CWE-377", "OWASP A01:2021-Broken Access Control", "Use tempfile.NamedTemporaryFile() or tempfile.mkstemp() to avoid race condition vulnerabilities.", "T1059"),
+    ("py-paramiko-missing-host-key", r"AutoAddPolicy\(\)", "Paramiko SSH Host Key Verification Disabled (AutoAddPolicy)", Severity.HIGH, "CWE-295", "OWASP A07:2021-Identification and Authentication Failures", "Reject unknown host keys with RejectPolicy() and pre-load authorized server keys.", "T1557"),
+    ("py-ldap-injection", r"ldap(?:3)?\.(?:search|filter)\s*\([^)]*%\s*", "LDAP Injection via Formatted Filter String", Severity.HIGH, "CWE-90", "OWASP A03:2021-Injection", "Use ldap3.utils.conv.escape_filter_chars() on user inputs before inserting into filters.", "T1190"),
+    ("py-marshal-loads", r"\bmarshal\.loads\s*\(", "Unsafe Deserialization via Python marshal Module", Severity.CRITICAL, "CWE-502", "OWASP A08:2021-Software and Data Integrity Failures", "Do not process untrusted data with marshal. Use JSON or Protocol Buffers.", "T1059"),
+    ("py-shelve-open", r"\bshelve\.open\s*\(", "Arbitrary Code Execution via Python shelve Module", Severity.HIGH, "CWE-502", "OWASP A08:2021-Software and Data Integrity Failures", "The shelve module is backed by pickle. Use SQLite or Redis for persistent key-value storage.", "T1059"),
+    ("py-urllib-open-ssrf", r"urllib\.request\.urlopen\s*\(\s*(?:request\.|req\.|url\b)", "SSRF via urllib.request.urlopen with Dynamic URL", Severity.HIGH, "CWE-918", "OWASP A10:2021-Server-Side Request Forgery", "Validate URL scheme and host against an allowlist before making network requests.", "T1190"),
+    ("py-assert-security", r"assert\s+(?:user\.|role\.|is_admin|permission|token)", "Dangerous Use of assert for Security/Authorization Check", Severity.MEDIUM, "CWE-617", "OWASP A04:2021-Insecure Design", "Do not use assert for security checks; Python strips assert statements when run with -O flag.", "T1078"),
 
     # ADDITIONAL C# / .NET RULES
     ("dotnet-xxe-xml-document", r"XmlDocument\s*\(\s*\).*LoadXml\s*\(", "XML External Entity (XXE) Injection in .NET XmlDocument", Severity.HIGH, "CWE-611", "OWASP A05:2021-Security Misconfiguration", "Set XmlResolver = null or use safe XmlReader with DtdProcessing.Prohibit.", "T1190"),
     ("dotnet-path-traversal", r"File\.(?:OpenRead|ReadAllText|ReadAllBytes)\s*\([^)]*(?:Request\.Query|Request\.Form)", "Path Traversal via File access with Request Parameters", Severity.HIGH, "CWE-22", "OWASP A01:2021-Broken Access Control", "Use Path.GetFullPath() and check Path.GetDirectoryName() matches safe base.", "T1190"),
+
+    # ADDITIONAL JS / NODE.JS RULES
+    ("js-localstorage-jwt", r"localStorage\.setItem\s*\(\s*['\"](?:token|jwt|auth|accessToken|id_token)['\"]", "Sensitive Authentication Token Stored in Unencrypted localStorage", Severity.MEDIUM, "CWE-922", "OWASP A04:2021-Insecure Design", "Store session tokens in secure, HttpOnly, SameSite=Strict cookies to protect from XSS theft.", "T1552"),
+    ("js-cookie-missing-httponly", r"res\.cookie\s*\([^)]*httpOnly\s*:\s*false", "Cookie Explicitly Configured with httpOnly: false", Severity.MEDIUM, "CWE-1004", "OWASP A05:2021-Security Misconfiguration", "Set httpOnly: true on all session and authentication cookies.", "T1539"),
+    ("js-window-postmessage-wildcard", r"\.postMessage\s*\([^,]+,\s*['\"]\*['\"]", "Insecure Cross-Window Messaging (postMessage with wildcard target origin)", Severity.HIGH, "CWE-345", "OWASP A01:2021-Broken Access Control", "Specify the exact target origin instead of '*' to prevent credential interception.", "T1190"),
+    ("js-math-random-token", r"(?:token|secret|salt|sessionId)\s*=\s*.*Math\.random", "Insecure Pseudo-Random Number Generator (Math.random) for Security Token", Severity.HIGH, "CWE-338", "OWASP A02:2021-Cryptographic Failures", "Use crypto.randomBytes() or window.crypto.getRandomValues() for security tokens.", "T1110"),
+
+    # ADDITIONAL GO RULES
+    ("go-tls-weak-cipher", r"tls\.VersionTLS1[01]\b", "Deprecated TLS Version (TLS 1.0 / 1.1) Accepted in Go Config", Severity.HIGH, "CWE-326", "OWASP A02:2021-Cryptographic Failures", "Enforce tls.VersionTLS12 or tls.VersionTLS13 as MinVersion in tls.Config.", "T1557"),
+    ("go-math-rand-token", r"math/rand\.(?:Intn|Read|Seed)", "Insecure PRNG (math/rand) Used for Sensitive Value", Severity.MEDIUM, "CWE-338", "OWASP A02:2021-Cryptographic Failures", "Use crypto/rand for cryptographically secure random bytes and tokens.", "T1110"),
+
+    # ADDITIONAL JAVA / SPRING RULES
+    ("java-deserialization-xmldecoder", r"XMLDecoder\s*\(", "Remote Code Execution via Java XMLDecoder", Severity.CRITICAL, "CWE-502", "OWASP A08:2021-Software and Data Integrity Failures", "Never process untrusted XML with XMLDecoder. Use Jackson or standard XML parsers.", "T1059"),
+    ("java-runtime-exec", r"Runtime\.getRuntime\(\)\.exec\s*\(", "Unsafe Command Execution via Runtime.getRuntime().exec", Severity.HIGH, "CWE-78", "OWASP A03:2021-Injection", "Use ProcessBuilder with argument list and strict input validation.", "T1059"),
+    ("java-spel-injection", r"SpelExpressionParser\s*\(.*parseExpression\s*\(", "Spring Expression Language (SpEL) Injection RCE", Severity.CRITICAL, "CWE-94", "OWASP A03:2021-Injection", "Use SimpleEvaluationContext instead of StandardEvaluationContext to restrict SpEL power.", "T1190"),
+
+    # ADDITIONAL PHP RULES
+    ("php-extract-input", r"\bextract\s*\(\s*\$_(?:GET|POST|REQUEST)", "Variable Overwriting via PHP extract() with Superglobals", Severity.CRITICAL, "CWE-621", "OWASP A03:2021-Injection", "Do not use extract() on user input. Access request variables directly.", "T1059"),
+    ("php-preg-replace-e", r"preg_replace\s*\(\s*['\"][^'\"]*\/e['\"]", "PHP Code Execution via preg_replace /e Modifier", Severity.CRITICAL, "CWE-94", "OWASP A03:2021-Injection", "Use preg_replace_callback() instead of the deprecated and insecure /e modifier.", "T1059"),
+    ("php-curl-insecure", r"curl_setopt\s*\([^,]+,\s*CURLOPT_SSL_VERIFYPEER,\s*(?:false|0)", "SSL Certificate Verification Disabled in PHP cURL", Severity.CRITICAL, "CWE-295", "OWASP A02:2021-Cryptographic Failures", "Set CURLOPT_SSL_VERIFYPEER to true to validate server identity and prevent MitM.", "T1557"),
+
+    # ADDITIONAL RUBY RULES
+    ("ruby-yaml-load", r"YAML\.(?:load|unsafe_load)\s*\(", "Unsafe YAML Deserialization in Ruby", Severity.CRITICAL, "CWE-502", "OWASP A08:2021-Software and Data Integrity Failures", "Use YAML.safe_load() with permitted classes rather than YAML.load().", "T1059"),
+    ("ruby-send-dispatch", r"\.(?:send|__send__)\s*\(\s*params\[", "Uncontrolled Dynamic Method Invocation via send() in Ruby", Severity.HIGH, "CWE-470", "OWASP A01:2021-Broken Access Control", "Whitelist permissible action names before dynamic dispatch.", "T1059"),
+
+    # ADDITIONAL C / C++ RULES
+    ("c-format-string", r"\b(?:printf|fprintf)\s*\(\s*(?:argv\[|buf|input|str)\s*\)", "Uncontrolled Format String Vulnerability in C/C++", Severity.CRITICAL, "CWE-134", "OWASP A03:2021-Injection", "Always supply a format string literal: printf(\"%s\", str).", "T1190"),
+    ("c-system-call", r"\bsystem\s*\(\s*(?:argv\[|input|cmd|buf)\s*\)", "Command Injection via C system() Call with Variable Argument", Severity.CRITICAL, "CWE-78", "OWASP A03:2021-Injection", "Use execve() or posix_spawn() with explicit argument vectors instead of system().", "T1059"),
+
+    # ADDITIONAL CLOUD & DEVOPS RULES
+    ("docker-user-root", r"^USER\s+(?:root|0)\b", "Container Explicitly Configured to Run as Root", Severity.MEDIUM, "CWE-250", "OWASP A05:2021-Security Misconfiguration", "Create and switch to a non-privileged user (e.g. USER appuser) in the Dockerfile.", "T1611"),
+    ("k8s-allow-privilege-escalation", r"allowPrivilegeEscalation:\s*true", "Container Allowed to Escalate Privileges in Kubernetes", Severity.HIGH, "CWE-250", "OWASP A05:2021-Security Misconfiguration", "Set allowPrivilegeEscalation: false in container securityContext.", "T1611"),
+    ("tf-rds-publicly-accessible", r"publicly_accessible\s*=\s*true", "Database Instance Configured as Publicly Accessible in Terraform", Severity.CRITICAL, "CWE-284", "OWASP A05:2021-Security Misconfiguration", "Set publicly_accessible = false and isolate database within private VPC subnets.", "T1530"),
 ]
 
 

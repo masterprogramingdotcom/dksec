@@ -107,34 +107,75 @@ class Stage1ThreatModel(BaseStage):
         ]
         boundaries = ["Untrusted External", "DMZ Perimeter", "Internal Trusted VPC", "Restricted Core Data"]
 
-        # Deep inspect source code for storage, microservices, caches, and third parties
+        # Deep inspect source code for storage, microservices, caches, AI, queues, and third parties
         has_s3 = False
         has_redis = False
         has_payment = False
+        has_graphql = False
+        has_grpc = False
+        has_ai = False
+        has_k8s = False
+        has_queue = False
+        has_oauth = False
 
         if os.path.exists(target_path):
             for root, _, files in os.walk(target_path):
+                # Skip heavy build/dependency dirs
+                if any(x in root for x in ["node_modules", ".git", "venv", ".venv", "dist", "build", ".qt"]):
+                    continue
                 for f in files:
+                    f_lower = f.lower()
+                    if f_lower.endswith((".gql", ".graphql")):
+                        has_graphql = True
+                    if f_lower.endswith(".proto"):
+                        has_grpc = True
+                    if f_lower in ("chart.yaml", "deployment.yaml", "k8s.yaml", "ingress.yaml"):
+                        has_k8s = True
+
                     fpath = os.path.join(root, f)
-                    if f.endswith((".py", ".js", ".ts", ".go", ".yaml", ".env")):
+                    if f.endswith((".py", ".js", ".ts", ".go", ".yaml", ".yml", ".env", ".json")):
                         try:
                             with open(fpath, "r", errors="ignore") as fl:
                                 txt = fl.read()
-                                if any(x in txt for x in ["boto3", "aws_s3", "S3Client", "s3.amazonaws.com"]):
+                                if any(x in txt for x in ["boto3", "aws_s3", "S3Client", "s3.amazonaws.com", "google-cloud-storage", "@azure/storage-blob"]):
                                     has_s3 = True
-                                if any(x in txt for x in ["redis", "RedisClient", "ioredis"]):
+                                if any(x in txt for x in ["redis", "RedisClient", "ioredis", "redis-py"]):
                                     has_redis = True
-                                if any(x in txt for x in ["stripe", "paypal", "razorpay"]):
+                                if any(x in txt for x in ["stripe", "paypal", "razorpay", "braintree"]):
                                     has_payment = True
+                                if any(x in txt for x in ["graphql", "buildSchema", "ApolloServer", "Strawberry"]):
+                                    has_graphql = True
+                                if any(x in txt for x in ["grpc", "grpcio", "@grpc/grpc-js"]):
+                                    has_grpc = True
+                                if any(x in txt for x in ["openai", "anthropic", "langchain", "llama", "huggingface", "cohere", "ollama"]):
+                                    has_ai = True
+                                if any(x in txt for x in ["kubernetes", "kubectl", "k8s"]):
+                                    has_k8s = True
+                                if any(x in txt for x in ["kafka", "rabbitmq", "celery", "pika", "amqp", "sqs"]):
+                                    has_queue = True
+                                if any(x in txt for x in ["oauth", "oidc", "auth0", "cognito", "keycloak", "okta"]):
+                                    has_oauth = True
                         except Exception:
                             pass
 
         if has_s3:
-            components.append({"id": "comp-s3", "name": "Cloud Object Store (S3)", "type": "DataStore", "boundary": "Restricted Core Data", "trust_level": 3})
+            components.append({"id": "comp-s3", "name": "Cloud Object Store (S3/GCS/Blob)", "type": "DataStore", "boundary": "Restricted Core Data", "trust_level": 3})
         if has_redis:
             components.append({"id": "comp-cache", "name": "Distributed Session Cache (Redis)", "type": "DataStore", "boundary": "Internal Trusted VPC", "trust_level": 2})
         if has_payment:
             components.append({"id": "comp-payment", "name": "External Payment Processor API", "type": "ExternalService", "boundary": "Untrusted External", "trust_level": 0})
+        if has_graphql:
+            components.append({"id": "comp-graphql", "name": "GraphQL API Gateway Layer", "type": "Process", "boundary": "DMZ Perimeter", "trust_level": 1})
+        if has_grpc:
+            components.append({"id": "comp-grpc", "name": "Internal gRPC Microservices Mesh", "type": "Process", "boundary": "Internal Trusted VPC", "trust_level": 2})
+        if has_ai:
+            components.append({"id": "comp-ai", "name": "AI / LLM Model Inference Service", "type": "Process", "boundary": "Internal Trusted VPC", "trust_level": 2})
+        if has_k8s:
+            components.append({"id": "comp-k8s", "name": "Kubernetes Cluster Control Plane", "type": "Process", "boundary": "Internal Trusted VPC", "trust_level": 3})
+        if has_queue:
+            components.append({"id": "comp-queue", "name": "Async Message Broker (Kafka/RabbitMQ/Celery)", "type": "DataStore", "boundary": "Internal Trusted VPC", "trust_level": 2})
+        if has_oauth:
+            components.append({"id": "comp-oauth", "name": "External Identity Provider (OAuth2/OIDC)", "type": "ExternalService", "boundary": "Untrusted External", "trust_level": 0})
 
         data_flows = [
             {"from": "comp-client", "to": "comp-edge", "protocol": "HTTPS (TLS 1.3)", "data": "User Credentials / API Requests"},
@@ -145,11 +186,26 @@ class Stage1ThreatModel(BaseStage):
         if has_payment:
             data_flows.append({"from": "comp-app", "to": "comp-payment", "protocol": "Mutual TLS REST", "data": "Payment Intent & Card Tokens"})
         if has_s3:
-            data_flows.append({"from": "comp-app", "to": "comp-s3", "protocol": "AWS SigV4 HTTPS", "data": "Encrypted Documents / Assets"})
+            data_flows.append({"from": "comp-app", "to": "comp-s3", "protocol": "Cloud IAM HTTPS", "data": "Encrypted Documents / Assets"})
+        if has_graphql:
+            data_flows.append({"from": "comp-edge", "to": "comp-graphql", "protocol": "GraphQL POST", "data": "GQL Queries & Mutations"})
+        if has_grpc:
+            data_flows.append({"from": "comp-app", "to": "comp-grpc", "protocol": "HTTP/2 Protobuf", "data": "Internal Microservice Calls"})
+        if has_ai:
+            data_flows.append({"from": "comp-app", "to": "comp-ai", "protocol": "mTLS JSON/gRPC", "data": "Prompt Inputs & Context Embeddings"})
+        if has_queue:
+            data_flows.append({"from": "comp-app", "to": "comp-queue", "protocol": "AMQP / Kafka Binary", "data": "Async Background Event Messages"})
+        if has_oauth:
+            data_flows.append({"from": "comp-client", "to": "comp-oauth", "protocol": "HTTPS OAuth2 PKCE", "data": "Authorization Code & ID Tokens"})
+        if has_k8s:
+            data_flows.append({"from": "comp-app", "to": "comp-k8s", "protocol": "HTTPS ServiceAccount", "data": "K8s API Workload Queries"})
 
         return components, boundaries, data_flows
 
     def _generate_advanced_threats(self, components: List[Dict[str, Any]], flows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        comp_ids = set(c["id"] for c in components)
+
+        # Base foundational STRIDE threats (OWASP Top 10 & API Security)
         threats = [
             {
                 "category": "Spoofing",
@@ -218,6 +274,134 @@ class Stage1ThreatModel(BaseStage):
                 "mitre_attack": "T1068"
             }
         ]
+
+        # Dynamic threats synthesized based on discovered architecture components
+        if "comp-ai" in comp_ids:
+            threats.append({
+                "category": "Tampering",
+                "component": "AI / LLM Model Inference Service",
+                "title": "Adversarial Prompt Injection & System Guardrail Bypass",
+                "severity": Severity.CRITICAL,
+                "description": "Untrusted user inputs fed directly into LLM prompts can hijack execution flow, leak system prompts, or induce unintended tool execution.",
+                "impact": "Unauthorized downstream actions, sensitive system prompt extraction, and brand reputation loss.",
+                "mitigation": "Implement rigorous input sanitization, separate system instructions from user inputs using structured delimiters, and deploy an LLM guardrail validator.",
+                "cwe": "CWE-1384",
+                "mitre_attack": "T1059"
+            })
+            threats.append({
+                "category": "Information Disclosure",
+                "component": "AI / LLM Model Inference Service",
+                "title": "Training Data Memorization & Sensitive RAG Context Leakage",
+                "severity": Severity.HIGH,
+                "description": "Retrieval-Augmented Generation (RAG) queries retrieve cross-tenant data into generation context without document-level ACL checks.",
+                "impact": "Leakage of proprietary corporate knowledge, PII, or credentials to unauthorized users.",
+                "mitigation": "Filter RAG vector embeddings by tenant ID and user clearance before context injection.",
+                "cwe": "CWE-200",
+                "mitre_attack": "T1005"
+            })
+
+        if "comp-graphql" in comp_ids:
+            threats.append({
+                "category": "Information Disclosure",
+                "component": "GraphQL API Gateway Layer",
+                "title": "GraphQL Introspection Schema Exposure & Field Suggestion Leakage",
+                "severity": Severity.MEDIUM,
+                "description": "Unrestricted introspection query permits attackers to map all types, queries, and mutations including unreleased endpoints.",
+                "impact": "Full API schema reverse engineering enabling targeted exploitation.",
+                "mitigation": "Disable introspection in production environments and disable field suggestions.",
+                "cwe": "CWE-200",
+                "mitre_attack": "T1592"
+            })
+            threats.append({
+                "category": "Denial of Service",
+                "component": "GraphQL API Gateway Layer",
+                "title": "GraphQL Unbounded Query Depth & Batch Amplification Attack",
+                "severity": Severity.HIGH,
+                "description": "Cyclic or deeply nested GraphQL queries consume exponential backend memory and database connection pools.",
+                "impact": "Complete backend denial of service and server CPU saturation.",
+                "mitigation": "Enforce maximum query depth limits (max 5-7), query cost analysis, and limit batch queries.",
+                "cwe": "CWE-400",
+                "mitre_attack": "T1499"
+            })
+
+        if "comp-s3" in comp_ids:
+            threats.append({
+                "category": "Information Disclosure",
+                "component": "Cloud Object Store (S3/GCS/Blob)",
+                "title": "Public Cloud Storage Bucket Read/Write ACL Misconfiguration",
+                "severity": Severity.CRITICAL,
+                "description": "Cloud object storage bucket permits anonymous AllUsers read or write access or lacks server-side encryption.",
+                "impact": "Public exposure of customer documents, backups, and uploaded files.",
+                "mitigation": "Enable AWS S3 Block Public Access, enforce KMS SSE-KMS encryption, and audit bucket policies.",
+                "cwe": "CWE-732",
+                "mitre_attack": "T1530"
+            })
+
+        if "comp-cache" in comp_ids:
+            threats.append({
+                "category": "Tampering",
+                "component": "Distributed Session Cache (Redis)",
+                "title": "Unauthenticated Cache Injection & Distributed Session Hijacking",
+                "severity": Severity.HIGH,
+                "description": "Redis cache lacks TLS or authentication password, or accepts serialized objects vulnerable to deserialization attacks.",
+                "impact": "Arbitrary session token tampering, cached response poisoning, or remote command execution.",
+                "mitigation": "Require strong Redis AUTH password, enable in-transit TLS, and serialize cache objects using JSON instead of pickle.",
+                "cwe": "CWE-287",
+                "mitre_attack": "T1539"
+            })
+
+        if "comp-payment" in comp_ids:
+            threats.append({
+                "category": "Tampering",
+                "component": "External Payment Processor API",
+                "title": "Payment Parameter Tampering & Webhook Signature Bypass",
+                "severity": Severity.CRITICAL,
+                "description": "Adversary alters transaction amount or currency in client requests, or replays payment gateway webhook events without signature validation.",
+                "impact": "Double-crediting accounts, purchasing items for zero or negative value, and financial loss.",
+                "mitigation": "Mandate HMAC signature verification on all payment webhooks and always fetch product price from server DB authoritative records.",
+                "cwe": "CWE-20",
+                "mitre_attack": "T1565"
+            })
+
+        if "comp-queue" in comp_ids:
+            threats.append({
+                "category": "Tampering",
+                "component": "Async Message Broker (Kafka/RabbitMQ/Celery)",
+                "title": "Message Broker Poisoning & Deserialization Injection",
+                "severity": Severity.HIGH,
+                "description": "Asynchronous job worker deserializes untrusted messages using insecure formats (pickle) or without payload schema validation.",
+                "impact": "Remote code execution inside background worker containers.",
+                "mitigation": "Enforce strict JSON schema validation on queue messages and migrate Celery task serialization to JSON.",
+                "cwe": "CWE-502",
+                "mitre_attack": "T1190"
+            })
+
+        if "comp-k8s" in comp_ids:
+            threats.append({
+                "category": "Elevation of Privilege",
+                "component": "Kubernetes Cluster Control Plane",
+                "title": "Kubernetes Service Account Token Exposure & Pod Escape",
+                "severity": Severity.CRITICAL,
+                "description": "Default ServiceAccount token mounted in pod allows compromised containers to query Kubernetes API and escalate cluster privileges.",
+                "impact": "Full Kubernetes cluster takeover and node compromise.",
+                "mitigation": "Set automountServiceAccountToken: false on all pods and enforce Pod Security Standards (Restricted).",
+                "cwe": "CWE-269",
+                "mitre_attack": "T1611"
+            })
+
+        if "comp-oauth" in comp_ids:
+            threats.append({
+                "category": "Spoofing",
+                "component": "External Identity Provider (OAuth2/OIDC)",
+                "title": "OAuth2 State Parameter CSRF & Redirect URI Manipulation",
+                "severity": Severity.HIGH,
+                "description": "OAuth authorization flow lacks cryptographically random state parameter or uses loose wildcard redirect_uri validation.",
+                "impact": "Account takeover via authorization code interception.",
+                "mitigation": "Enforce strict PKCE (S256), bind unique session state parameters, and use exact redirect_uri matches.",
+                "cwe": "CWE-384",
+                "mitre_attack": "T1566"
+            })
+
         return threats
 
     def _generate_mermaid_dfd(self, components: List[Dict[str, Any]], boundaries: List[str], flows: List[Dict[str, Any]]) -> str:

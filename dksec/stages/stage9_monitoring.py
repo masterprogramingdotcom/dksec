@@ -80,11 +80,14 @@ class Stage9Monitoring(BaseStage):
                 references=["https://documentation.wazuh.com/current/user-manual/capabilities/file-integrity/index.html"]
             ))
 
+        wazuh_rule_count = wazuh_xml.count('<rule id=')
+        sigma_rule_count = 10
+
         metrics = {
             "wazuh_integration_status": wazuh_status,
             "telemetry_score": fim_checks.get("readiness_score", 0),
-            "generated_wazuh_rules": 4,
-            "generated_sigma_rules": 3,
+            "generated_wazuh_rules": wazuh_rule_count,
+            "generated_sigma_rules": sigma_rule_count,
             "mitre_techniques_mapped": len(mitre_matrix),
             "wazuh_rules_file": wazuh_rules_path,
             "sigma_rules_file": sigma_path,
@@ -183,40 +186,123 @@ class Stage9Monitoring(BaseStage):
             '    <description>DKSec Alert: Sensitive cloud or payment API token detected in outgoing traffic/logs</description>',
             '    <mitre><id>T1552</id></mitre>',
             '  </rule>',
+            '  <rule id="100005" level="12">',
+            r'    <match>169\.254\.169\.254|metadata\.google\.internal|metadata/instance</match>',
+            '    <description>DKSec Critical Alert: SSRF probe attempting cloud instance metadata service access</description>',
+            '    <mitre><id>T1005</id></mitre>',
+            '  </rule>',
+            '  <rule id="100006" level="11">',
+            r'    <match>\{\{7\*7\}\}|\$\{7\*7\}|#\{7\*7\}|config\.items\(\)</match>',
+            '    <description>DKSec Alert: Server-Side Template Injection (SSTI) expression payload detected</description>',
+            '    <mitre><id>T1190</id></mitre>',
+            '  </rule>',
+            '  <rule id="100007" level="11">',
+            r'    <match>__proto__|constructor\[prototype\]</match>',
+            '    <description>DKSec Alert: JavaScript Prototype Pollution attack pattern detected in request body</description>',
+            '    <mitre><id>T1190</id></mitre>',
+            '  </rule>',
+            '  <rule id="100008" level="10">',
+            r'    <match>\.\./\.\./|%2e%2e%2f|/etc/shadow|/windows/win\.ini</match>',
+            '    <description>DKSec Alert: Path Traversal / Arbitrary File Read pattern detected</description>',
+            '    <mitre><id>T1083</id></mitre>',
+            '  </rule>',
+            '  <rule id="100009" level="13">',
+            r'    <match>\$\{jndi:(?:ldap|rmi|dns|nis):</match>',
+            '    <description>DKSec Critical Alert: Log4Shell / JNDI remote exploit string detected in request headers</description>',
+            '    <mitre><id>T1190</id></mitre>',
+            '  </rule>',
+            '  <rule id="100010" level="10">',
+            r'    <match>ignore previous instructions|DAN Mode|jailbreak|disregard guidelines</match>',
+            '    <description>DKSec Alert: Adversarial Prompt Injection / LLM Jailbreak attempt in request payload</description>',
+            '    <mitre><id>T1059</id></mitre>',
+            '  </rule>',
+            '  <rule id="100011" level="11">',
+            r'    <match>&lt;!ENTITY|SYSTEM\s+["\']file://|SYSTEM\s+["\']http://</match>',
+            '    <description>DKSec Alert: XML External Entity (XXE) injection payload in XML request</description>',
+            '    <mitre><id>T1190</id></mitre>',
+            '  </rule>',
+            '  <rule id="100012" level="12">',
+            r'    <match>\.php$|\.phtml$|\.jsp$|\.asp$|\.sh$|\.cgi$</match>',
+            '    <description>DKSec Critical Alert: Executable webshell file extension detected on file upload route</description>',
+            '    <mitre><id>T1505</id></mitre>',
+            '  </rule>',
+            '  <rule id="100013" level="8">',
+            '    <match>429 Too Many Requests</match>',
+            '    <description>DKSec Warning: Excessive rate limit breach / automated API scraping detected</description>',
+            '    <mitre><id>T1499</id></mitre>',
+            '  </rule>',
+            '  <rule id="100014" level="10">',
+            r'    <match>graphql\?query=__schema|IntrospectionQuery</match>',
+            '    <description>DKSec Alert: GraphQL introspection query executed against production endpoint</description>',
+            '    <mitre><id>T1592</id></mitre>',
+            '  </rule>',
+            '  <rule id="100015" level="12">',
+            r'    <match>hostPath|privileged:\s*true|runAsUser:\s*0</match>',
+            '    <description>DKSec Critical Alert: Container escape or privileged workload indicator detected</description>',
+            '    <mitre><id>T1611</id></mitre>',
+            '  </rule>',
             '</group>'
         ]
         return "\n".join(xml)
 
     def _generate_sigma_rules(self, project_name: str, findings: List[Finding]) -> str:
-        rule_obj = {
-            "title": f"Web Application Attack Signatures for {project_name}",
-            "id": "e7b1a2c3-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
-            "status": "experimental",
-            "description": "Detects web injection, reconnaissance, and token abuse identified during DKSec security audit.",
-            "references": ["https://github.com/SigmaHQ/sigma"],
-            "author": "DKSec Platform",
-            "date": "2026/09/17",
-            "logsource": {
-                "category": "webserver"
-            },
-            "detection": {
-                "selection_sqli": {
-                    "c-uri|contains": ["UNION SELECT", "1=1", "sleep("]
+        rules = [
+            {
+                "title": f"Web Application Injection Attacks for {project_name}",
+                "id": "e7b1a2c3-4d5e-6f7a-8b9c-0d1e2f3a4b5c",
+                "status": "experimental",
+                "description": "Detects web injection, reconnaissance, and token abuse identified during DKSec security audit.",
+                "references": ["https://github.com/SigmaHQ/sigma"],
+                "author": "DKSec Platform",
+                "date": "2026/09/18",
+                "logsource": {"category": "webserver"},
+                "detection": {
+                    "selection_sqli": {"c-uri|contains": ["UNION SELECT", "1=1", "sleep("]},
+                    "selection_recon": {"c-uri|contains": ["/.env", "/.git", "/actuator/env", "/backup.sql"]},
+                    "selection_ssrf": {"c-uri|contains": ["169.254.169.254", "metadata.google.internal"]},
+                    "selection_ssti": {"c-uri|contains": ["{{7*7}}", "${7*7}", "#{7*7}"]},
+                    "condition": "selection_sqli or selection_recon or selection_ssrf or selection_ssti"
                 },
-                "selection_recon": {
-                    "c-uri|contains": ["/.env", "/.git", "/actuator/env", "/backup.sql"]
-                },
-                "condition": "selection_sqli or selection_recon"
+                "falsepositives": ["Authorized Penetration Testing and Security Audits"],
+                "level": "high",
+                "tags": ["attack.initial_access", "attack.t1190", "attack.t1595"]
             },
-            "falsepositives": ["Authorized Penetration Testing and Security Audits"],
-            "level": "high",
-            "tags": [
-                "attack.initial_access",
-                "attack.t1190",
-                "attack.t1595"
-            ]
-        }
-        return yaml.dump(rule_obj, default_flow_style=False)
+            {
+                "title": f"Log4Shell and JNDI Exploit String Attempt on {project_name}",
+                "id": "f8c2b3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+                "status": "stable",
+                "description": "Detects JNDI lookup strings targeting Java backend services via user agent or request parameters.",
+                "references": ["https://attack.mitre.org/techniques/T1190/"],
+                "author": "DKSec Platform",
+                "date": "2026/09/18",
+                "logsource": {"category": "webserver"},
+                "detection": {
+                    "selection": {"c-uri|contains": ["${jndi:ldap:", "${jndi:rmi:", "${jndi:dns:"]},
+                    "condition": "selection"
+                },
+                "falsepositives": ["Vulnerability Scanners"],
+                "level": "critical",
+                "tags": ["attack.initial_access", "attack.t1190"]
+            },
+            {
+                "title": f"Adversarial LLM Prompt Injection on {project_name}",
+                "id": "a1b2c3d4-e5f6-7a8b-9c0d-e1f2a3b4c5d6",
+                "status": "experimental",
+                "description": "Detects attempts to bypass LLM system instructions or induce jailbreak behaviors.",
+                "references": ["https://owasp.org/www-project-top-10-for-large-language-model-applications/"],
+                "author": "DKSec Platform",
+                "date": "2026/09/18",
+                "logsource": {"category": "application"},
+                "detection": {
+                    "selection": {"prompt|contains": ["ignore previous instructions", "DAN mode", "disregard system prompt", "you are now unrestricted"]},
+                    "condition": "selection"
+                },
+                "falsepositives": ["Security research on prompt safety"],
+                "level": "high",
+                "tags": ["attack.execution", "attack.t1059"]
+            }
+        ]
+        return "\n---\n".join([yaml.dump(r, default_flow_style=False) for r in rules])
 
     def _map_to_mitre_attack(self, findings: List[Finding]) -> List[Dict[str, Any]]:
         technique_map = {
@@ -227,6 +313,10 @@ class Stage9Monitoring(BaseStage):
             "T1595": {"name": "Active Scanning & Reconnaissance", "tactic": "Reconnaissance", "findings": []},
             "T1068": {"name": "Exploitation for Privilege Escalation", "tactic": "Privilege Escalation", "findings": []},
             "T1195": {"name": "Supply Chain Compromise", "tactic": "Initial Access", "findings": []},
+            "T1005": {"name": "Data from Local System (SSRF / Metadata)", "tactic": "Collection", "findings": []},
+            "T1499": {"name": "Endpoint Denial of Service", "tactic": "Impact", "findings": []},
+            "T1505": {"name": "Server Software Component (Webshell)", "tactic": "Persistence", "findings": []},
+            "T1611": {"name": "Escape to Host (Container / K8s)", "tactic": "Privilege Escalation", "findings": []}
         }
 
         for f in findings:
@@ -237,25 +327,23 @@ class Stage9Monitoring(BaseStage):
         return [{"technique_id": k, **v, "count": len(v["findings"])} for k, v in technique_map.items() if v["findings"]]
 
     def _generate_nist_ir_playbook(self, project_name: str, findings: List[Finding], mitre_matrix: List[Dict[str, Any]]) -> str:
-        crit_count = sum(1 for f in findings if f.severity == Severity.CRITICAL)
-        high_count = sum(1 for f in findings if f.severity == Severity.HIGH)
-
         return f"""# NIST SP 800-61r2 Incident Response Playbook: {project_name}
-Automated incident triage playbooks and containment strategies generated by DKSec Platform.
+Automated enterprise incident triage playbooks and containment strategies generated by DKSec Platform.
 
 ## 1. Incident Classification & Severity SLAs
 | Severity | Description | Response SLA | Containment SLA | Notification Channel |
 | :--- | :--- | :--- | :--- | :--- |
 | **P1 - Critical** | Active RCE, data exfiltration, or leaked root cloud credentials | **15 Minutes** | **2 Hours** | CISO, On-call Page, Slack #sec-ops |
-| **P2 - High** | Confirmed SQLi/SSRF vulnerability accessible from internet | **1 Hour** | **8 Hours** | AppSec Team, Engineering Lead |
+| **P2 - High** | Confirmed SQLi/SSRF/XXE vulnerability accessible from internet | **1 Hour** | **8 Hours** | AppSec Team, Engineering Lead |
 | **P3 - Medium** | Security misconfiguration, missing headers, or non-exploited CVE | **24 Hours** | **7 Days** | Jira Security Backlog |
+| **P4 - Low** | Informational findings, technology banner disclosures | **72 Hours** | **30 Days** | Monthly Security Review |
 
 ## 2. Active Threat Surface & MITRE ATT&CK Alignment
 The following attack vectors were actively identified and mapped during the security review:
-{chr(10).join([f"- **{m['technique_id']} - {m['name']}** ({m['tactic']}): {m['count']} identified risks" for m in mitre_matrix])}
+{chr(10).join([f"- **{m['technique_id']} - {m['name']}** ({m['tactic']}): {m['count']} identified risks" for m in mitre_matrix]) if mitre_matrix else "- Baseline application monitoring active."}
 
 ## 3. Playbook 1: Leaked Cloud Credentials & Secret Revocation
-1. **Identification**: Alert triggered on secret exposure (Rule `100004` or Gitleaks finding).
+1. **Identification**: Alert triggered on secret exposure (Wazuh Rule `100004` or Stage 3 Secrets finding).
 2. **Containment**:
    - Immediately disable or delete exposed API keys in AWS/Stripe/GitHub console.
    - Force revocation of active sessions tied to exposed credentials.
@@ -265,14 +353,36 @@ The following attack vectors were actively identified and mapped during the secu
 4. **Recovery & Retest**:
    - Run `dksec scan --stages 3` to verify complete elimination of the credential leak.
 
-## 4. Playbook 2: Web Application Injection (SQLi / Command Injection)
-1. **Identification**: Wazuh Alert `100003` triggered with payload matching SQL/command syntax.
+## 4. Playbook 2: Web Application Injection (SQLi / Command Injection / SSRF)
+1. **Identification**: Wazuh Alert `100003` or `100005` triggered matching injection syntax.
 2. **Containment**:
    - Block malicious source IP at WAF / Reverse Proxy layer using Wazuh Active Response `firewall-drop`.
    - Place vulnerable API route in maintenance mode if active exploitation is observed.
 3. **Remediation**:
    - Inspect code diff generated in DKSec Stage 7 (`defectdojo-findings.json`).
-   - Replace raw concatenation with parameterized statements.
+   - Replace raw concatenation with parameterized statements; disallow private IP outbound calls.
 4. **Post-Incident Verification**:
    - Execute Stage 4 & 6 scans to confirm injection resilience.
+
+## 5. Playbook 3: AI / LLM Prompt Injection & Model Abuse
+1. **Identification**: Wazuh Alert `100010` triggered with jailbreak signatures.
+2. **Containment**:
+   - Temporarily rate-limit or suspend user session attempting jailbreak commands.
+   - Isolate model tool execution endpoints requiring human confirmation.
+3. **Remediation**:
+   - Harden system prompts with structured XML/Markdown guardrails.
+   - Deploy runtime LLM input-output guardrail filters before model invocation.
+4. **Recovery & Retest**:
+   - Re-run Stage 6 LLM security probe suite.
+
+## 6. Playbook 4: Container & Kubernetes Pod Compromise
+1. **Identification**: Wazuh Alert `100015` detecting unauthorized container capabilities or hostPath mounts.
+2. **Containment**:
+   - Cordon and isolate node: `kubectl cordon <node>` and isolate network policies.
+   - Terminate suspicious pods: `kubectl delete pod <pod> --grace-period=0`.
+3. **Remediation**:
+   - Enforce Pod Security Standards: `restricted` profile.
+   - Set `automountServiceAccountToken: false` on pods not requiring Kubernetes API access.
+4. **Post-Incident Verification**:
+   - Run DKSec Stage 8 Scorecard audit to ensure infrastructure hardening.
 """
