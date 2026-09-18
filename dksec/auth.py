@@ -218,8 +218,11 @@ class DKSecSessionManager:
                     self.auth_method = "login"
                 return True, f"Login successful (HTTP {r.status_code})"
             else:
-                err_text = r.text[:120].strip().replace('\n', ' ')
-                err = f"Login failed with status code {r.status_code}. Response: {err_text}"
+                err_text = r.text.strip().replace('\n', ' ')
+                if "<html" in err_text.lower() or "<body" in err_text.lower():
+                    err = f"Login failed. Server returned HTTP {r.status_code} HTML page (No session token/cookie issued. Check credentials)."
+                else:
+                    err = f"Login failed (HTTP {r.status_code}): {err_text[:120]}"
                 self.login_error = err
                 return False, err
 

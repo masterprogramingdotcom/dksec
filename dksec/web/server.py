@@ -1103,10 +1103,10 @@ class DKSecWebHandler(BaseHTTPRequestHandler):
         headers: {{ 'Content-Type': 'application/json' }},
         body: JSON.stringify({{ target_url: targetUrl, auth: auth }})
       }}).then(r => r.json()).then(d => {{
-        if (d.success || d.is_authenticated) {{
+        if (d.is_authenticated || (d.success && d.auth_method === 'none')) {{
           resBox.style.border = '1px solid #10b981';
           resBox.style.color = '#059669';
-          let details = `✔ Success: Authenticated via ${{(d.auth_method||'session').toUpperCase()}} (HTTP ${{d.status_code||200}}).`;
+          let details = `✔ Success: Validated via ${{(d.auth_method||'public endpoint').toUpperCase()}} (HTTP ${{d.status_code||200}}).`;
           if (d.token_found) details += ` Token captured.`;
           if (d.cookies_captured && d.cookies_captured.length > 0) details += ` Cookies: ${{d.cookies_captured.join(', ')}}.`;
           resBox.innerText = details;
